@@ -27,10 +27,29 @@ export `is_isomorphic`, `validate` and `to_graphviz`, and the parents' bindings 
 ## ADR 0018 invariants that must not be broken
 
 - Structural syntax (ACSets) and numerical semantics (kernels, policies, utilities) stay
-  separate; tables are never ACSet attributes. There is no semantics here yet (`RewardKernel`
-  and `interpret` are milestone M2).
+  separate; tables are never ACSet attributes. The semantics (`src/semantics.jl`) reads
+  the tables through the apex's references, as `instantiate` does.
 - Only variables cross a boundary. Decisions and utilities stay inside their component;
-  reward will cross only through the semantics.
+  reward crosses only through the semantics, as the `W` of a `RewardKernel`.
+- The semantics for a fixed strategy (ADR 0018, decision 3) is the expectation-semiring
+  kernel category: `RewardKernel(K, W)` with `K` a `FiniteKernel` and `W` a `Float64`
+  table of exactly `K`'s shape (outputs first, then inputs). Composition is
+  `(K₁K₂, W₁K₂ + K₁W₂)` and tensor `(K₁⊗K₂, W₁⊗K₂ + K₁⊗W₂)`; both are computed by
+  `FiniteKernels`' `compose_kernel` and `tensor_kernel`, with `W` passed as an unchecked
+  `FiniteKernel`. Never reimplement kernel arithmetic here. Identity, copy, discard and
+  swap are lifted with zero reward; discard is not natural (`f ; discard` keeps `f`'s
+  expected reward), which is the semantics, not a bug.
+- `interpret(o, kernels, utilities, σ)` follows `CategoricalBayesianNetworks`'
+  `interpret(::OpenBayesNet, kernels)` exactly: one axis per interface variable in
+  interface order, outputs first, joint states with the first variable fastest, apex
+  variables enumerated by part id, inputs held fixed (they have no mechanism). Kernels are
+  keyed by `KernelRef` or target name as there; utilities by utility name or `utility_ref`.
+  Policies are matched by decision name (equally named decisions share one), must be
+  `DeterministicPolicy` or `ConstantPolicy` (a `StochasticPolicy` is an `ArgumentError`:
+  ADR 0018 decision 4 keeps behavioural policies out of the first release), and a decision
+  reading an observed input reads the input's state directly. A model's evidence is an
+  `ArgumentError` (evidence composition is out of scope). `merge_strategies` is the
+  disjoint union and raises `DuplicatePolicyError` on a name in two strategies.
 - The feet are `VariableSpace`s, the same ACSets as CategoricalBayesianNetworks' feet. Never
   add observability to the feet schema: it lives beside the cospan in `OpenInfluenceDiagram`
   (`input_observability`, `output_observability`, one flag per interface position) and in
@@ -73,8 +92,10 @@ export `is_isomorphic`, `validate` and `to_graphviz`, and the parents' bindings 
 - Every operation takes its colimit with unset `Ref` attributes held by CategoricalBayesianNetworks'
   `_with_unset_refs_held`: `space_ref`, `kernel_ref` and, in an influence diagram,
   `utility_ref`. An unset reference is structurally valid and must stay unset.
-- Every optimised path will be checked against the closed-composite oracle (`instantiate`
-  then `expected_utility`) once there is a semantics.
+- Every law of the semantics, and every optimised path to come, is checked against the
+  closed-composite oracle (`instantiate` then `expected_utility`): `interpret` of a closed
+  composite is `(1, EU)`. Keep `interpret` an independent brute-force enumeration; never
+  short-cut it to `expected_utility`.
 
 ## Commands
 
@@ -98,11 +119,14 @@ influence-diagram schema); later loads are fast.
   `_require_attributes`, `_with_unset_refs_held`, `_acsets` (extended here with methods for
   this package's types), `_interface_difference`, `_variable_difference`, `_junction_name`
   and `_junction_suffix`. They are not CategoricalBayesianNetworks' public interface; a
-  change on either side has to be made on both.
+  change on either side has to be made on both. Likewise `BayesianNetworks`' brute-force
+  factor machinery, which `CategoricalBayesianNetworks`' `interpret` also uses:
+  `DEFAULT_MAX_STATES`, `_Factor` (whose fields `table`, `axes` and `strides` `_value`
+  reads), `_factors`, `_product` and `_joint_atol`.
 - `src/errors.jl`: `OpenInfluenceDiagramError <: BayesNetError` (ADR 0013, since the package
   defines several types) and its subtypes `ObservabilityMismatchError`,
-  `DiagramInterfaceError` and `NoForgettingError`, with `showerror` methods that name the
-  variables and decisions; included first.
+  `DiagramInterfaceError`, `NoForgettingError` and `DuplicatePolicyError`, with
+  `showerror` methods that name the variables and decisions; included first.
 - `src/open.jl`: `InfluenceDiagramCospan(Ob)(Untyped)` from
   `OpenACSetTypes(InfluenceDiagramUntyped, VariableSpaceUntyped)`; `OBSERVABILITY`;
   `OpenInfluenceDiagramOb` (space plus flags); `OpenInfluenceDiagram{C}` (a two-footed
@@ -116,13 +140,25 @@ influence-diagram schema); later loads are fast.
   (`⋅`), `glue`, `otimes` (`⊗`, also on interfaces), `munit`, `id`, `oapply` (vector and
   dictionary forms) and `validate_composition`. `compose` and `glue` demand unique names
   when both pieces had them; `otimes` and `oapply` do not, as in CategoricalBayesianNetworks.
+- `src/semantics.jl`: `RewardKernel` (accessors `kernel`, `reward`, `reward_matrix`,
+  `dom`, `codom`; `==`, `hash`, `isapprox`), `compose` (`⋅`) and `otimes` (`⊗`) on reward
+  kernels, `identity_reward_kernel`, `copy_reward_kernel`, `discard_reward_kernel`,
+  `swap_reward_kernel`, `merge_strategies`, and `interpret` on an open influence diagram
+  (dictionary and model forms). `_tensor` stands in for `FiniteKernels`' `tensor_kernel` on
+  two kernels `I → I`, where that function's broadcast yields a scalar and its type
+  assertion fails; drop it once `FiniteKernels` handles the case.
 - `test/runtests.jl`: `test_open.jl` (construction, accessors, flags, one failing case per
   rule, the Bayesian-network embedding; defines the umbrella split `umbrella_chance` and
   `umbrella_decision`), `test_composition.jl` (every operation; the umbrella, the SPEC §46
   grazing diagram at two boundaries and the two-stage diagram split and composed back to
   isomorphic diagrams; rules 1, 5 and 6 across boundaries; unset references),
-  `test_errors.jl` (hierarchy, re-exports, frozen names, messages) and
-  `test_docstrings.jl`.
+  `test_semantics.jl` (the reward-kernel laws on random reward kernels; `interpret` against
+  the closed-composite oracle under `compose`, `glue`, `otimes` and `oapply` on every
+  strategy of the umbrella and two-stage oil-wildcatter splits, on the grazing splits and on
+  seeded random diagrams cut into two and three pieces and placed side by side; identities,
+  associativity, interchange, copy and discard through the syntax; defines
+  `random_spec` and `random_pieces`), `test_errors.jl` (hierarchy, re-exports, frozen
+  names, messages) and `test_docstrings.jl`.
 - `proofs/`: the Lean project (see below).
 - `vignettes/`: the quarto project; no vignettes yet (milestone M5).
 
@@ -138,7 +174,8 @@ module states boundary observability (`OpenInfluence.Observability`,
 `InfluenceDiagramsProofs.FinInfluenceDiagram`, with two small lemmas. The ADR's theorems
 (decision and utility generators on the typed syntax, the expectation-semiring kernel
 category, functoriality of `interpret`, the contextual identity, the isolated-optimisation
-obstruction) are milestone M4; do not describe them as proved. `make audit` checks every
+obstruction) are milestone M4; do not describe them as proved. The Julia semantics of M2
+checks the category laws and functoriality numerically only. `make audit` checks every
 `#print axioms` line of `Audit.lean` against `propext`, `Classical.choice` and `Quot.sound`,
 scans the sources for escape hatches and runs the driver's guard regressions. The Lean CI
 workflow checks out the four sibling repositories beside this one.

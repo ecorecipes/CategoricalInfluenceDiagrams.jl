@@ -13,7 +13,10 @@
 #   `InterfaceMismatchError`, `NameClashError`, `DuplicateGeneratorError`,
 #   `CyclicBayesNetError`, `DanglingReferenceError` and `MissingAttributeError`, and
 #   InfluenceDiagrams' `DecisionUniquenessError`, `InvalidInformationSetError` and
-#   `DecisionPrecedenceCycleError`.
+#   `DecisionPrecedenceCycleError`; and, from the semantics, BayesianNetworks'
+#   `MissingKernelError`, `KernelBindingError` and `ModelTooLargeError`, InfluenceDiagrams'
+#   `IncompleteStrategyError`, `PolicySignatureError`, `MissingUtilityError` and
+#   `UtilityScopeError`, and FiniteKernels' `SpaceMismatchError`.
 # - A docstring names another package's type as a code span, never with `@ref`.
 
 """
@@ -111,4 +114,22 @@ function Base.showerror(io::IO, e::NoForgettingError)
                  " across the boundary as an observed variable and add it to the ",
                  "information set of :", e.decision,
                  ", or compose with `no_forgetting = false`")
+end
+
+"""
+    DuplicatePolicyError(decision)
+
+[`merge_strategies`](@ref) received two strategies that both have a policy for the
+decision named `decision`. The strategy of a composite is the disjoint union of its
+components' strategies (ADR 0018, decision 3), so each decision name may come from one
+component only.
+"""
+struct DuplicatePolicyError <: OpenInfluenceDiagramError
+    decision::Symbol
+end
+
+function Base.showerror(io::IO, e::DuplicatePolicyError)
+    return print(io, "DuplicatePolicyError: decision :", e.decision,
+                 " has a policy in more than one of the merged strategies; the strategy ",
+                 "of a composite is the disjoint union of its components' strategies")
 end

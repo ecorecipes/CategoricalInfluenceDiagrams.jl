@@ -36,16 +36,39 @@ Catlab out of the model layer (ADR 0009).
 - **Open Bayesian networks embed** with every interface variable hidden:
   `OpenInfluenceDiagram(o::OpenBayesNet)`, inverted by `OpenBayesNet(d)`.
 
+- **Semantics for a fixed strategy.** A [`RewardKernel`](@ref) `(K, W)` pairs a
+  `FiniteKernel` `K` from the input interface to the output interface with a table `W` of
+  the same shape: the probability-weighted reward earned on the way. Reward kernels compose
+  by `(K₁, W₁) ; (K₂, W₂) = (K₁K₂, W₁K₂ + K₁W₂)` and tensor by
+  `(K₁ ⊗ K₂, W₁ ⊗ K₂ + K₁ ⊗ W₂)`, with identities, copies, discards and swaps lifted from
+  `FiniteKernels.jl` with zero reward
+  ([`compose`](@ref compose(::RewardKernel, ::RewardKernel)),
+  [`otimes`](@ref otimes(::RewardKernel, ::RewardKernel)),
+  [`identity_reward_kernel`](@ref), [`copy_reward_kernel`](@ref),
+  [`discard_reward_kernel`](@ref), [`swap_reward_kernel`](@ref)). Discard is not natural:
+  dropping an output keeps the reward earned on the way to it.
+- **Interpretation.**
+  [`interpret`](@ref interpret(::OpenInfluenceDiagram, ::AbstractDict, ::AbstractDict, ::Strategy))
+  maps an open influence diagram and a deterministic strategy to its reward kernel, in the
+  layout `CategoricalBayesianNetworks.jl` uses for open networks. The strategy of a
+  composite is the disjoint union of its components' strategies
+  ([`merge_strategies`](@ref)). On a closed composite the result is `(1, EU)`, with `EU`
+  the expected utility that `InfluenceDiagrams.jl` computes, and the test suite checks
+  `interpret` against that oracle under `compose`, `glue`, `otimes` and `oapply`, on every
+  strategy of the umbrella and oil-wildcatter splits, on the SPEC §46 grazing diagram at
+  two boundaries, and on random small diagrams.
+
 A composite is an ordinary `InfluenceDiagram`, so the solvers of `InfluenceDiagrams.jl`
 (`instantiate`, `expected_utility`, `optimize`) apply to it once it is closed.
 
 ## Not yet here
 
-ADR 0018 also plans a compositional semantics for fixed strategies (`RewardKernel` and
-`interpret`), contextual optimisation, the Lean proofs of those results, and vignettes. They
-are later milestones. The Lean project in `proofs/` builds on the proof projects of
-`CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl` and so far states only boundary
-observability and information locality.
+ADR 0018 also plans contextual optimisation (optimising a component against an explicit
+boundary prior and continuation value), the Lean proofs of the semantics and of the
+optimisation results, and vignettes. They are later milestones. The functoriality of
+`interpret` is checked numerically, not proved. The Lean project in `proofs/` builds on the
+proof projects of `CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl` and so far
+states only boundary observability and information locality.
 
 ## Example
 
@@ -53,7 +76,7 @@ observability and information locality.
 DocTestSetup = :(using CategoricalInfluenceDiagrams)
 ```
 
-```jldoctest
+```jldoctest umbrella
 julia> chance = Open(influence_diagram(:Weather => [:sunny, :rainy],
                                        :Forecast => [:sunny, :cloudy, :rainy];
                                        mechanisms = [:Weather => (), :Forecast => :Weather],
@@ -69,6 +92,26 @@ julia> decide = Open(influence_diagram(:Weather => [:sunny, :rainy],
                      inputs = [:Weather, :Forecast], observed = [:Forecast]);
 
 julia> is_isomorphic(apex(compose(chance, decide)), umbrella_diagram())
+true
+```
+
+With the numbers of `umbrella_model`, the chance component's reward kernel composed with
+the decision component's equals the composite's, whose reward is the expected utility:
+
+```jldoctest umbrella
+julia> m = umbrella_model();
+
+julia> ks = Dict(x => kernel(m, x) for x in (:Weather, :Forecast));
+
+julia> σ = Strategy(:Umbrella => deterministic_policy(m, :Umbrella, [:leave, :leave, :take]));
+
+julia> r = compose(interpret(chance, ks, bound_utilities(m), Strategy()),
+                   interpret(decide, ks, bound_utilities(m), σ));
+
+julia> r ≈ interpret(compose(chance, decide), ks, bound_utilities(m), σ)
+true
+
+julia> reward(r)[] ≈ expected_utility(m, σ) ≈ 77
 true
 ```
 

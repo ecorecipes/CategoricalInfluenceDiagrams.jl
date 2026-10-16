@@ -29,13 +29,25 @@ which stays free of Catlab. The design is the workspace's ADR 0018,
 - `compose`, `glue`, `otimes` and `oapply` over undirected wiring diagrams, each a pushout
   or coproduct of ACSets with the rule checked again on the result.
 - Open Bayesian networks embed with every boundary variable hidden, and convert back.
+- `RewardKernel(K, W)`: the semantics of an open diagram under a fixed strategy, a
+  `FiniteKernel` `K` from the inputs to the outputs with a table `W` of the
+  probability-weighted reward earned on the way. Reward kernels compose by
+  `(K₁K₂, W₁K₂ + K₁W₂)` and tensor by `(K₁⊗K₂, W₁⊗K₂ + K₁⊗W₂)`, with identity, copy,
+  discard and swap lifted from `FiniteKernels.jl` with zero reward.
+- `interpret(o, kernels, utilities, σ)` (or `interpret(o, model, σ)`) maps an open diagram
+  and a deterministic strategy to its reward kernel; `merge_strategies` forms the strategy
+  of a composite. On a closed composite it gives `(1, EU)`, and the test suite checks it
+  against `expected_utility` of the closed composite under `compose`, `glue`, `otimes` and
+  `oapply`, on the umbrella, oil-wildcatter and grazing examples and on random diagrams.
 - Every name of `CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl` is re-exported.
 
-Not yet here: the compositional semantics of fixed strategies (`RewardKernel`, `interpret`),
-contextual optimisation, their Lean proofs, and the vignettes. They are later milestones of
-ADR 0018's plan. The Lean project in [`proofs/`](proofs/) so far states boundary
-observability and information locality over the two parent proof projects; it proves no
-theorem about composition yet.
+Not yet here: contextual optimisation (a component optimised against an explicit boundary
+prior and continuation value), the Lean proofs of the semantics and the optimisation
+results, and the vignettes. They are later milestones of ADR 0018's plan. The laws of
+`RewardKernel` and the functoriality of `interpret` are checked numerically, not proved.
+The Lean project in [`proofs/`](proofs/) so far states boundary observability and
+information locality over the two parent proof projects; it proves no theorem about
+composition yet.
 
 ## Installation
 
@@ -84,6 +96,19 @@ is_isomorphic(apex(whole), umbrella_diagram())   # true
 
 Declaring the forecast hidden instead makes `decide` invalid: its decision would read a
 variable that the boundary hides (`DiagramInterfaceError`, rule 3).
+
+With numbers bound, each component denotes a reward kernel for a fixed strategy, and the
+composite's is their composite:
+
+```julia
+m = umbrella_model()
+ks = Dict(x => kernel(m, x) for x in (:Weather, :Forecast))
+σ = Strategy(:Umbrella => deterministic_policy(m, :Umbrella, [:leave, :leave, :take]))
+r = compose(interpret(chance, ks, bound_utilities(m), Strategy()),
+            interpret(decide, ks, bound_utilities(m), σ))
+r ≈ interpret(whole, ks, bound_utilities(m), σ)   # true
+reward(r)[] ≈ 77                                   # true: the expected utility
+```
 
 ## Vignettes
 

@@ -19,6 +19,11 @@ Catlab-free (ADR 0009), the open-system machinery of the categorical layer.
     [`oapply`](@ref oapply(::UndirectedWiringDiagram, ::AbstractVector{<:OpenInfluenceDiagram})),
     each a pushout or coproduct of ACSets, with the rule (including its no-forgetting
     clause) checked again on the composite.
+  - **Semantics for a fixed strategy** (`src/semantics.jl`): [`RewardKernel`](@ref), the
+    expectation-semiring kernel category over `FiniteKernels.jl`, and
+    [`interpret`](@ref interpret(::OpenInfluenceDiagram, ::AbstractDict, ::AbstractDict, ::Strategy)),
+    which maps an open influence diagram and a deterministic strategy to its reward
+    kernel, functorially for `compose` and `otimes`.
 
 Every exported name of `CategoricalBayesianNetworks` and `InfluenceDiagrams` is re-exported,
 so `using CategoricalInfluenceDiagrams` is a superset of using both.
@@ -38,6 +43,11 @@ using BayesianNetworks: AbstractVariableSpace, BayesNetUntyped, VariableSpace,
                         VariableSpaceUntyped, BayesNetError, InterfaceError,
                         InterfaceMismatchError, NameClashError, DuplicateNameError,
                         DanglingReferenceError, MissingAttributeError
+# The brute-force factor machinery that `CategoricalBayesianNetworks`' `interpret` uses,
+# shared with it (see CLAUDE.md): none of it is `BayesianNetworks`' public interface.
+using BayesianNetworks: DEFAULT_MAX_STATES, _Factor, _factors, _product, _joint_atol
+using FiniteKernels: compose_kernel, tensor_kernel, identity_kernel, copy_kernel,
+                     discard_kernel, swap_kernel, axis_names
 using CategoricalBayesianNetworks
 using InfluenceDiagrams
 # Imported by name: the internals of `CategoricalBayesianNetworks.jl` that this package
@@ -54,10 +64,11 @@ using CategoricalBayesianNetworks: OpenBayesNetCospan, _foot, _leg, _leg_mismatc
 import Catlab.Theories: compose, otimes, munit, dom, codom, id, ⋅, ⊗
 import Catlab.CategoricalAlgebra: apex, legs, feet
 import Catlab.WiringDiagrams: oapply
-import BayesianNetworks: validate, validation_errors, inputs
+import BayesianNetworks: validate, validation_errors, inputs, kernel
 import CategoricalBayesianNetworks: Open, OpenBayesNet, outputs, input_space, output_space,
                                     input_variables, output_variables, left_leg, right_leg,
-                                    glue, interface_matches, validate_composition, _acsets
+                                    glue, interface_matches, validate_composition, _acsets,
+                                    interpret
 
 # Re-exported names of the two parent packages, so that `using CategoricalInfluenceDiagrams`
 # is a superset of `using CategoricalBayesianNetworks` and `using InfluenceDiagrams`. The two
@@ -72,15 +83,19 @@ end
 
 # errors.jl
 export OpenInfluenceDiagramError, ObservabilityMismatchError, DiagramInterfaceError,
-       NoForgettingError
+       NoForgettingError, DuplicatePolicyError
 # open.jl
 export InfluenceDiagramCospanObUntyped, InfluenceDiagramCospanUntyped,
        InfluenceDiagramCospanOb, InfluenceDiagramCospan, OpenInfluenceDiagramOb,
        OpenInfluenceDiagram, OBSERVABILITY, structured_cospan, observability,
        input_observability, output_observability, observed_inputs, observed_outputs
+# semantics.jl
+export RewardKernel, reward, reward_matrix, identity_reward_kernel, copy_reward_kernel,
+       discard_reward_kernel, swap_reward_kernel, merge_strategies
 
 include("errors.jl")
 include("open.jl")
 include("composition.jl")
+include("semantics.jl")
 
 end # module

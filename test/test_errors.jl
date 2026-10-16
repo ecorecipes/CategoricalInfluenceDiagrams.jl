@@ -13,7 +13,8 @@ end
     CID = CategoricalInfluenceDiagrams
     @test OpenInfluenceDiagramError <: BayesNetError
     @test isabstracttype(OpenInfluenceDiagramError)
-    for T in (ObservabilityMismatchError, DiagramInterfaceError, NoForgettingError)
+    for T in (ObservabilityMismatchError, DiagramInterfaceError, NoForgettingError,
+              DuplicatePolicyError)
         @test T <: OpenInfluenceDiagramError
         @test T <: AnyBayesNetError
         @test parentmodule(T) === CID
@@ -40,7 +41,8 @@ end
          (DiagramInterfaceError(2, :X, :X_mechanism, :mechanism), (":X", ":X_mechanism")),
          (DiagramInterfaceError(2, :A, :D, :decision), (":A", "decision :D")),
          (DiagramInterfaceError(3, :W, :D, :hidden_input), (":W", "decision :D")),
-         (NoForgettingError(:Drill, :Test, :Test), (":Drill", ":Test -> :Drill")))
+         (NoForgettingError(:Drill, :Test, :Test), (":Drill", ":Test -> :Drill")),
+         (DuplicatePolicyError(:Drill), (":Drill",)))
         msg = sprint(showerror, e)
         @test all(occursin(n, msg) for n in needles)
     end

@@ -9,6 +9,7 @@ using ACSets: attrs, acset_schema
 @testset "CategoricalInfluenceDiagrams" begin
     include("test_open.jl")
     include("test_composition.jl")
+    include("test_semantics.jl")
     include("test_errors.jl")
     include("test_docstrings.jl")
 end
