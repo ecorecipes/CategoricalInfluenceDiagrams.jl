@@ -5,6 +5,152 @@ assert_no_sorry OpenInfluence.ObservedInterface.sum
 assert_no_sorry OpenInfluence.ObservedInterface.empty
 assert_no_sorry OpenInfluence.informationLocal_of_no_hidden
 assert_no_sorry OpenInfluence.InformationLocal.of_reveal
+assert_no_sorry OpenInfluence.KernelAlgebra.kcomp_add_left
+assert_no_sorry OpenInfluence.KernelAlgebra.kcomp_add_right
+assert_no_sorry OpenInfluence.KernelAlgebra.kcomp_zero_left
+assert_no_sorry OpenInfluence.KernelAlgebra.kcomp_zero_right
+assert_no_sorry OpenInfluence.KernelAlgebra.ktensor_add_left
+assert_no_sorry OpenInfluence.KernelAlgebra.ktensor_add_right
+assert_no_sorry OpenInfluence.KernelAlgebra.ktensor_zero_left
+assert_no_sorry OpenInfluence.KernelAlgebra.ktensor_zero_right
+assert_no_sorry OpenInfluence.RewardKernel.comp
+assert_no_sorry OpenInfluence.RewardKernel.lift
+assert_no_sorry OpenInfluence.RewardKernel.id
+assert_no_sorry OpenInfluence.RewardKernel.tensor
+assert_no_sorry OpenInfluence.RewardKernel.ofFun
+assert_no_sorry OpenInfluence.RewardKernel.copy
+assert_no_sorry OpenInfluence.RewardKernel.discard
+assert_no_sorry OpenInfluence.RewardKernel.Stochastic
+assert_no_sorry OpenInfluence.RewardKernel.comp_K
+assert_no_sorry OpenInfluence.RewardKernel.comp_W
+assert_no_sorry OpenInfluence.RewardKernel.tensor_K
+assert_no_sorry OpenInfluence.RewardKernel.tensor_W
+assert_no_sorry OpenInfluence.RewardKernel.lift_K
+assert_no_sorry OpenInfluence.RewardKernel.lift_W
+assert_no_sorry OpenInfluence.RewardKernel.id_comp
+assert_no_sorry OpenInfluence.RewardKernel.comp_id
+assert_no_sorry OpenInfluence.RewardKernel.comp_assoc
+assert_no_sorry OpenInfluence.RewardKernel.lift_comp_lift
+assert_no_sorry OpenInfluence.RewardKernel.lift_tensor_lift
+assert_no_sorry OpenInfluence.RewardKernel.tensor_comp_tensor
+assert_no_sorry OpenInfluence.RewardKernel.tensor_id
+assert_no_sorry OpenInfluence.RewardKernel.tensor_assoc
+assert_no_sorry OpenInfluence.RewardKernel.tensor_unit_left
+assert_no_sorry OpenInfluence.RewardKernel.tensor_unit_right
+assert_no_sorry OpenInfluence.RewardKernel.tensor_swap
+assert_no_sorry OpenInfluence.RewardKernel.copy_assoc
+assert_no_sorry OpenInfluence.RewardKernel.copy_discard_left
+assert_no_sorry OpenInfluence.RewardKernel.copy_discard_right
+assert_no_sorry OpenInfluence.RewardKernel.copy_swap
+assert_no_sorry OpenInfluence.RewardKernel.comp_discard
+assert_no_sorry OpenInfluence.RewardKernel.comp_discard_eq_discard_iff
+assert_no_sorry OpenInfluence.RewardKernel.Stochastic.comp
+assert_no_sorry OpenInfluence.RewardKernel.Stochastic.tensor
+assert_no_sorry OpenInfluence.RewardKernel.Stochastic.ofFun
+assert_no_sorry OpenInfluence.RewardKernel.Stochastic.id
+assert_no_sorry OpenInfluence.RewardKernel.Stochastic.discard
+assert_no_sorry OpenInfluence.RewardKernel.Examples.unitReward
+assert_no_sorry OpenInfluence.RewardKernel.Examples.unitReward_stochastic
+assert_no_sorry OpenInfluence.RewardKernel.Examples.discard_not_natural
+assert_no_sorry OpenInfluence.FinRew.instCategory
+assert_no_sorry OpenInfluence.FinRew.comp_val
+assert_no_sorry OpenInfluence.FinRew.id_val
+assert_no_sorry OpenInfluence.FinRew.lift
+assert_no_sorry OpenInfluence.FinRew.det
+assert_no_sorry OpenInfluence.FinRew.isoOfEquiv
+assert_no_sorry OpenInfluence.FinRew.instMonoidalCategoryStruct
+assert_no_sorry OpenInfluence.FinRew.tensorHom_val
+assert_no_sorry OpenInfluence.FinRew.instMonoidalCategory
+assert_no_sorry OpenInfluence.FinRew.instSymmetricCategory
+assert_no_sorry OpenInfluence.FinRew.instComonObj
+assert_no_sorry OpenInfluence.FinRew.instIsCommComonObj
+assert_no_sorry OpenInfluence.FinRew.tensorμ_val
+assert_no_sorry OpenInfluence.FinRew.instCopyDiscardCategory
+assert_no_sorry OpenInfluence.FinRew.comp_discard_val
+assert_no_sorry OpenInfluence.FinRew.comp_discard_eq_iff
+assert_no_sorry OpenInfluence.FinRew.unitObj
+assert_no_sorry OpenInfluence.FinRew.unitReward
+assert_no_sorry OpenInfluence.FinRew.discard_not_natural
+assert_no_sorry OpenInfluence.FinRew.ofFinStoch
+assert_no_sorry OpenInfluence.FinRew.liftHom
+assert_no_sorry OpenInfluence.FinRew.liftHom_comp
+assert_no_sorry OpenInfluence.FinRew.liftHom_id
+assert_no_sorry OpenInfluence.FinRew.liftHom_tensor
+assert_no_sorry OpenInfluence.FinRew.liftHom_injective
+assert_no_sorry OpenInfluence.RewardKernel.eu
+assert_no_sorry OpenInfluence.RewardKernel.continuation
+assert_no_sorry OpenInfluence.RewardKernel.pushforward
+assert_no_sorry OpenInfluence.RewardKernel.prefixReward
+assert_no_sorry OpenInfluence.RewardKernel.eu_eq_continuation
+assert_no_sorry OpenInfluence.RewardKernel.eu_comp_general
+assert_no_sorry OpenInfluence.RewardKernel.eu_comp
+assert_no_sorry OpenInfluence.RewardKernel.eu_continuation
+assert_no_sorry OpenInfluence.RewardKernel.contextual_identity
+assert_no_sorry OpenInfluence.RewardKernel.eu_comp_needs_normalised
+assert_no_sorry OpenInfluence.IDSignature.Iface
+assert_no_sorry OpenInfluence.IDNet.IsDecision
+assert_no_sorry OpenInfluence.IDNet.info
+assert_no_sorry OpenInfluence.IDNet.ofNet
+assert_no_sorry OpenInfluence.IDNet.identity
+assert_no_sorry OpenInfluence.IDNet.comp
+assert_no_sorry OpenInfluence.IDNet.tensor
+assert_no_sorry OpenInfluence.IDNet.comp_net
+assert_no_sorry OpenInfluence.IDNet.tensor_net
+assert_no_sorry OpenInfluence.IDNet.inputIface
+assert_no_sorry OpenInfluence.IDNet.outputIface
+assert_no_sorry OpenInfluence.IDNet.generator
+assert_no_sorry OpenInfluence.IDNet.utility
+assert_no_sorry OpenInfluence.IDInterpretation.Strategy
+assert_no_sorry OpenInfluence.IDInterpretation.interp
+assert_no_sorry OpenInfluence.IDInterpretation.reward
+assert_no_sorry OpenInfluence.IDInterpretation.rewardTable
+assert_no_sorry OpenInfluence.IDInterpretation.interpret
+assert_no_sorry OpenInfluence.IDInterpretation.interpret_stochastic
+assert_no_sorry OpenInfluence.IDInterpretation.space
+assert_no_sorry OpenInfluence.IDInterpretation.interpretHom
+assert_no_sorry OpenInfluence.IDInterpretation.interp_weight_decision
+assert_no_sorry OpenInfluence.IDInterpretation.interp_weight_chance
+assert_no_sorry OpenInfluence.IDInterpretation.interpret_utility_K
+assert_no_sorry OpenInfluence.IDInterpretation.interpret_utility_W
+assert_no_sorry OpenInfluence.IDInterpretation.reward_comp
+assert_no_sorry OpenInfluence.IDInterpretation.reward_tensor
+assert_no_sorry OpenInfluence.IDInterpretation.sum_fibre_mul
+assert_no_sorry OpenInfluence.IDInterpretation.kernel_eq_sum
+assert_no_sorry OpenInfluence.IDInterpretation.rewardTable_comp
+assert_no_sorry OpenInfluence.IDInterpretation.interpret_comp
+assert_no_sorry OpenInfluence.IDInterpretation.interpretHom_comp
+assert_no_sorry OpenInfluence.IDInterpretation.interpret_identity
+assert_no_sorry OpenInfluence.IDInterpretation.interpretHom_identity
+assert_no_sorry OpenInfluence.IDInterpretation.join
+assert_no_sorry OpenInfluence.IDInterpretation.join_apply
+assert_no_sorry OpenInfluence.IDInterpretation.rewardTable_tensor
+assert_no_sorry OpenInfluence.IDInterpretation.kernel_tensor_join
+assert_no_sorry OpenInfluence.RewardKernel.reindex
+assert_no_sorry OpenInfluence.IDInterpretation.interpret_tensor
+assert_no_sorry OpenInfluence.IDInterpretation.interpret_tensor_natural
+assert_no_sorry OpenInfluence.IDInterpretation.contextual_identity
+assert_no_sorry OpenInfluence.Obstruction.Boundary
+assert_no_sorry OpenInfluence.Obstruction.early
+assert_no_sorry OpenInfluence.Obstruction.lateSel
+assert_no_sorry OpenInfluence.Obstruction.late
+assert_no_sorry OpenInfluence.Obstruction.Legal
+assert_no_sorry OpenInfluence.Obstruction.unitPrior
+assert_no_sorry OpenInfluence.Obstruction.zeroCont
+assert_no_sorry OpenInfluence.Obstruction.boundaryLaw
+assert_no_sorry OpenInfluence.Obstruction.IsolatedOptimal
+assert_no_sorry OpenInfluence.Obstruction.early_eu
+assert_no_sorry OpenInfluence.Obstruction.early_prefixReward
+assert_no_sorry OpenInfluence.Obstruction.late_normalised
+assert_no_sorry OpenInfluence.Obstruction.lateSel_eu
+assert_no_sorry OpenInfluence.Obstruction.late_eu
+assert_no_sorry OpenInfluence.Obstruction.composite_eu
+assert_no_sorry OpenInfluence.Obstruction.early_isolatedOptimal_iff
+assert_no_sorry OpenInfluence.Obstruction.late_isolatedOptimal
+assert_no_sorry OpenInfluence.Obstruction.isolated_optimisation_fails
+assert_no_sorry OpenInfluence.Obstruction.peek
+assert_no_sorry OpenInfluence.Obstruction.peek_pointwise_max
+assert_no_sorry OpenInfluence.Obstruction.peek_not_legal
+assert_no_sorry OpenInfluence.Obstruction.hidden_input_obstruction
 
 #print axioms OpenInfluence.ObservedInterface.sum
 #print axioms OpenInfluence.ObservedInterface.empty
@@ -13,3 +159,154 @@ assert_no_sorry OpenInfluence.InformationLocal.of_reveal
 #print axioms OpenInfluence.InformationLocal
 #print axioms OpenInfluence.informationLocal_of_no_hidden
 #print axioms OpenInfluence.InformationLocal.of_reveal
+#print axioms OpenInfluence.KernelAlgebra.kcomp_add_left
+#print axioms OpenInfluence.KernelAlgebra.kcomp_add_right
+#print axioms OpenInfluence.KernelAlgebra.kcomp_zero_left
+#print axioms OpenInfluence.KernelAlgebra.kcomp_zero_right
+#print axioms OpenInfluence.KernelAlgebra.ktensor_add_left
+#print axioms OpenInfluence.KernelAlgebra.ktensor_add_right
+#print axioms OpenInfluence.KernelAlgebra.ktensor_zero_left
+#print axioms OpenInfluence.KernelAlgebra.ktensor_zero_right
+#print axioms OpenInfluence.RewardKernel
+#print axioms OpenInfluence.RewardKernel.comp
+#print axioms OpenInfluence.RewardKernel.lift
+#print axioms OpenInfluence.RewardKernel.id
+#print axioms OpenInfluence.RewardKernel.tensor
+#print axioms OpenInfluence.RewardKernel.ofFun
+#print axioms OpenInfluence.RewardKernel.copy
+#print axioms OpenInfluence.RewardKernel.discard
+#print axioms OpenInfluence.RewardKernel.Stochastic
+#print axioms OpenInfluence.RewardKernel.comp_K
+#print axioms OpenInfluence.RewardKernel.comp_W
+#print axioms OpenInfluence.RewardKernel.tensor_K
+#print axioms OpenInfluence.RewardKernel.tensor_W
+#print axioms OpenInfluence.RewardKernel.lift_K
+#print axioms OpenInfluence.RewardKernel.lift_W
+#print axioms OpenInfluence.RewardKernel.id_comp
+#print axioms OpenInfluence.RewardKernel.comp_id
+#print axioms OpenInfluence.RewardKernel.comp_assoc
+#print axioms OpenInfluence.RewardKernel.lift_comp_lift
+#print axioms OpenInfluence.RewardKernel.lift_tensor_lift
+#print axioms OpenInfluence.RewardKernel.tensor_comp_tensor
+#print axioms OpenInfluence.RewardKernel.tensor_id
+#print axioms OpenInfluence.RewardKernel.tensor_assoc
+#print axioms OpenInfluence.RewardKernel.tensor_unit_left
+#print axioms OpenInfluence.RewardKernel.tensor_unit_right
+#print axioms OpenInfluence.RewardKernel.tensor_swap
+#print axioms OpenInfluence.RewardKernel.copy_assoc
+#print axioms OpenInfluence.RewardKernel.copy_discard_left
+#print axioms OpenInfluence.RewardKernel.copy_discard_right
+#print axioms OpenInfluence.RewardKernel.copy_swap
+#print axioms OpenInfluence.RewardKernel.comp_discard
+#print axioms OpenInfluence.RewardKernel.comp_discard_eq_discard_iff
+#print axioms OpenInfluence.RewardKernel.Stochastic.comp
+#print axioms OpenInfluence.RewardKernel.Stochastic.tensor
+#print axioms OpenInfluence.RewardKernel.Stochastic.ofFun
+#print axioms OpenInfluence.RewardKernel.Stochastic.id
+#print axioms OpenInfluence.RewardKernel.Stochastic.discard
+#print axioms OpenInfluence.RewardKernel.Examples.unitReward
+#print axioms OpenInfluence.RewardKernel.Examples.unitReward_stochastic
+#print axioms OpenInfluence.RewardKernel.Examples.discard_not_natural
+#print axioms OpenInfluence.FinRew
+#print axioms OpenInfluence.FinRew.instCategory
+#print axioms OpenInfluence.FinRew.comp_val
+#print axioms OpenInfluence.FinRew.id_val
+#print axioms OpenInfluence.FinRew.lift
+#print axioms OpenInfluence.FinRew.det
+#print axioms OpenInfluence.FinRew.isoOfEquiv
+#print axioms OpenInfluence.FinRew.instMonoidalCategoryStruct
+#print axioms OpenInfluence.FinRew.tensorHom_val
+#print axioms OpenInfluence.FinRew.instMonoidalCategory
+#print axioms OpenInfluence.FinRew.instSymmetricCategory
+#print axioms OpenInfluence.FinRew.instComonObj
+#print axioms OpenInfluence.FinRew.instIsCommComonObj
+#print axioms OpenInfluence.FinRew.tensorμ_val
+#print axioms OpenInfluence.FinRew.instCopyDiscardCategory
+#print axioms OpenInfluence.FinRew.comp_discard_val
+#print axioms OpenInfluence.FinRew.comp_discard_eq_iff
+#print axioms OpenInfluence.FinRew.unitObj
+#print axioms OpenInfluence.FinRew.unitReward
+#print axioms OpenInfluence.FinRew.discard_not_natural
+#print axioms OpenInfluence.FinRew.ofFinStoch
+#print axioms OpenInfluence.FinRew.liftHom
+#print axioms OpenInfluence.FinRew.liftHom_comp
+#print axioms OpenInfluence.FinRew.liftHom_id
+#print axioms OpenInfluence.FinRew.liftHom_tensor
+#print axioms OpenInfluence.FinRew.liftHom_injective
+#print axioms OpenInfluence.RewardKernel.eu
+#print axioms OpenInfluence.RewardKernel.continuation
+#print axioms OpenInfluence.RewardKernel.pushforward
+#print axioms OpenInfluence.RewardKernel.prefixReward
+#print axioms OpenInfluence.RewardKernel.eu_eq_continuation
+#print axioms OpenInfluence.RewardKernel.eu_comp_general
+#print axioms OpenInfluence.RewardKernel.eu_comp
+#print axioms OpenInfluence.RewardKernel.eu_continuation
+#print axioms OpenInfluence.RewardKernel.contextual_identity
+#print axioms OpenInfluence.RewardKernel.eu_comp_needs_normalised
+#print axioms OpenInfluence.IDSignature
+#print axioms OpenInfluence.IDSignature.Iface
+#print axioms OpenInfluence.IDNet
+#print axioms OpenInfluence.IDNet.IsDecision
+#print axioms OpenInfluence.IDNet.info
+#print axioms OpenInfluence.IDNet.ofNet
+#print axioms OpenInfluence.IDNet.identity
+#print axioms OpenInfluence.IDNet.comp
+#print axioms OpenInfluence.IDNet.tensor
+#print axioms OpenInfluence.IDNet.comp_net
+#print axioms OpenInfluence.IDNet.tensor_net
+#print axioms OpenInfluence.IDNet.inputIface
+#print axioms OpenInfluence.IDNet.outputIface
+#print axioms OpenInfluence.IDNet.generator
+#print axioms OpenInfluence.IDNet.utility
+#print axioms OpenInfluence.IDInterpretation
+#print axioms OpenInfluence.IDInterpretation.Strategy
+#print axioms OpenInfluence.IDInterpretation.interp
+#print axioms OpenInfluence.IDInterpretation.reward
+#print axioms OpenInfluence.IDInterpretation.rewardTable
+#print axioms OpenInfluence.IDInterpretation.interpret
+#print axioms OpenInfluence.IDInterpretation.interpret_stochastic
+#print axioms OpenInfluence.IDInterpretation.space
+#print axioms OpenInfluence.IDInterpretation.interpretHom
+#print axioms OpenInfluence.IDInterpretation.interp_weight_decision
+#print axioms OpenInfluence.IDInterpretation.interp_weight_chance
+#print axioms OpenInfluence.IDInterpretation.interpret_utility_K
+#print axioms OpenInfluence.IDInterpretation.interpret_utility_W
+#print axioms OpenInfluence.IDInterpretation.reward_comp
+#print axioms OpenInfluence.IDInterpretation.reward_tensor
+#print axioms OpenInfluence.IDInterpretation.sum_fibre_mul
+#print axioms OpenInfluence.IDInterpretation.kernel_eq_sum
+#print axioms OpenInfluence.IDInterpretation.rewardTable_comp
+#print axioms OpenInfluence.IDInterpretation.interpret_comp
+#print axioms OpenInfluence.IDInterpretation.interpretHom_comp
+#print axioms OpenInfluence.IDInterpretation.interpret_identity
+#print axioms OpenInfluence.IDInterpretation.interpretHom_identity
+#print axioms OpenInfluence.IDInterpretation.join
+#print axioms OpenInfluence.IDInterpretation.join_apply
+#print axioms OpenInfluence.IDInterpretation.rewardTable_tensor
+#print axioms OpenInfluence.IDInterpretation.kernel_tensor_join
+#print axioms OpenInfluence.RewardKernel.reindex
+#print axioms OpenInfluence.IDInterpretation.interpret_tensor
+#print axioms OpenInfluence.IDInterpretation.interpret_tensor_natural
+#print axioms OpenInfluence.IDInterpretation.contextual_identity
+#print axioms OpenInfluence.Obstruction.Boundary
+#print axioms OpenInfluence.Obstruction.early
+#print axioms OpenInfluence.Obstruction.lateSel
+#print axioms OpenInfluence.Obstruction.late
+#print axioms OpenInfluence.Obstruction.Legal
+#print axioms OpenInfluence.Obstruction.unitPrior
+#print axioms OpenInfluence.Obstruction.zeroCont
+#print axioms OpenInfluence.Obstruction.boundaryLaw
+#print axioms OpenInfluence.Obstruction.IsolatedOptimal
+#print axioms OpenInfluence.Obstruction.early_eu
+#print axioms OpenInfluence.Obstruction.early_prefixReward
+#print axioms OpenInfluence.Obstruction.late_normalised
+#print axioms OpenInfluence.Obstruction.lateSel_eu
+#print axioms OpenInfluence.Obstruction.late_eu
+#print axioms OpenInfluence.Obstruction.composite_eu
+#print axioms OpenInfluence.Obstruction.early_isolatedOptimal_iff
+#print axioms OpenInfluence.Obstruction.late_isolatedOptimal
+#print axioms OpenInfluence.Obstruction.isolated_optimisation_fails
+#print axioms OpenInfluence.Obstruction.peek
+#print axioms OpenInfluence.Obstruction.peek_pointwise_max
+#print axioms OpenInfluence.Obstruction.peek_not_legal
+#print axioms OpenInfluence.Obstruction.hidden_input_obstruction

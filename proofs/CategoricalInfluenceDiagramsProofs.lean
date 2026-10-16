@@ -1,1 +1,7 @@
 import CategoricalInfluenceDiagramsProofs.Basic
+import CategoricalInfluenceDiagramsProofs.RewardKernel
+import CategoricalInfluenceDiagramsProofs.Category
+import CategoricalInfluenceDiagramsProofs.Context
+import CategoricalInfluenceDiagramsProofs.Syntax
+import CategoricalInfluenceDiagramsProofs.Interpretation
+import CategoricalInfluenceDiagramsProofs.Obstruction

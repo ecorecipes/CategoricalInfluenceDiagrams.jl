@@ -16,10 +16,13 @@ with a flag on every port, and the tensor of two such interfaces places ports an
 by side. **Information locality**, rule 3 of the typed-interface rule, says that no decision
 of a finite influence diagram reads a variable that its boundary declares hidden.
 
-Decision and utility generators on the typed syntax, the expectation-semiring kernel
-category, the functoriality of the fixed-strategy interpretation, the contextual identity and
-the isolated-optimisation obstruction are later milestones (M4 of the plan); nothing here
-states them.
+The later modules prove the rest of ADR 0018, decision 5: the expectation-semiring kernel
+category with its symmetric monoidal structure (`RewardKernel.lean`, `Category.lean`), the
+contextual identity (`Context.lean`), decision and utility generators on the typed syntax
+(`Syntax.lean`), the functoriality of the fixed-strategy interpretation
+(`Interpretation.lean`) and the isolated-optimisation and hidden-input obstructions
+(`Obstruction.lean`). The observability flags of this module are not read by that
+semantics.
 -/
 
 set_option autoImplicit false

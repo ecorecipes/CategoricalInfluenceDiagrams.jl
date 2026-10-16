@@ -126,7 +126,7 @@ export `is_isomorphic`, `validate` and `to_graphviz`, and the parents' bindings 
 ```sh
 julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.test()'   # the test suite
 julia --project=docs docs/make.jl --no-deploy                     # build docs locally (strict)
-cd vignettes && quarto render                                     # render vignettes (none yet; milestone M5)
+cd vignettes && quarto render                                     # render vignettes (render each .qmd on its own to re-execute)
 julia scripts/sync_vignettes.jl [--check]                         # copy vignettes into docs/src/tutorials
 cd proofs && lake build --wfail && make audit && make docs        # the Lean project
 ```
@@ -196,7 +196,7 @@ influence-diagram schema); later loads are fast.
   input and rule 3 rejects it), `test_errors.jl` (hierarchy, re-exports, frozen names,
   messages) and `test_docstrings.jl`.
 - `proofs/`: the Lean project (see below).
-- `vignettes/`: the quarto project; no vignettes yet (milestone M5).
+- `vignettes/`: the quarto project: 01 open influence diagrams and composition, 02 a management decision composed with the zoo's `reference_habitat_bn` (MIT, built in), 03 why optimisation does not compose.
 
 ## Proofs
 
@@ -204,15 +204,20 @@ influence-diagram schema); later loads are fast.
 `CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl` proof projects by relative path
 (and through them the BayesianNetworks and FiniteKernels ones), sharing the workspace's
 `../../.lake-packages`. `lake-manifest.json` was written by hand from the siblings' pins,
-because the sandbox has no network; keep its revisions equal to theirs. So far the root
-module states boundary observability (`OpenInfluence.Observability`,
-`ObservedInterface` over `OpenNet.Interface`) and information locality (rule 3) over
-`InfluenceDiagramsProofs.FinInfluenceDiagram`, with two small lemmas. The ADR's theorems
-(decision and utility generators on the typed syntax, the expectation-semiring kernel
-category, functoriality of `interpret`, the contextual identity, the isolated-optimisation
-obstruction) are milestone M4; do not describe them as proved. The Julia semantics of M2
-checks the category laws and functoriality numerically only, and M3 checks the contextual
-identity and reproduces the isolated-optimisation counterexample numerically only. `make audit` checks every
+because the sandbox has no network; keep its revisions equal to theirs. Namespace
+`OpenInfluence`, modules `Basic` (observability, information locality), `RewardKernel`,
+`Category` (`FinRew` with Mathlib's symmetric monoidal copy-discard instances; discard is
+not natural), `Context` (the contextual identity; its first equation needs the suffix
+normalised), `Syntax` (`IDNet`: ADR 0010's open nets with decision labels and utility
+generators), `Interpretation` (`interpret_comp`, `interpret_identity`, `interpret_tensor`)
+and `Obstruction` (the isolated and hidden-input witnesses, as reward-kernel tables). The
+restrictions in `proofs/README.md` ("Scope and restrictions") are part of every claim:
+`IDNet` is not quotiented by isomorphism, so functoriality is equations on
+representatives; the semantics does not read observability flags; nothing about arbitrary
+gluing, evidence or the Julia-to-Lean refinement is proved. Every theorem sentence in
+`proofs/README.md` is an SA-Pass claim (`cid.*` in the workspace
+`conformance/sapass/claims.toml`, shadows in `CategoricalInfluenceDiagramsProofs/Shadows/`,
+a `lean_lib` outside `defaultTargets`); change a sentence and its claim together. `make audit` checks every
 `#print axioms` line of `Audit.lean` against `propext`, `Classical.choice` and `Quot.sound`,
 scans the sources for escape hatches and runs the driver's guard regressions. The Lean CI
 workflow checks out the four sibling repositories beside this one.

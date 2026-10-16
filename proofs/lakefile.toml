@@ -28,3 +28,9 @@ path = "../../CategoricalBayesianNetworks.jl/proofs"
 [[require]]
 name = "influence_diagrams_proofs"
 path = "../../InfluenceDiagrams.jl/proofs"
+
+# SA-Pass shadow modules (conformance/sapass), built by the runner, not by default.
+[[lean_lib]]
+name = "Shadows"
+srcDir = "."
+globs = ["CategoricalInfluenceDiagramsProofs.Shadows.*"]
