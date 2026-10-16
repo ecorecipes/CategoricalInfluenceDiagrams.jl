@@ -35,3 +35,11 @@ unpack it there, or point `monofontoptions: Path=` at an absolute directory. TeX
 requirements: `lualatex`, `koma-script`, `fvextra`, `stix2-otf` (TinyTeX installs the
 rest on demand) and `rsvg-convert` (librsvg) for the SVG figures produced by
 `to_graphviz`.
+
+## Vignettes and data
+
+`02_management_decision_with_zoo_network` reads two models of the model zoo of
+`EcologicalBayesianNetworks.jl`, `reference_habitat_bn` and `reference_grazing_id`. Both
+are built into the zoo under the MIT licence, so the vignette downloads nothing.
+`references.bib` is a copy of the workspace-level `docs/references.bib`, as in the
+sibling packages.

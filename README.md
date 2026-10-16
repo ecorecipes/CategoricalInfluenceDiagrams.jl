@@ -52,14 +52,24 @@ which stays free of Catlab. The design is the workspace's ADR 0018,
   composite attains 4.
 - Every name of `CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl` is re-exported.
 
-Not yet here: the Lean proofs of the semantics and the optimisation results, and the
-vignettes. They are later milestones of ADR 0018's plan. The laws of `RewardKernel`, the
-functoriality of `interpret`, the contextual identity and the isolated-optimisation
-counterexample are checked numerically, not proved. Randomised (behavioural) policies and
-evidence across a boundary are outside the first release.
-The Lean project in [`proofs/`](proofs/) so far states boundary observability and
-information locality over the two parent proof projects; it proves no theorem about
-composition yet.
+Randomised (behavioural) policies and evidence across a boundary are outside the first
+release.
+
+## Proofs
+
+The Lean project in [`proofs/`](proofs/) builds on the proof projects of
+`CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl`. Among its results:
+
+- Reward kernels form a category: serial composition `(K₁, W₁) ; (K₂, W₂) = (K₁K₂, W₁K₂ + K₁W₂)` is associative and has the identity `(id, 0)` as a unit on both sides.
+- For a fixed deterministic strategy, the interpretation of open influence diagrams sends serial composition to composition of reward kernels, identities to `(id, 0)`, and tensor to the tensor of reward kernels.
+- For reward kernels whose suffix has a normalised probability component, and so for all open influence diagrams under a fixed strategy, `EU_{f;g}(μ, c) = EU_f(μ, c_g) = L_f + EU_g(ν_f, c)`.
+- In the bundle's witness, every pair of separately optimal components composes to expected utility 1, while the joint optimum is 4.
+
+The syntax is not quotiented by isomorphism, the semantics does not read observability
+flags, and nothing is proved about arbitrary gluing, evidence or the refinement from Julia
+to Lean; [`proofs/README.md`](proofs/README.md) lists every theorem and these restrictions.
+Each sentence above is checked against its Lean statement by the workspace's SA-Pass
+harness. The Julia test suite checks the same laws numerically.
 
 ## Installation
 
@@ -134,5 +144,11 @@ contextual_optimize(decide, ks, bound_utilities(m); prior = ν).expected_utility
 
 ## Vignettes
 
-Rendered vignettes will live in [`vignettes/`](vignettes/) and be published in the
-[documentation](https://ecorecipes.github.io/CategoricalInfluenceDiagrams.jl/).
+| # | Vignette | Description |
+|---|---|---|
+| 1 | [Open influence diagrams and composition](https://github.com/ecorecipes/CategoricalInfluenceDiagrams.jl/blob/main/vignettes/01_open_influence_diagrams/01_open_influence_diagrams.md) | Observability flags, the typed-interface rule and its typed errors, splitting the umbrella problem and composing it back with `compose`, `glue`, `otimes` and `oapply`, and reward kernels checked against the expected utility of the closed composite |
+| 2 | [Composing a management decision with a zoo network](https://github.com/ecorecipes/CategoricalInfluenceDiagrams.jl/blob/main/vignettes/02_management_decision_with_zoo_network/02_management_decision_with_zoo_network.md) | The zoo's reference habitat network opened at a boundary, a grazing decision and a valuation attached as components, the closed composite optimised, and the decision component optimised against the network's boundary law and value function |
+| 3 | [Why optimisation does not compose](https://github.com/ecorecipes/CategoricalInfluenceDiagrams.jl/blob/main/vignettes/03_why_optimisation_does_not_compose/03_why_optimisation_does_not_compose.md) | The isolated-optimisation counterexample (1 < 4), why it fails, the contextual repair, and why pointwise maximisation over hidden boundary states is refused by rule 3 |
+
+Each vignette is also published as a tutorial in the [documentation](https://ecorecipes.github.io/CategoricalInfluenceDiagrams.jl/);
+the sources are the `.qmd` files in [`vignettes/`](vignettes/).

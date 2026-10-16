@@ -7,6 +7,7 @@ BayesianNetworks = "47d2e50c-3d9a-425e-96fd-023c794d3c65"
 BayesianNetworkFormats = "590d4596-919e-4d5f-b4a5-097a6400eab8"
 MarkovCategories = "89535b7d-47b5-4a7c-ab85-485cba9d75b9"
 FiniteKernels = "2ee73795-50db-4096-9573-22982ed4949b"
+EcologicalBayesianNetworks = "c6b9e98e-d978-423e-90bc-2541a79df2a3"
 
 [sources]
 CategoricalInfluenceDiagrams = {path = ".."}
@@ -17,3 +18,4 @@ BayesianNetworks = {path = "../../BayesianNetworks.jl"}
 BayesianNetworkFormats = {path = "../../BayesianNetworkFormats.jl"}
 MarkovCategories = {path = "../../MarkovCategories.jl"}
 FiniteKernels = {path = "../../FiniteKernels.jl"}
+EcologicalBayesianNetworks = {path = "../../EcologicalBayesianNetworks.jl"}

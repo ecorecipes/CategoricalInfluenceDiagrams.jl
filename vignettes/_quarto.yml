@@ -10,6 +10,12 @@ engine: julia
 julia:
   project: "."
 
+# The bibliography is a copy of the workspace-level docs/references.bib, as in the
+# sibling packages. The path is resolved relative to this project directory
+# (vignettes/), not to the individual vignette directories.
+bibliography: references.bib
+link-citations: true
+
 format:
   gfm:
     toc: true
