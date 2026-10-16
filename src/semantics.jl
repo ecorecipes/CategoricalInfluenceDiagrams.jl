@@ -135,15 +135,6 @@ end
 
 ⋅(a::RewardKernel, b::RewardKernel) = compose(a, b)
 
-# `FiniteKernels`' `tensor_kernel`, except on two kernels `I → I`: there its broadcast
-# returns a scalar where it asserts an array (a gap recorded in CLAUDE.md), so the product
-# of the two numbers is formed here.
-function _tensor(k::FiniteKernel, l::FiniteKernel)
-    ndims(k.table) == ndims(l.table) == 0 || return tensor_kernel(k, l)
-    return FiniteKernel(FiniteSpace(), FiniteSpace(), fill(k.table[] * l.table[]);
-                        check=false)
-end
-
 """
     otimes(a::RewardKernel, b::RewardKernel, cs::RewardKernel...) -> RewardKernel
     a ⊗ b
@@ -153,9 +144,9 @@ The tensor `(K₁ ⊗ K₂, W₁ ⊗ K₂ + K₁ ⊗ W₂)` on `dom(a) ⊗ dom(b
 rewards add. Further reward kernels are folded on from the left.
 """
 function otimes(a::RewardKernel, b::RewardKernel)
-    K = _tensor(a.kernel, b.kernel)
-    W = _tensor(_reward_kernel(a), b.kernel).table +
-        _tensor(a.kernel, _reward_kernel(b)).table
+    K = tensor_kernel(a.kernel, b.kernel)
+    W = tensor_kernel(_reward_kernel(a), b.kernel).table +
+        tensor_kernel(a.kernel, _reward_kernel(b)).table
     return RewardKernel(K, W)
 end
 function otimes(a::RewardKernel, b::RewardKernel, c::RewardKernel, cs::RewardKernel...)

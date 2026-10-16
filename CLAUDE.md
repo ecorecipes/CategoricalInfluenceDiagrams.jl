@@ -170,9 +170,8 @@ influence-diagram schema); later loads are fast.
   `dom`, `codom`; `==`, `hash`, `isapprox`), `compose` (`⋅`) and `otimes` (`⊗`) on reward
   kernels, `identity_reward_kernel`, `copy_reward_kernel`, `discard_reward_kernel`,
   `swap_reward_kernel`, `merge_strategies`, and `interpret` on an open influence diagram
-  (dictionary and model forms). `_tensor` stands in for `FiniteKernels`' `tensor_kernel` on
-  two kernels `I → I`, where that function's broadcast yields a scalar and its type
-  assertion fails; drop it once `FiniteKernels` handles the case.
+  (dictionary and model forms). Tensoring two kernels `I → I` relies on `FiniteKernels`'
+  `tensor_kernel` returning a rank-0 array (fixed there in `e78404a`).
 - `src/optimization.jl`: `optimize` on a closed composite (dictionary and model forms;
   imported from `InfluenceDiagrams` and extended), `contextual_value`,
   `continuation_value` and `boundary_law` (each on a `RewardKernel` and, through
