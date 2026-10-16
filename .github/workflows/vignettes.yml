@@ -40,6 +40,11 @@ jobs:
         with:
           repository: ecorecipes/FiniteKernels.jl
           path: FiniteKernels.jl
+      # Vignette 02 composes a decision with the model zoo's reference habitat network.
+      - uses: actions/checkout@v4
+        with:
+          repository: ecorecipes/EcologicalBayesianNetworks.jl
+          path: EcologicalBayesianNetworks.jl
       - uses: julia-actions/setup-julia@v2
         with:
           version: '1.12'
