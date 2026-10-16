@@ -16,7 +16,10 @@
 #   `DecisionPrecedenceCycleError`; and, from the semantics, BayesianNetworks'
 #   `MissingKernelError`, `KernelBindingError` and `ModelTooLargeError`, InfluenceDiagrams'
 #   `IncompleteStrategyError`, `PolicySignatureError`, `MissingUtilityError` and
-#   `UtilityScopeError`, and FiniteKernels' `SpaceMismatchError`.
+#   `UtilityScopeError`, and FiniteKernels' `SpaceMismatchError`; and, from the
+#   optimisation, InfluenceDiagrams' `PolicySearchTooLargeError` (which
+#   `contextual_optimize` raises itself, as `ExhaustivePolicySearch` does, for the same
+#   condition) and the errors of its solvers, among them `IrregularDiagramError`.
 # - A docstring names another package's type as a code span, never with `@ref`.
 
 """

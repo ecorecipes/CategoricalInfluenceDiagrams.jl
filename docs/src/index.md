@@ -57,18 +57,36 @@ Catlab out of the model layer (ADR 0009).
   `interpret` against that oracle under `compose`, `glue`, `otimes` and `oapply`, on every
   strategy of the umbrella and oil-wildcatter splits, on the SPEC §46 grazing diagram at
   two boundaries, and on random small diagrams.
-
-A composite is an ordinary `InfluenceDiagram`, so the solvers of `InfluenceDiagrams.jl`
-(`instantiate`, `expected_utility`, `optimize`) apply to it once it is closed.
+- **Optimisation, contextual and never isolated.** A composite is an ordinary
+  `InfluenceDiagram`, and
+  [`optimize`](@ref optimize(::OpenInfluenceDiagram, ::AbstractDict, ::AbstractDict))
+  hands a closed composite to the solvers of `InfluenceDiagrams.jl`. An open component
+  `f : X → Y` has no expected utility of its own: [`contextual_value`](@ref) scores it
+  under a fixed strategy against an explicit prior `μ` on its joint input states and an
+  explicit continuation `c` on its joint output states, `Σ_x μ(x) Σ_y (W(y, x) + K(y | x) c(y))`,
+  and [`contextual_optimize`](@ref) maximises that over the legal deterministic strategies.
+  For a serial composite `f ⋅ g` the contexts are the suffix's value function
+  ([`continuation_value`](@ref)) and the prefix's boundary law ([`boundary_law`](@ref)),
+  and the contextual identity `EU_{f;g}(σ, τ; μ, c) = EU_f(σ; μ, c_τ) = L_σ + EU_g(τ; ν_σ, c)`
+  holds; the test suite checks it against the closed-composite oracle, and checks that
+  both orders of contextual maximisation reach the optimum the solvers find.
+  There is deliberately no "optimise each component, then compose" operation. The test
+  suite reproduces the counterexample of the research bundle's Lean track: a fair hidden
+  bit, an early action with utility `-[A]`, a late action that observes only `A` with
+  utilities `4[A]` and `2[B = H]`. Each component optimised in isolation (zero
+  continuation, actual induced prior) composes to the value `1`, while the composite
+  attains `4`. Maximising separately at each hidden boundary state would need a policy that
+  reads the hidden input, which rule 3 rejects.
 
 ## Not yet here
 
-ADR 0018 also plans contextual optimisation (optimising a component against an explicit
-boundary prior and continuation value), the Lean proofs of the semantics and of the
-optimisation results, and vignettes. They are later milestones. The functoriality of
-`interpret` is checked numerically, not proved. The Lean project in `proofs/` builds on the
-proof projects of `CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl` and so far
-states only boundary observability and information locality.
+ADR 0018 also plans the Lean proofs of the semantics and of the optimisation results, and
+vignettes. They are later milestones. The functoriality of `interpret`, the contextual
+identity and the counterexample are checked numerically, not proved. Randomised
+(behavioural) policies and evidence across a boundary are outside the first release. The
+Lean project in `proofs/` builds on the proof projects of `CategoricalBayesianNetworks.jl`
+and `InfluenceDiagrams.jl` and so far states only boundary observability and information
+locality.
 
 ## Example
 
@@ -112,6 +130,20 @@ julia> r ≈ interpret(compose(chance, decide), ks, bound_utilities(m), σ)
 true
 
 julia> reward(r)[] ≈ expected_utility(m, σ) ≈ 77
+true
+```
+
+The closed composite is solved by `InfluenceDiagrams.jl`'s solvers; the open decision
+component reaches the same optimum when it is optimised against the law the chance
+component induces on the boundary:
+
+```jldoctest umbrella
+julia> optimize(compose(chance, decide), ks, bound_utilities(m)).expected_utility ≈ 77
+true
+
+julia> ν = boundary_law(chance, ks, bound_utilities(m), Strategy());
+
+julia> contextual_optimize(decide, ks, bound_utilities(m); prior = ν).expected_utility ≈ 77
 true
 ```
 

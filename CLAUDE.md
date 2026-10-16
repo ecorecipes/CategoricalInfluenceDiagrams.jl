@@ -92,10 +92,34 @@ export `is_isomorphic`, `validate` and `to_graphviz`, and the parents' bindings 
 - Every operation takes its colimit with unset `Ref` attributes held by CategoricalBayesianNetworks'
   `_with_unset_refs_held`: `space_ref`, `kernel_ref` and, in an influence diagram,
   `utility_ref`. An unset reference is structurally valid and must stay unset.
-- Every law of the semantics, and every optimised path to come, is checked against the
+- Every law of the semantics, and every optimised path, is checked against the
   closed-composite oracle (`instantiate` then `expected_utility`): `interpret` of a closed
   composite is `(1, EU)`. Keep `interpret` an independent brute-force enumeration; never
   short-cut it to `expected_utility`.
+- Optimisation is contextual, never isolated (ADR 0018, decision 4). Never add an operation
+  that optimises the components of a composite one by one and composes the results: the
+  bundle refutes it (`INF-ISOLATED-OBSTRUCTION`), and `test_optimization.jl` reproduces the
+  Lean witness (`1 < 4`). What exists: `optimize(o, kernels, utilities)` on a *closed*
+  composite only (an open `o` is an `ArgumentError`), which binds the apex's tables into an
+  `InfluenceDiagramModel` (`_closed_model`, resolving kernels with `BayesianNetworks`'
+  `_resolve_kernel` and utilities with `_lookup_utility`) and calls `InfluenceDiagrams`'
+  `optimize`; `contextual_value(o, ..., σ; prior, continuation)`,
+  `EU_f(σ; μ, c) = Σ_x μ(x) Σ_y (W(y, x) + K(y | x) c(y))`; `contextual_optimize`; and the
+  two contexts of a serial composite, `continuation_value` (`c_τ`, over `dom`) and
+  `boundary_law` (`ν_σ = K μ`, over `codom`). Contexts are explicit: `prior` (a vector in
+  `joint_states` order, nonnegative, summing to one within `atol` per entry, or a state
+  kernel `I → X`) and `continuation` (a signed vector in `joint_states` order, or a
+  `RewardKernel` `Y → I`) may be left out only for an empty interface, never defaulted to
+  something else. `contextual_optimize` enumerates the legal deterministic strategies only
+  (policies over each decision's declared information, so never a hidden input), in
+  `decision_order` with the first decision fastest, and returns the first maximum as an
+  `InfluenceDiagrams` `DecisionSolution` with diagnostics `(nstrategies, method)`; more
+  than `max_policies` strategies raise `PolicySearchTooLargeError`, as in
+  `ExhaustivePolicySearch`. Its default value table (`Σ μ(x) P_chance (U + c(y))` over the
+  information and action variables) is checked against `brute_force = true`, which scores
+  each strategy with `contextual_value` through `interpret`. Model forms read
+  `kernels(m)`/`bound_utilities(m)` through the apex's references (so they need a diagram
+  whose references are bound) and refuse evidence.
 
 ## Commands
 
@@ -122,7 +146,9 @@ influence-diagram schema); later loads are fast.
   change on either side has to be made on both. Likewise `BayesianNetworks`' brute-force
   factor machinery, which `CategoricalBayesianNetworks`' `interpret` also uses:
   `DEFAULT_MAX_STATES`, `_Factor` (whose fields `table`, `axes` and `strides` `_value`
-  reads), `_factors`, `_product` and `_joint_atol`.
+  reads), `_factors`, `_product` and `_joint_atol`; and `_resolve_kernel`, the kernel
+  lookup through a mechanism's reference that `optimize` uses to bind a closed composite's
+  tables.
 - `src/errors.jl`: `OpenInfluenceDiagramError <: BayesNetError` (ADR 0013, since the package
   defines several types) and its subtypes `ObservabilityMismatchError`,
   `DiagramInterfaceError`, `NoForgettingError` and `DuplicatePolicyError`, with
@@ -147,6 +173,11 @@ influence-diagram schema); later loads are fast.
   (dictionary and model forms). `_tensor` stands in for `FiniteKernels`' `tensor_kernel` on
   two kernels `I → I`, where that function's broadcast yields a scalar and its type
   assertion fails; drop it once `FiniteKernels` handles the case.
+- `src/optimization.jl`: `optimize` on a closed composite (dictionary and model forms;
+  imported from `InfluenceDiagrams` and extended), `contextual_value`,
+  `continuation_value` and `boundary_law` (each on a `RewardKernel` and, through
+  `interpret`, on a diagram, dictionary and model forms), and `contextual_optimize`
+  (value table or brute force).
 - `test/runtests.jl`: `test_open.jl` (construction, accessors, flags, one failing case per
   rule, the Bayesian-network embedding; defines the umbrella split `umbrella_chance` and
   `umbrella_decision`), `test_composition.jl` (every operation; the umbrella, the SPEC §46
@@ -157,8 +188,14 @@ influence-diagram schema); later loads are fast.
   strategy of the umbrella and two-stage oil-wildcatter splits, on the grazing splits and on
   seeded random diagrams cut into two and three pieces and placed side by side; identities,
   associativity, interchange, copy and discard through the syntax; defines
-  `random_spec` and `random_pieces`), `test_errors.jl` (hierarchy, re-exports, frozen
-  names, messages) and `test_docstrings.jl`.
+  `random_spec` and `random_pieces`), `test_optimization.jl` (the contextual identity in
+  both forms on the umbrella, oil-wildcatter and grazing splits and on seeded random splits
+  of two and three pieces; `optimize` on closed composites; `contextual_optimize` against
+  brute force and the solvers, in both contextual orders; the bundle's Lean witness of
+  `INF-ISOLATED-OBSTRUCTION`, `lean_early` and `lean_late`, giving `1 < 4`, and of
+  `INF-HIDDEN-OBSTRUCTION`, where the pointwise value 2 needs a policy reading the hidden
+  input and rule 3 rejects it), `test_errors.jl` (hierarchy, re-exports, frozen names,
+  messages) and `test_docstrings.jl`.
 - `proofs/`: the Lean project (see below).
 - `vignettes/`: the quarto project; no vignettes yet (milestone M5).
 
@@ -175,7 +212,8 @@ module states boundary observability (`OpenInfluence.Observability`,
 (decision and utility generators on the typed syntax, the expectation-semiring kernel
 category, functoriality of `interpret`, the contextual identity, the isolated-optimisation
 obstruction) are milestone M4; do not describe them as proved. The Julia semantics of M2
-checks the category laws and functoriality numerically only. `make audit` checks every
+checks the category laws and functoriality numerically only, and M3 checks the contextual
+identity and reproduces the isolated-optimisation counterexample numerically only. `make audit` checks every
 `#print axioms` line of `Audit.lean` against `propext`, `Classical.choice` and `Quot.sound`,
 scans the sources for escape hatches and runs the driver's guard regressions. The Lean CI
 workflow checks out the four sibling repositories beside this one.

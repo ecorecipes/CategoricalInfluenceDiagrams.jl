@@ -39,12 +39,24 @@ which stays free of Catlab. The design is the workspace's ADR 0018,
   of a composite. On a closed composite it gives `(1, EU)`, and the test suite checks it
   against `expected_utility` of the closed composite under `compose`, `glue`, `otimes` and
   `oapply`, on the umbrella, oil-wildcatter and grazing examples and on random diagrams.
+- Optimisation is contextual, never isolated. `optimize(o, kernels, utilities)` solves a
+  closed composite with the solvers of `InfluenceDiagrams.jl`. `contextual_value` scores an
+  open component under a fixed strategy against an explicit prior on its inputs and an
+  explicit continuation value on its outputs, and `contextual_optimize` maximises that over
+  its legal deterministic strategies. `continuation_value` (the suffix's value function)
+  and `boundary_law` (the law the prefix induces on the boundary) give the contexts of a
+  serial composite, for which the contextual identity holds; the test suite checks it
+  against `expected_utility` of the closed composite. There is no "optimise each component,
+  then compose" operation: the test suite reproduces the research bundle's Lean
+  counterexample, where components optimised in isolation compose to the value 1 and the
+  composite attains 4.
 - Every name of `CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl` is re-exported.
 
-Not yet here: contextual optimisation (a component optimised against an explicit boundary
-prior and continuation value), the Lean proofs of the semantics and the optimisation
-results, and the vignettes. They are later milestones of ADR 0018's plan. The laws of
-`RewardKernel` and the functoriality of `interpret` are checked numerically, not proved.
+Not yet here: the Lean proofs of the semantics and the optimisation results, and the
+vignettes. They are later milestones of ADR 0018's plan. The laws of `RewardKernel`, the
+functoriality of `interpret`, the contextual identity and the isolated-optimisation
+counterexample are checked numerically, not proved. Randomised (behavioural) policies and
+evidence across a boundary are outside the first release.
 The Lean project in [`proofs/`](proofs/) so far states boundary observability and
 information locality over the two parent proof projects; it proves no theorem about
 composition yet.
@@ -108,6 +120,16 @@ r = compose(interpret(chance, ks, bound_utilities(m), Strategy()),
             interpret(decide, ks, bound_utilities(m), σ))
 r ≈ interpret(whole, ks, bound_utilities(m), σ)   # true
 reward(r)[] ≈ 77                                   # true: the expected utility
+```
+
+The closed composite is solved by the solvers of `InfluenceDiagrams.jl`, and the open
+decision component reaches the same optimum against the law the chance component induces
+on the boundary:
+
+```julia
+optimize(whole, ks, bound_utilities(m)).expected_utility ≈ 77         # true
+ν = boundary_law(chance, ks, bound_utilities(m), Strategy())
+contextual_optimize(decide, ks, bound_utilities(m); prior = ν).expected_utility ≈ 77   # true
 ```
 
 ## Vignettes

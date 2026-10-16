@@ -24,6 +24,12 @@ Catlab-free (ADR 0009), the open-system machinery of the categorical layer.
     [`interpret`](@ref interpret(::OpenInfluenceDiagram, ::AbstractDict, ::AbstractDict, ::Strategy)),
     which maps an open influence diagram and a deterministic strategy to its reward
     kernel, functorially for `compose` and `otimes`.
+  - **Optimisation, contextual and never isolated** (`src/optimization.jl`):
+    [`optimize`](@ref optimize(::OpenInfluenceDiagram, ::AbstractDict, ::AbstractDict))
+    on a closed composite, and [`contextual_value`](@ref) and
+    [`contextual_optimize`](@ref) on an open component against an explicit boundary prior
+    and continuation value, with [`continuation_value`](@ref) and
+    [`boundary_law`](@ref) the contexts a serial composite induces.
 
 Every exported name of `CategoricalBayesianNetworks` and `InfluenceDiagrams` is re-exported,
 so `using CategoricalInfluenceDiagrams` is a superset of using both.
@@ -45,7 +51,8 @@ using BayesianNetworks: AbstractVariableSpace, BayesNetUntyped, VariableSpace,
                         DanglingReferenceError, MissingAttributeError
 # The brute-force factor machinery that `CategoricalBayesianNetworks`' `interpret` uses,
 # shared with it (see CLAUDE.md): none of it is `BayesianNetworks`' public interface.
-using BayesianNetworks: DEFAULT_MAX_STATES, _Factor, _factors, _product, _joint_atol
+using BayesianNetworks: DEFAULT_MAX_STATES, _Factor, _factors, _product, _joint_atol,
+                        _resolve_kernel
 using FiniteKernels: compose_kernel, tensor_kernel, identity_kernel, copy_kernel,
                      discard_kernel, swap_kernel, axis_names
 using CategoricalBayesianNetworks
@@ -65,6 +72,7 @@ import Catlab.Theories: compose, otimes, munit, dom, codom, id, ⋅, ⊗
 import Catlab.CategoricalAlgebra: apex, legs, feet
 import Catlab.WiringDiagrams: oapply
 import BayesianNetworks: validate, validation_errors, inputs, kernel
+import InfluenceDiagrams: optimize
 import CategoricalBayesianNetworks: Open, OpenBayesNet, outputs, input_space, output_space,
                                     input_variables, output_variables, left_leg, right_leg,
                                     glue, interface_matches, validate_composition, _acsets,
@@ -92,10 +100,13 @@ export InfluenceDiagramCospanObUntyped, InfluenceDiagramCospanUntyped,
 # semantics.jl
 export RewardKernel, reward, reward_matrix, identity_reward_kernel, copy_reward_kernel,
        discard_reward_kernel, swap_reward_kernel, merge_strategies
+# optimization.jl
+export contextual_value, contextual_optimize, continuation_value, boundary_law
 
 include("errors.jl")
 include("open.jl")
 include("composition.jl")
 include("semantics.jl")
+include("optimization.jl")
 
 end # module
