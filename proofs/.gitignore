@@ -1,0 +1,15 @@
+.lake/
+.mdgen/
+.fonts.tex
+*.tex
+!header.tex
+*.aux
+*.log
+*.out
+*.toc
+.inspection/
+.certificate-cases/
+.audit-cases/
+__pycache__/
+*.pyc
+.sapass_axioms.lean

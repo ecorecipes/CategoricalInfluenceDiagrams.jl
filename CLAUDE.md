@@ -1,0 +1,161 @@
+# CategoricalInfluenceDiagrams.jl
+
+Open influence diagrams as structured cospans: influence diagrams with typed, observability-
+flagged boundaries, and their composition (ADR 0018).
+
+## Place in the ecosystem
+
+Dependency order (arrows = depends on):
+EcologicalBayesianNetworks → InfluenceDiagrams → BayesianNetworkInference → BayesianNetworks →
+FiniteKernels, and BayesianNetworks → BayesianNetworkFormats (all Catlab-free);
+CategoricalBayesianNetworks → BayesianNetworks, MarkovCategories (the Catlab layer).
+This package sits on top of both halves: it depends on CategoricalBayesianNetworks (open
+networks, Catlab) and InfluenceDiagrams (schema, policies, solvers), with Catlab and ACSets
+directly, and nothing depends on it. It is the decision-layer analogue of
+CategoricalBayesianNetworks: by ADR 0009 a module that needs Catlab lives in a categorical
+package, so InfluenceDiagrams stays Catlab-free and CategoricalBayesianNetworks does not
+take on the decision stack. Sibling packages are expected at `../<Name>.jl` (see `[sources]`
+in Project.toml; the transitive siblings are listed too, because none is registered). Do not
+edit them from here; record API gaps instead.
+
+Every exported name of CategoricalBayesianNetworks and of InfluenceDiagrams is re-exported (a
+loop over both `names` in the module). The two export no name with different bindings
+(checked when the loop was written), so `using CategoricalInfluenceDiagrams` is a superset of
+using both. Do not `using Catlab` wholesale in the module: Catlab and BayesianNetworks both
+export `is_isomorphic`, `validate` and `to_graphviz`, and the parents' bindings must win.
+
+## ADR 0018 invariants that must not be broken
+
+- Structural syntax (ACSets) and numerical semantics (kernels, policies, utilities) stay
+  separate; tables are never ACSet attributes. There is no semantics here yet (`RewardKernel`
+  and `interpret` are milestone M2).
+- Only variables cross a boundary. Decisions and utilities stay inside their component;
+  reward will cross only through the semantics.
+- The feet are `VariableSpace`s, the same ACSets as CategoricalBayesianNetworks' feet. Never
+  add observability to the feet schema: it lives beside the cospan in `OpenInfluenceDiagram`
+  (`input_observability`, `output_observability`, one flag per interface position) and in
+  `OpenInfluenceDiagramOb` (`observability`). Flags are `:observed` or `:hidden`; anything
+  else is an `ArgumentError`. `Open` defaults to everything hidden, and an `OpenBayesNet`
+  embeds all hidden. Glued interface variables must agree on flags
+  (`ObservabilityMismatchError`), after names, states and references
+  (BayesianNetworks' `InterfaceMismatchError`).
+- The typed-interface rule (ADR 0018, decision 2), numbered as in the ADR:
+  1. at most one generator (mechanism or decision) per variable: InfluenceDiagrams'
+     validation (`DuplicateGeneratorError`, `DecisionUniquenessError`);
+  2. no input has a generator: `DiagramInterfaceError(2, ...)`, kind `:mechanism` or
+     `:decision`;
+  3. a decision reads only internal or observed-input variables:
+     `DiagramInterfaceError(3, ...)`, kind `:hidden_input`;
+  4. utilities may read any apex variable (only a dangling reference fails,
+     `DanglingReferenceError`);
+  5. the causal-plus-information graph is acyclic: InfluenceDiagrams' validation
+     (`CyclicBayesNetError`, `InvalidInformationSetError(:downstream)`,
+     `DecisionPrecedenceCycleError`);
+  6. composition preserves no-forgetting when the components have it: checked by every
+     operation that builds a composite (`NoForgettingError(decision, variable, earlier)`),
+     not by `validation_errors` of one diagram, since it concerns the components.
+     `no_forgetting = false` opts out and yields a limited-memory composite.
+
+  The open-network conditions that do not change keep CategoricalBayesianNetworks' errors:
+  natural, attribute-preserving legs (`InterfaceError` 5), an injective input leg
+  (`InterfaceError` 2), and every generator-free variable an input (`InterfaceError` 3).
+- No-forgetting in rule 6 is read along the *precedence partial order*: `D_k` precedes `D_l`
+  when a directed path of causal, information or precedence arcs runs from the action of
+  `D_k` to the action of `D_l` (`_forgetting` in `src/composition.jl`). InfluenceDiagrams'
+  `is_no_forgetting` linearises the decisions by `decision_order`, so two decisions no path
+  orders count as forgetting there; under the partial order they owe each other nothing,
+  which is what lets `otimes` preserve no-forgetting. The two agree when paths order the
+  decisions totally. Decision variable elimination on a closed composite still needs the
+  linear notion; `with_no_forgetting` or `ExhaustivePolicySearch` handle the rest.
+- Nothing may construct an `OpenInfluenceDiagram` that bypasses `validate` except
+  deliberately (`Open(...; validate = false)`, the inner constructor, or
+  `oapply(...; validate = false)`), and every composite is validated again.
+- Every operation takes its colimit with unset `Ref` attributes held by CategoricalBayesianNetworks'
+  `_with_unset_refs_held`: `space_ref`, `kernel_ref` and, in an influence diagram,
+  `utility_ref`. An unset reference is structurally valid and must stay unset.
+- Every optimised path will be checked against the closed-composite oracle (`instantiate`
+  then `expected_utility`) once there is a semantics.
+
+## Commands
+
+```sh
+julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.test()'   # the test suite
+julia --project=docs docs/make.jl --no-deploy                     # build docs locally (strict)
+cd vignettes && quarto render                                     # render vignettes (none yet; milestone M5)
+julia scripts/sync_vignettes.jl [--check]                         # copy vignettes into docs/src/tutorials
+cd proofs && lake build --wfail && make audit && make docs        # the Lean project
+```
+
+Precompiling the package takes several minutes (Catlab's open-ACSet types over the
+influence-diagram schema); later loads are fast.
+
+## Layout
+
+- `src/CategoricalInfluenceDiagrams.jl`: the module; the Catlab imports (by name), the
+  re-export loop over both parents, and the `using CategoricalBayesianNetworks: ...` list of
+  that package's internals this one builds on: `OpenBayesNetCospan`, `_foot`, `_leg`,
+  `_leg_mismatches`, `_leg_is_natural`, `_variable_component`, `_state_component`,
+  `_require_attributes`, `_with_unset_refs_held`, `_acsets` (extended here with methods for
+  this package's types), `_interface_difference`, `_variable_difference`, `_junction_name`
+  and `_junction_suffix`. They are not CategoricalBayesianNetworks' public interface; a
+  change on either side has to be made on both.
+- `src/errors.jl`: `OpenInfluenceDiagramError <: BayesNetError` (ADR 0013, since the package
+  defines several types) and its subtypes `ObservabilityMismatchError`,
+  `DiagramInterfaceError` and `NoForgettingError`, with `showerror` methods that name the
+  variables and decisions; included first.
+- `src/open.jl`: `InfluenceDiagramCospan(Ob)(Untyped)` from
+  `OpenACSetTypes(InfluenceDiagramUntyped, VariableSpaceUntyped)`; `OBSERVABILITY`;
+  `OpenInfluenceDiagramOb` (space plus flags); `OpenInfluenceDiagram{C}` (a two-footed
+  `StructuredCospan` plus the flags of each foot); `Open(id; inputs, outputs, observed,
+  validate)`; accessors (methods on Catlab's `apex`, `legs`, `feet`, `dom`, `codom` and on
+  CategoricalBayesianNetworks' `inputs`, `outputs`, `input_space`, ...); the embedding
+  `OpenInfluenceDiagram(::OpenBayesNet)` and its inverse `OpenBayesNet(::OpenInfluenceDiagram)`;
+  and the typed-interface rule (`validation_errors`, `validate`, `isvalid`).
+- `src/composition.jl`: `interface_matches` on interfaces with flags; the influence-diagram
+  pushout `_pushout_along_maps`; rule 6 (`_forgetting`, `_validate_composite`); `compose`
+  (`⋅`), `glue`, `otimes` (`⊗`, also on interfaces), `munit`, `id`, `oapply` (vector and
+  dictionary forms) and `validate_composition`. `compose` and `glue` demand unique names
+  when both pieces had them; `otimes` and `oapply` do not, as in CategoricalBayesianNetworks.
+- `test/runtests.jl`: `test_open.jl` (construction, accessors, flags, one failing case per
+  rule, the Bayesian-network embedding; defines the umbrella split `umbrella_chance` and
+  `umbrella_decision`), `test_composition.jl` (every operation; the umbrella, the SPEC §46
+  grazing diagram at two boundaries and the two-stage diagram split and composed back to
+  isomorphic diagrams; rules 1, 5 and 6 across boundaries; unset references),
+  `test_errors.jl` (hierarchy, re-exports, frozen names, messages) and
+  `test_docstrings.jl`.
+- `proofs/`: the Lean project (see below).
+- `vignettes/`: the quarto project; no vignettes yet (milestone M5).
+
+## Proofs
+
+`proofs/` is a Lean/Mathlib/mdgen 4.30.0 project that requires the
+`CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl` proof projects by relative path
+(and through them the BayesianNetworks and FiniteKernels ones), sharing the workspace's
+`../../.lake-packages`. `lake-manifest.json` was written by hand from the siblings' pins,
+because the sandbox has no network; keep its revisions equal to theirs. So far the root
+module states boundary observability (`OpenInfluence.Observability`,
+`ObservedInterface` over `OpenNet.Interface`) and information locality (rule 3) over
+`InfluenceDiagramsProofs.FinInfluenceDiagram`, with two small lemmas. The ADR's theorems
+(decision and utility generators on the typed syntax, the expectation-semiring kernel
+category, functoriality of `interpret`, the contextual identity, the isolated-optimisation
+obstruction) are milestone M4; do not describe them as proved. `make audit` checks every
+`#print axioms` line of `Audit.lean` against `propext`, `Classical.choice` and `Quot.sound`,
+scans the sources for escape hatches and runs the driver's guard regressions. The Lean CI
+workflow checks out the four sibling repositories beside this one.
+
+## Files not to edit by hand
+
+- `docs/src/tutorials/` is generated by `scripts/sync_vignettes.jl`.
+- `vignettes/*/*.md`, `*.html`, `*.pdf` and `*_files/` are quarto output; edit the `.qmd`.
+- `docs/adr/` is copied from the workspace `docs/adr/` by `scripts/sync_adrs.jl`; edit the workspace copy.
+- `proofs/CategoricalInfluenceDiagramsProofs.{md,html,pdf}` are generated from the Lean
+  source by `make docs`.
+
+## Style
+
+JuliaFormatter `yas`; docstrings on every exported name, which `test/test_docstrings.jl` enforces; the docs
+build is strict (no `warnonly`), so a docstring left out of the manual or a broken `@ref` fails it; typed
+exceptions with variable names in the message, following ADR 0013 and ADR 0015: they live in `src/errors.jl` and
+subtype `OpenInfluenceDiagramError <: BayesNetError`, invalid arguments and keywords raise `ArgumentError`,
+typed errors from a lower package pass through unchanged and documented, and another package's type is named
+as a code span, never with `@ref`; no emojis in code or docs.

@@ -1,0 +1,43 @@
+name = "CategoricalInfluenceDiagrams"
+uuid = "50ddae4b-1815-42e3-91f0-2e911b0f75ff"
+version = "0.1.0"
+authors = ["Simon Frost"]
+
+[deps]
+ACSets = "227ef7b5-1206-438b-ac65-934d6da304b8"
+Catlab = "134e5e36-593f-5add-ad60-77f754baafbe"
+CategoricalBayesianNetworks = "83c8271f-e735-439d-be5f-7ff3e7e4c690"
+InfluenceDiagrams = "cd3dbe2d-275d-4a8e-841a-d44f7f7abf07"
+BayesianNetworkInference = "195c3fd5-7fa7-45ed-aaa0-a92a9a2fe9e5"
+BayesianNetworks = "47d2e50c-3d9a-425e-96fd-023c794d3c65"
+BayesianNetworkFormats = "590d4596-919e-4d5f-b4a5-097a6400eab8"
+MarkovCategories = "89535b7d-47b5-4a7c-ab85-485cba9d75b9"
+FiniteKernels = "2ee73795-50db-4096-9573-22982ed4949b"
+
+[sources]
+CategoricalBayesianNetworks = {path = "../CategoricalBayesianNetworks.jl"}
+InfluenceDiagrams = {path = "../InfluenceDiagrams.jl"}
+BayesianNetworkInference = {path = "../BayesianNetworkInference.jl"}
+BayesianNetworks = {path = "../BayesianNetworks.jl"}
+BayesianNetworkFormats = {path = "../BayesianNetworkFormats.jl"}
+MarkovCategories = {path = "../MarkovCategories.jl"}
+FiniteKernels = {path = "../FiniteKernels.jl"}
+
+[compat]
+ACSets = "0.2.29"
+Catlab = "0.17.6"
+CategoricalBayesianNetworks = "0.1"
+InfluenceDiagrams = "0.1"
+BayesianNetworkInference = "0.1"
+BayesianNetworks = "0.1"
+BayesianNetworkFormats = "0.1"
+MarkovCategories = "0.1"
+FiniteKernels = "0.1"
+julia = "1.12"
+Test = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

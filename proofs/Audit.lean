@@ -1,0 +1,15 @@
+import CategoricalInfluenceDiagramsProofs
+import Mathlib.Util.AssertNoSorry
+
+assert_no_sorry OpenInfluence.ObservedInterface.sum
+assert_no_sorry OpenInfluence.ObservedInterface.empty
+assert_no_sorry OpenInfluence.informationLocal_of_no_hidden
+assert_no_sorry OpenInfluence.InformationLocal.of_reveal
+
+#print axioms OpenInfluence.ObservedInterface.sum
+#print axioms OpenInfluence.ObservedInterface.empty
+#print axioms OpenInfluence.ObservedInterface.sum_flag_inl
+#print axioms OpenInfluence.ObservedInterface.sum_flag_inr
+#print axioms OpenInfluence.InformationLocal
+#print axioms OpenInfluence.informationLocal_of_no_hidden
+#print axioms OpenInfluence.InformationLocal.of_reveal

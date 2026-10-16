@@ -1,0 +1,64 @@
+name: Lean
+# The readable documents (proofs/*Proofs.md, .html, .pdf) are generated locally with `make docs`
+# (mdgen, pandoc, lualatex) and committed; this workflow only checks the proofs themselves.
+on:
+  push:
+    branches: [main]
+    paths: ['proofs/**', '.github/workflows/lean.yml']
+  pull_request:
+    paths: ['proofs/**', '.github/workflows/lean.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # proofs/lakefile.toml requires the CategoricalBayesianNetworks.jl and InfluenceDiagrams.jl
+      # proof projects by relative path, and they require the FiniteKernels.jl and
+      # BayesianNetworks.jl ones the same way: Lake *path* dependencies, so a lone clone of this
+      # repository cannot `lake build`. All five repositories are checked out side by side, as
+      # the Julia CI does for the package sources.
+      - uses: actions/checkout@v4
+        with:
+          path: CategoricalInfluenceDiagrams.jl
+      - uses: actions/checkout@v4
+        with:
+          repository: ecorecipes/CategoricalBayesianNetworks.jl
+          path: CategoricalBayesianNetworks.jl
+      - uses: actions/checkout@v4
+        with:
+          repository: ecorecipes/InfluenceDiagrams.jl
+          path: InfluenceDiagrams.jl
+      - uses: actions/checkout@v4
+        with:
+          repository: ecorecipes/BayesianNetworks.jl
+          path: BayesianNetworks.jl
+      - uses: actions/checkout@v4
+        with:
+          repository: ecorecipes/FiniteKernels.jl
+          path: FiniteKernels.jl
+      - name: Use a local dependency directory
+        working-directory: CategoricalInfluenceDiagrams.jl/proofs
+        # Lake reads the packages directory from lake-manifest.json as well as lakefile.toml,
+        # and logs "manifest out of date" when the two disagree, which --wfail turns into a
+        # failure; so both files are rewritten.
+        run: |
+          sed -i 's#^packagesDir = .*#packagesDir = ".lake/packages"#' lakefile.toml
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path("lake-manifest.json")
+          manifest = json.loads(path.read_text())
+          manifest["packagesDir"] = ".lake/packages"
+          path.write_text(json.dumps(manifest, indent=1) + "\n")
+          PY
+      - uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: CategoricalInfluenceDiagrams.jl/proofs
+          use-github-cache: false
+          use-mathlib-cache: 'true'
+          build-args: "--wfail"
+      - name: Audit theorem dependencies
+        working-directory: CategoricalInfluenceDiagrams.jl/proofs
+        run: make audit
