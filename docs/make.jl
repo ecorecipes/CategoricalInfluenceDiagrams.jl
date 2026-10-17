@@ -46,7 +46,10 @@ makedocs(;
                                 prettyurls=get(ENV, "CI", "false") == "true",
                                 canonical="https://ecorecipes.github.io/CategoricalInfluenceDiagrams.jl",
                                 repolink="https://github.com/ecorecipes/CategoricalInfluenceDiagrams.jl",
-                                edit_link="main"),
+                                edit_link="main",
+                                # The generated API reference exceeds Documenter's page-size
+                                # warning threshold; it is a reference page, not an example.
+                                size_threshold_ignore=["api.md"]),
          pages=pages)
 
 "--no-deploy" in ARGS || deploydocs(;
