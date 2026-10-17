@@ -21,7 +21,11 @@ which stays free of Catlab. The design is the workspace's ADR 0018,
   `Open(id; inputs, outputs, observed)`.
 - Observability on the boundary: every interface variable is `:observed` (remembered
   information a later decision may read) or `:hidden`, and is hidden unless declared
-  observed. Interfaces that differ only in observability do not match.
+  observed. `observed = [...]` flags a name on every foot it is on, and
+  `observed = (inputs = [...], outputs = [...])` flags each foot separately, so a
+  pass-through variable can be read inside a component and forgotten at its output, or
+  revealed at its output without its own decisions reading it. Interfaces that differ only
+  in observability do not match.
 - The typed-interface rule of open networks, extended to decisions and utilities: at most
   one generator per variable, no generator on an input, decisions read only internal or
   observed inputs, utilities may read anything in the apex, the causal-plus-information
@@ -43,7 +47,10 @@ which stays free of Catlab. The design is the workspace's ADR 0018,
   closed composite with the solvers of `InfluenceDiagrams.jl`. `contextual_value` scores an
   open component under a fixed strategy against an explicit prior on its inputs and an
   explicit continuation value on its outputs, and `contextual_optimize` maximises that over
-  its legal deterministic strategies. `continuation_value` (the suffix's value function)
+  its legal deterministic strategies, by handing the component to the exhaustive policy
+  search of `InfluenceDiagrams.jl` with the prior and the continuation as a
+  `DecisionContext` (and, with `brute_force = true`, by scoring every strategy through
+  `interpret` instead). `continuation_value` (the suffix's value function)
   and `boundary_law` (the law the prefix induces on the boundary) give the contexts of a
   serial composite, for which the contextual identity holds; the test suite checks it
   against `expected_utility` of the closed composite. There is no "optimise each component,

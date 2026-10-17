@@ -81,6 +81,78 @@ end
         @test output_observability(p) == [:observed, :observed]
     end
 
+    @testset "per-foot observability" begin
+        id = influence_diagram(:X => [:a, :b], :Y => [:c, :d]; closed=false)
+        # Observed on the input foot, hidden on the output foot: the boundary forgets X.
+        f = Open(id; inputs=[:X, :Y], outputs=[:X, :Y], observed=(inputs=[:X, :Y],))
+        @test input_observability(f) == [:observed, :observed]
+        @test output_observability(f) == [:hidden, :hidden]
+        @test observed_inputs(f) == [:X, :Y] && isempty(observed_outputs(f))
+        # Hidden on the input foot, observed on the output foot: the component reveals X.
+        r = Open(id; inputs=[:X, :Y], outputs=[:X, :X, :Y], observed=(outputs=[:X],))
+        @test input_observability(r) == [:hidden, :hidden]
+        @test output_observability(r) == [:observed, :observed, :hidden]
+        @test occursin("[:X, :Y] -> [:X!, :X!, :Y]", sprint(show, r))
+        both = Open(id; inputs=[:X, :Y], outputs=[:Y], observed=(inputs=[:Y], outputs=[:Y]))
+        @test input_observability(both) == [:hidden, :observed]
+        @test output_observability(both) == [:observed]
+        # Either field may be left out, and an empty named tuple observes nothing.
+        @test Open(id; inputs=[:X, :Y], outputs=[:X], observed=NamedTuple()) ==
+              Open(id; inputs=[:X, :Y], outputs=[:X])
+        @test Open(id; inputs=[:X, :Y], outputs=[:X], observed=(inputs=[],)) ==
+              Open(id; inputs=[:X, :Y], outputs=[:X])
+        # The vector form keeps its meaning: a name is observed on every foot it is on.
+        @test Open(id; inputs=[:X, :Y], outputs=[:X, :Y], observed=[:X]) ==
+              Open(id; inputs=[:X, :Y], outputs=[:X, :Y],
+                   observed=(inputs=[:X], outputs=[:X]))
+        # The positional form takes both.
+        @test Open(id, [:X, :Y], [:X, :Y]; observed=(inputs=[:X, :Y],)) == f
+        @test Open(id, [:X, :Y], [:X, :Y]; observed=[:X, :Y]) ==
+              Open(id; inputs=[:X, :Y], outputs=[:X, :Y], observed=[:X, :Y])
+        # The revealing component's own decision may not read what its input foot hides
+        # (rule 3 is about inputs).
+        dec = influence_diagram(:X => [:a, :b], :D => [:yes, :no]; decisions=[:D => :X],
+                                closed=false)
+        e = try
+            Open(dec; inputs=[:X], outputs=[:X, :D], observed=(outputs=[:X],))
+        catch err
+            err
+        end
+        @test e == DiagramInterfaceError(3, :X, :D, :hidden_input)
+        @test isvalid(Open(dec; inputs=[:X], outputs=[:X, :D],
+                           observed=(inputs=[:X], outputs=[:D])))
+    end
+
+    @testset "misplaced per-foot names are an ArgumentError" begin
+        id = influence_diagram(:X => [:a, :b], :Y => [:c, :d], :Z => [:e, :f];
+                               mechanisms=[:Z => :Y], closed=false)
+        msg(f) =
+            try
+                f()
+                ""
+            catch err
+                err isa ArgumentError ? err.msg : ""
+            end
+        # An output named as an observed input, and an input as an observed output.
+        m = msg(() -> Open(id; inputs=[:X, :Y], outputs=[:Z],
+                           observed=(inputs=[:X, :Z],)))
+        @test occursin("observed.inputs", m) && occursin("[:Z]", m)
+        m = msg(() -> Open(id; inputs=[:X, :Y], outputs=[:Z],
+                           observed=(outputs=[:X, :Y, :Z],)))
+        @test occursin("observed.outputs", m) && occursin("[:X, :Y]", m)
+        # A name on no foot at all.
+        @test_throws ArgumentError Open(id; inputs=[:X, :Y], outputs=[:Z],
+                                        observed=(inputs=[:Nope],))
+        # Unknown fields and entries that are not names.
+        m = msg(() -> Open(id; inputs=[:X, :Y], outputs=[:Z],
+                           observed=(inputs=[:X], hidden=[:Y])))
+        @test occursin("hidden", m)
+        @test_throws ArgumentError Open(id; inputs=[:X, :Y], outputs=[:Z],
+                                        observed=(inputs=["X"],))
+        @test_throws ArgumentError Open(id; inputs=[:X, :Y], outputs=[:Z],
+                                        observed=(inputs=:X,))
+    end
+
     @testset "invalid observability is an ArgumentError" begin
         @test_throws ArgumentError Open(umbrella_chance_diagram(); outputs=[:Weather],
                                         observed=[:Forecast])

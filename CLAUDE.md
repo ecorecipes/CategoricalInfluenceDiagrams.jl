@@ -55,9 +55,23 @@ export `is_isomorphic`, `validate` and `to_graphviz`, and the parents' bindings 
   (`input_observability`, `output_observability`, one flag per interface position) and in
   `OpenInfluenceDiagramOb` (`observability`). Flags are `:observed` or `:hidden`; anything
   else is an `ArgumentError`. `Open` defaults to everything hidden, and an `OpenBayesNet`
-  embeds all hidden. Glued interface variables must agree on flags
-  (`ObservabilityMismatchError`), after names, states and references
-  (BayesianNetworks' `InterfaceMismatchError`).
+  embeds all hidden. `Open`'s `observed` is a vector (a name is observed on every foot it
+  is on; this meaning is fixed) or a named tuple `(inputs = [...], outputs = [...])`, either
+  field optional, flagging each foot separately (a name in `observed.inputs` that is not an
+  input, or in `observed.outputs` that is not an output, is an `ArgumentError` naming
+  them; so is any other field). Never add keywords `observed_inputs`/`observed_outputs`:
+  those are exported accessors. For a pass-through variable: observed on input and hidden
+  on output, the boundary forgets it (a later decision cannot read it, and rule 6 catches
+  a decision that should remember it); hidden on input and observed on output, the
+  component reveals it as a perfect observation inside the component, but its own
+  decisions still may not read it (rule 3 is about inputs); composites are re-validated,
+  so a decision cannot read a variable that the composite's input foot hides. Glued
+  interface variables must agree on flags (`ObservabilityMismatchError`), after names,
+  states and references (BayesianNetworks' `InterfaceMismatchError`). In `oapply` each
+  junction has one flag and each port the flag of its foot: a pass-through variable's two
+  ports on one junction with different flags are an `ObservabilityMismatchError`; on two
+  junctions, each keeps its flag (the colimit joins them into one variable) and an outer
+  port takes its own junction's flag.
 - The typed-interface rule (ADR 0018, decision 2), numbered as in the ADR:
   1. at most one generator (mechanism or decision) per variable: InfluenceDiagrams'
      validation (`DuplicateGeneratorError`, `DecisionUniquenessError`);
@@ -107,19 +121,31 @@ export `is_isomorphic`, `validate` and `to_graphviz`, and the parents' bindings 
   `EU_f(σ; μ, c) = Σ_x μ(x) Σ_y (W(y, x) + K(y | x) c(y))`; `contextual_optimize`; and the
   two contexts of a serial composite, `continuation_value` (`c_τ`, over `dom`) and
   `boundary_law` (`ν_σ = K μ`, over `codom`). Contexts are explicit: `prior` (a vector in
-  `joint_states` order, nonnegative, summing to one within `atol` per entry, or a state
+  `joint_states` order, nonnegative, summing to one within `atol`, or a state
   kernel `I → X`) and `continuation` (a signed vector in `joint_states` order, or a
   `RewardKernel` `Y → I`) may be left out only for an empty interface, never defaulted to
-  something else. `contextual_optimize` enumerates the legal deterministic strategies only
-  (policies over each decision's declared information, so never a hidden input), in
-  `decision_order` with the first decision fastest (the order of `InfluenceDiagrams`'
-  `all_deterministic_strategies(apex(o))`, which the tests and vignettes use to list
-  strategies; the value table keeps its own per-decision index loop), and returns the
-  first maximum as an `InfluenceDiagrams` `DecisionSolution` with diagnostics
-  `(nstrategies, method)`; more than `max_policies` strategies raise
-  `PolicySearchTooLargeError`, as in `ExhaustivePolicySearch`. Its default value table (`Σ μ(x) P_chance (U + c(y))` over the
-  information and action variables) is checked against `brute_force = true`, which scores
-  each strategy with `contextual_value` through `interpret`. Model forms read
+  something else. `contextual_optimize` delegates to `InfluenceDiagrams`: `_bound_model`
+  (which `_closed_model` also uses, after its closedness check) binds the apex's tables
+  into an `InfluenceDiagramModel` whose input variables keep no mechanism (they are its
+  exogenous variables: rule 2 and `InterfaceError` 3 make the inputs exactly the
+  generator-free variables), `_boundary_table` reshapes the prior (over the input
+  variables, which never repeat) and the continuation (over the output variables, a
+  repeated output repeating its name, read on the diagonal) into a `DecisionContext`, and
+  `optimize(m, ExhaustivePolicySearch(; max_policies); context, max_states, atol)` solves
+  it. Its `DecisionSolution` and diagnostics (`(nstrategies, method = :value_table)`,
+  possibly `exact_fallback`) are returned as they are. The order of the strategies, the
+  first maximum and `PolicySearchTooLargeError` are that search's. Decision variable
+  elimination and evidence are never reached (no backend keyword; the model forms refuse
+  evidence, as a context does). `brute_force = true` keeps the independent path, scoring
+  each strategy of `all_deterministic_strategies(apex(o))` with `contextual_value` through
+  `interpret`; the tests check that the two agree in value and strategy. The search keys
+  policies, tables and the context by name, so `contextual_optimize` raises
+  `ArgumentError` (`_require_unique_names`, on both paths) when the apex repeats a decision,
+  variable or utility name (a diagram tensored with itself); `interpret` and
+  `contextual_value` still accept repeated names, equally named decisions sharing one
+  policy. The prior rule (`_prior_vector`, shared by `contextual_value`, `boundary_law` and
+  `contextual_optimize`) is `DecisionContext`'s: entries nonnegative with no slack and
+  `|Σ - 1| <= atol`. Model forms read
   `kernels(m)`/`bound_utilities(m)` through the apex's references (so they need a diagram
   whose references are bound) and refuse evidence.
 
@@ -149,7 +175,7 @@ influence-diagram schema); later loads are fast.
   factor machinery, which `CategoricalBayesianNetworks`' `interpret` also uses:
   `DEFAULT_MAX_STATES`, `_Factor` (whose fields `table`, `axes` and `strides` `_value`
   reads), `_factors`, `_product` and `_joint_atol`. The kernel lookup through a
-  mechanism's reference that `optimize` uses to bind a closed composite's tables is
+  mechanism's reference that `optimize` and `contextual_optimize` use to bind an apex's tables is
   `BayesianNetworks`' public `resolve_kernel`, no longer an internal.
 - `src/errors.jl`: `OpenInfluenceDiagramError <: BayesNetError` (ADR 0013, since the package
   defines several types) and its subtypes `ObservabilityMismatchError`,
@@ -159,7 +185,8 @@ influence-diagram schema); later loads are fast.
   `OpenACSetTypes(InfluenceDiagramUntyped, VariableSpaceUntyped)`; `OBSERVABILITY`;
   `OpenInfluenceDiagramOb` (space plus flags); `OpenInfluenceDiagram{C}` (a two-footed
   `StructuredCospan` plus the flags of each foot); `Open(id; inputs, outputs, observed,
-  validate)`; accessors (methods on Catlab's `apex`, `legs`, `feet`, `dom`, `codom` and on
+  validate)` (`_observed_flags` and `_foot_flags` turn either form of `observed` into the
+  flags of each foot); accessors (methods on Catlab's `apex`, `legs`, `feet`, `dom`, `codom` and on
   CategoricalBayesianNetworks' `inputs`, `outputs`, `input_space`, ...); the embedding
   `OpenInfluenceDiagram(::OpenBayesNet)` and its inverse `OpenBayesNet(::OpenInfluenceDiagram)`;
   and the typed-interface rule (`validation_errors`, `validate`, `isvalid`).
@@ -178,12 +205,14 @@ influence-diagram schema); later loads are fast.
   imported from `InfluenceDiagrams` and extended), `contextual_value`,
   `continuation_value` and `boundary_law` (each on a `RewardKernel` and, through
   `interpret`, on a diagram, dictionary and model forms), and `contextual_optimize`
-  (value table or brute force).
-- `test/runtests.jl`: `test_open.jl` (construction, accessors, flags, one failing case per
-  rule, the Bayesian-network embedding; defines the umbrella split `umbrella_chance` and
+  (`InfluenceDiagrams`' exhaustive search with a `DecisionContext`, or brute force).
+- `test/runtests.jl`: `test_open.jl` (construction, accessors, flags, per-foot flags and
+  their errors, one failing case per rule, the Bayesian-network embedding; defines the umbrella split `umbrella_chance` and
   `umbrella_decision`), `test_composition.jl` (every operation; the umbrella, the SPEC §46
   grazing diagram at two boundaries and the two-stage diagram split and composed back to
-  isomorphic diagrams; rules 1, 5 and 6 across boundaries; unset references),
+  isomorphic diagrams; rules 1, 5 and 6 across boundaries; per-foot flags on a
+  pass-through relay of the two-stage split, forgetting and revealing, under `compose`,
+  `glue`, `otimes`, `id` and `oapply` on one junction and on two; unset references),
   `test_semantics.jl` (the reward-kernel laws on random reward kernels; `interpret` against
   the closed-composite oracle under `compose`, `glue`, `otimes` and `oapply` on every
   strategy of the umbrella and two-stage oil-wildcatter splits, on the grazing splits and on
@@ -192,7 +221,10 @@ influence-diagram schema); later loads are fast.
   `random_spec` and `random_pieces`), `test_optimization.jl` (the contextual identity in
   both forms on the umbrella, oil-wildcatter and grazing splits and on seeded random splits
   of two and three pieces; `optimize` on closed composites; `contextual_optimize` against
-  brute force and the solvers, in both contextual orders; the bundle's Lean witness of
+  brute force and the solvers, in both contextual orders; the delegation to a
+  `DecisionContext`: a non-product joint prior over two inputs, a repeated output and a
+  pass-through variable in the continuation, the shared-name `ArgumentError`, evidence and
+  decision variable elimination unreachable; the bundle's Lean witness of
   `INF-ISOLATED-OBSTRUCTION`, `lean_early` and `lean_late`, giving `1 < 4`, and of
   `INF-HIDDEN-OBSTRUCTION`, where the pointwise value 2 needs a policy reading the hidden
   input and rule 3 rejects it), `test_errors.jl` (hierarchy, re-exports, frozen names,

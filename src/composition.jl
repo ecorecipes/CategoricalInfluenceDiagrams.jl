@@ -228,13 +228,17 @@ already taken in `apex(B)` is refused with BayesianNetworks' `NameClashError`.
 The result has inputs `inputs(A)` followed by the unglued inputs of `B`, and outputs the
 unglued outputs of `A` followed by `outputs(B)`, each with its flag. It is validated as a
 composite, rule 6 included, exactly as for
-[`compose`](@ref compose(::OpenInfluenceDiagram, ::OpenInfluenceDiagram)). The operands are
-not validated, but a name or position without a value raises BayesianNetworks'
-`MissingAttributeError`, since the pushout reads every attribute.
+[`compose`](@ref compose(::OpenInfluenceDiagram, ::OpenInfluenceDiagram)). Both operands
+are validated first, as `compose` validates them. Unlike the open-network `glue` this
+matters: rule 3 concerns a component's own input foot, and gluing turns a glued input into
+an internal variable, so a decision that reads a hidden input of `B` would otherwise pass
+on the composite.
 """
 function glue(A::OpenInfluenceDiagram, B::OpenInfluenceDiagram;
               along::AbstractVector{<:Pair{Symbol,Symbol}}, no_forgetting::Bool=true)
-    foreach(_require_attributes, (apex(A), apex(B), output_space(A), input_space(B)))
+    validate(A)
+    validate(B)
+    foreach(_require_attributes, (output_space(A), input_space(B)))
     outA, inB = outputs(A), inputs(B)
     ia, ib = Int[], Int[]
     for (k, (a, b)) in enumerate(along)
@@ -403,11 +407,21 @@ observability ([`ObservabilityMismatchError`](@ref)). An outer port on a junctio
 box touches is refused with `InterfaceMismatchError(:missing_junction, ...)`. A box count
 that differs from the number of diagrams raises `ArgumentError`.
 
+Each junction carries one flag, and each port the flag of its variable on its foot. A
+pass-through variable, one on both feet of a diagram, has two ports, an input port and an
+output port, whose flags differ when the diagram flags the variable differently on its two
+feet (see [`Open`](@ref Open(::InfluenceDiagram))). Wired to the same junction, the two
+ports must agree like any two ports there, so different flags raise
+[`ObservabilityMismatchError`](@ref). Wired to two junctions, each junction keeps its own
+flag; the colimit joins them into one variable, since both ports name it, and an outer port
+on either junction carries that junction's flag. Whether a decision may read the variable
+is then decided on the composite by rule 3, and rule 6 is checked as for `compose`.
+
 The apex is the colimit computed by Catlab's `oapply` for structured multicospans. The
 inputs of the result are the outer-port variables without a generator (a mechanism or a
 decision) and its outputs the others, in outer-port order, each with its junction's flag.
-Undirected diagrams cannot express the typed-interface rule, so with `validate = true` the
-composite is validated afterwards, as for
+Undirected diagrams cannot express the typed-interface rule, so with `validate = true` each
+diagram is validated first and the composite afterwards, as for
 [`compose`](@ref compose(::OpenInfluenceDiagram, ::OpenInfluenceDiagram)) but without
 demanding unique names, rule 6 included unless `no_forgetting = false`. A junction that
 receives two generated variables gives BayesianNetworks' `DuplicateGeneratorError` or
@@ -419,6 +433,10 @@ function oapply(uwd::UndirectedWiringDiagram,
                 validate::Bool=true, no_forgetting::Bool=true)
     nboxes(uwd) == length(diagrams) ||
         throw(ArgumentError("oapply: the diagram has $(nboxes(uwd)) boxes but $(length(diagrams)) influence diagrams were given"))
+    # The keyword `validate` shadows the function. Each diagram is validated as `compose`
+    # validates its operands: rule 3 concerns a box's own input foot, which the colimit
+    # may turn into internal variables that the composite no longer flags.
+    validate && foreach(BayesianNetworks.validate, diagrams)
     foreach(d -> _require_attributes(apex(d)), diagrams)
     unbundled = map(_unbundle, diagrams)
     junction_feet = Dict{Int,VariableSpace}()

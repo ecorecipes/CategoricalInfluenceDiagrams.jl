@@ -2368,7 +2368,7 @@ vertical-align: -.125em;
 </section>
 <section id="a-management-component-and-a-valuation-component" class="level2">
 <h2 class="anchored" data-anchor-id="a-management-component-and-a-valuation-component">A management component and a valuation component</h2>
-<p>The manager replaces the prior on grazing pressure. The management component holds a decision, <code>GrazingManagement</code> (exclude, reduce or maintain grazing), made on the soil moisture; a mechanism for the grazing pressure that the decision achieves; and the cost of the decision. It takes the soil moisture as an observed input and passes it on with the grazing pressure. The kernel of the grazing pressure and the cost are those of the zoo’s SPEC section 46 grazing diagram: excluding grazing makes low pressure likely but not certain, and costs 40, reducing it costs 15, maintaining it nothing.</p>
+<p>The manager replaces the prior on grazing pressure. The management component holds a decision, <code>GrazingManagement</code> (exclude, reduce or maintain grazing), made on the soil moisture; a mechanism for the grazing pressure that the decision achieves; and the cost of the decision. It takes the soil moisture as an observed input and passes it on, with the grazing pressure, to the biotic part. What the manager observed is information for the decision, and the biotic part has no decision to inform, so the soil moisture leaves the component hidden: <code>observed</code> takes a named tuple that flags each foot separately, and here names the soil moisture on the input foot only. The kernel of the grazing pressure and the cost are those of the zoo’s SPEC section 46 grazing diagram: excluding grazing makes low pressure likely but not certain, and costs 40, reducing it costs 15, maintaining it nothing.</p>
 <div id="16" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>management <span class="op">=</span> <span class="fu">influence_diagram</span>(<span class="op">:</span>SoilMoisture <span class="op">=&gt;</span> [<span class="op">:</span>low, <span class="op">:</span>medium, <span class="op">:</span>high],</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>                               <span class="op">:</span>GrazingManagement <span class="op">=&gt;</span> [<span class="op">:</span>exclude, <span class="op">:</span>reduce, <span class="op">:</span>maintain],</span>
@@ -2378,11 +2378,12 @@ vertical-align: -.125em;
 <span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>                               utilities <span class="op">=</span> [<span class="op">:</span>ManagementCost <span class="op">=&gt;</span> <span class="op">:</span>GrazingManagement],</span>
 <span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>                               closed <span class="op">=</span> <span class="cn">false</span>)</span>
 <span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>M <span class="op">=</span> <span class="fu">Open</span>(management; inputs <span class="op">=</span> [<span class="op">:</span>SoilMoisture],</span>
-<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>         outputs <span class="op">=</span> [<span class="op">:</span>SoilMoisture, <span class="op">:</span>GrazingPressure], observed <span class="op">=</span> [<span class="op">:</span>SoilMoisture])</span>
-<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(M)</span>
-<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="fu">utility_table</span>(<span class="fu">bound_utilities</span>(grazing)[<span class="op">:</span>ManagementCost])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>         outputs <span class="op">=</span> [<span class="op">:</span>SoilMoisture, <span class="op">:</span>GrazingPressure],</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>         observed <span class="op">=</span> (inputs <span class="op">=</span> [<span class="op">:</span>SoilMoisture],))</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(M)</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a><span class="fu">utility_table</span>(<span class="fu">bound_utilities</span>(grazing)[<span class="op">:</span>ManagementCost])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>OpenInfluenceDiagram(3 variables, 1 mechanisms, 1 decisions, 1 utilities; [:SoilMoisture!] -&gt; [:SoilMoisture!, :GrazingPressure])</code></pre>
+<pre><code>OpenInfluenceDiagram(3 variables, 1 mechanisms, 1 decisions, 1 utilities; [:SoilMoisture!] -&gt; [:SoilMoisture, :GrazingPressure])</code></pre>
 </div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>3-element Vector{Float64}:
@@ -2442,16 +2443,17 @@ vertical-align: -.125em;
 <pre><code>&quot;DiagramInterfaceError: rule 3 (a decision reads only internal or observed input-foot variables) is violated: decision :GrazingManagement has the hidden input :SoilMoisture in its information set; declare it observed or remove the arc&quot;</code></pre>
 </div>
 </div>
-<p>So the abiotic part is opened with soil moisture observed. <code>Open</code>’s keyword <code>observed</code> flags a name on every foot it appears on, so the management component passes soil moisture on observed, and the biotic part, which has no decision of its own, takes it observed as well. Grazing pressure stays hidden: the manager chooses the management, not the pressure it achieves.</p>
+<p>So the abiotic part is opened with soil moisture observed. The management component passes the soil moisture on hidden, so the biotic part is used exactly as it was opened above, with everything hidden: it has no decision, and nothing downstream reads the soil moisture as information. Grazing pressure stays hidden too: the manager chooses the management, not the pressure it achieves. Both boundaries now match:</p>
 <div id="26" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>E <span class="op">=</span> <span class="fu">Open</span>(<span class="fu">InfluenceDiagram</span>(abiotic); outputs <span class="op">=</span> [<span class="op">:</span>SoilMoisture], observed <span class="op">=</span> [<span class="op">:</span>SoilMoisture])</span>
-<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>H <span class="op">=</span> <span class="fu">Open</span>(<span class="fu">InfluenceDiagram</span>(biotic); inputs <span class="op">=</span> [<span class="op">:</span>SoilMoisture, <span class="op">:</span>GrazingPressure],</span>
-<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>         outputs <span class="op">=</span> [<span class="op">:</span>Occupancy], observed <span class="op">=</span> [<span class="op">:</span>SoilMoisture])</span>
-<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(E)</span>
-<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(H)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>H <span class="op">=</span> H0</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(E)</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="fu">interface_matches</span>(<span class="fu">codom</span>(E), <span class="fu">dom</span>(M)), <span class="fu">interface_matches</span>(<span class="fu">codom</span>(M), <span class="fu">dom</span>(H))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>OpenInfluenceDiagram(3 variables, 3 mechanisms, 0 decisions, 0 utilities; Symbol[] -&gt; [:SoilMoisture!])
-OpenInfluenceDiagram(5 variables, 3 mechanisms, 0 decisions, 0 utilities; [:SoilMoisture!, :GrazingPressure] -&gt; [:Occupancy])</code></pre>
+<pre><code>OpenInfluenceDiagram(3 variables, 3 mechanisms, 0 decisions, 0 utilities; Symbol[] -&gt; [:SoilMoisture!])</code></pre>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>(true, true)</code></pre>
 </div>
 </div>
 </section>
@@ -2459,14 +2461,14 @@ OpenInfluenceDiagram(5 variables, 3 mechanisms, 0 decisions, 0 utilities; [:Soil
 <h2 class="anchored" data-anchor-id="composing-and-optimising-the-closed-composite">Composing and optimising the closed composite</h2>
 <p>The four components compose in sequence into a closed influence diagram:</p>
 <div id="28" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>whole <span class="op">=</span> E <span class="op">⋅</span> M <span class="op">⋅</span> H <span class="op">⋅</span> V</span>
-<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(whole)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>whole <span class="op">=</span> E <span class="op">⋅</span> M <span class="op">⋅</span> H <span class="op">⋅</span> V</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(whole)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>OpenInfluenceDiagram(8 variables, 7 mechanisms, 1 decisions, 2 utilities; Symbol[] -&gt; Symbol[])</code></pre>
 </div>
 </div>
 <div id="30" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="fu">to_graphviz</span>(<span class="fu">apex</span>(whole); states <span class="op">=</span> <span class="cn">false</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="fu">to_graphviz</span>(<span class="fu">apex</span>(whole); states <span class="op">=</span> <span class="cn">false</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <div>
 <figure class="figure">
@@ -2477,18 +2479,18 @@ OpenInfluenceDiagram(5 variables, 3 mechanisms, 0 decisions, 0 utilities; [:Soil
 </div>
 <p>Its apex is an ordinary influence diagram, so <code>optimize</code> solves it with the solvers of <code>InfluenceDiagrams.jl</code> (decision variable elimination by default). The policy table is indexed by the soil moisture (low, medium, high):</p>
 <div id="32" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>best <span class="op">=</span> <span class="fu">optimize</span>(whole, kernels, utilities)</span>
-<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="fu">round</span>(best.expected_utility; digits <span class="op">=</span> <span class="fl">2</span>), <span class="fu">policy_table</span>(best.strategy[<span class="op">:</span>GrazingManagement])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>best <span class="op">=</span> <span class="fu">optimize</span>(whole, kernels, utilities)</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="fu">round</span>(best.expected_utility; digits <span class="op">=</span> <span class="fl">2</span>), <span class="fu">policy_table</span>(best.strategy[<span class="op">:</span>GrazingManagement])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>(469.82, [:reduce, :reduce, :exclude])</code></pre>
 </div>
 </div>
 <p>The optimal policy reacts to the soil moisture, and it is worth more than any fixed action:</p>
 <div id="34" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>fixed <span class="op">=</span> [a <span class="op">=&gt;</span> <span class="fu">round</span>(<span class="fu">contextual_value</span>(whole, kernels, utilities,</span>
-<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>                                     <span class="fu">Strategy</span>(<span class="op">:</span>GrazingManagement <span class="op">=&gt;</span> <span class="fu">ConstantPolicy</span>(a)));</span>
-<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>                    digits <span class="op">=</span> <span class="fl">2</span>)</span>
-<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>         for a <span class="kw">in</span> (<span class="op">:</span>exclude, <span class="op">:</span>reduce, <span class="op">:</span>maintain)]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb33"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>fixed <span class="op">=</span> [a <span class="op">=&gt;</span> <span class="fu">round</span>(<span class="fu">contextual_value</span>(whole, kernels, utilities,</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>                                     <span class="fu">Strategy</span>(<span class="op">:</span>GrazingManagement <span class="op">=&gt;</span> <span class="fu">ConstantPolicy</span>(a)));</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>                    digits <span class="op">=</span> <span class="fl">2</span>)</span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>         for a <span class="kw">in</span> (<span class="op">:</span>exclude, <span class="op">:</span>reduce, <span class="op">:</span>maintain)]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>3-element Vector{Pair{Symbol, Float64}}:
   :exclude =&gt; 468.12
@@ -2498,8 +2500,8 @@ OpenInfluenceDiagram(5 variables, 3 mechanisms, 0 decisions, 0 utilities; [:Soil
 </div>
 <p>With a lower value on the species’ presence the decision is not worth taking. Valued at 100, the cost of management is never repaid and the optimal policy maintains grazing whatever the soil moisture:</p>
 <div id="36" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb34"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>low_value <span class="op">=</span> <span class="fu">merge</span>(utilities, <span class="fu">Dict</span>(<span class="op">:</span>ConservationBenefit <span class="op">=&gt;</span> <span class="fu">benefit</span>(<span class="fl">100.0</span>)))</span>
-<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="fu">policy_table</span>(<span class="fu">optimize</span>(whole, kernels, low_value).strategy[<span class="op">:</span>GrazingManagement])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>low_value <span class="op">=</span> <span class="fu">merge</span>(utilities, <span class="fu">Dict</span>(<span class="op">:</span>ConservationBenefit <span class="op">=&gt;</span> <span class="fu">benefit</span>(<span class="fl">100.0</span>)))</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="fu">policy_table</span>(<span class="fu">optimize</span>(whole, kernels, low_value).strategy[<span class="op">:</span>GrazingManagement])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>3-element Vector{Symbol}:
  :maintain
@@ -2516,43 +2518,43 @@ OpenInfluenceDiagram(5 variables, 3 mechanisms, 0 decisions, 0 utilities; [:Soil
 <li><code>continuation_value</code> of <code>H ⋅ V</code> is the expected conservation benefit that the biotic part and the valuation earn from each joint state of soil moisture and grazing pressure.</li>
 </ul>
 <div id="38" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb36"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>ν <span class="op">=</span> <span class="fu">boundary_law</span>(E, kernels, utilities, <span class="fu">Strategy</span>())</span>
-<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>rHV <span class="op">=</span> <span class="fu">interpret</span>(H <span class="op">⋅</span> V, kernels, utilities, <span class="fu">Strategy</span>())</span>
-<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>c <span class="op">=</span> <span class="fu">continuation_value</span>(rHV)</span>
-<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>(soil_moisture <span class="op">=</span> <span class="fu">round</span>.(ν; digits <span class="op">=</span> <span class="fl">3</span>),</span>
-<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a> continuation <span class="op">=</span> [y <span class="op">=&gt;</span> <span class="fu">round</span>(v; digits <span class="op">=</span> <span class="fl">1</span>)</span>
-<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>                 for (y, v) <span class="kw">in</span> <span class="fu">zip</span>(<span class="fu">joint_states</span>(<span class="fu">dom</span>(rHV)), c)])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb37"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>ν <span class="op">=</span> <span class="fu">boundary_law</span>(E, kernels, utilities, <span class="fu">Strategy</span>())</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>rHV <span class="op">=</span> <span class="fu">interpret</span>(H <span class="op">⋅</span> V, kernels, utilities, <span class="fu">Strategy</span>())</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>c <span class="op">=</span> <span class="fu">continuation_value</span>(rHV)</span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>(soil_moisture <span class="op">=</span> <span class="fu">round</span>.(ν; digits <span class="op">=</span> <span class="fl">3</span>),</span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a> continuation <span class="op">=</span> [y <span class="op">=&gt;</span> <span class="fu">round</span>(v; digits <span class="op">=</span> <span class="fl">1</span>)</span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>                 for (y, v) <span class="kw">in</span> <span class="fu">zip</span>(<span class="fu">joint_states</span>(<span class="fu">dom</span>(rHV)), c)])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>(soil_moisture = [0.288, 0.403, 0.309], continuation = [(:low, :low) =&gt; 395.2, (:medium, :low) =&gt; 521.8, (:high, :low) =&gt; 607.0, (:low, :high) =&gt; 338.9, (:medium, :high) =&gt; 451.6, (:high, :high) =&gt; 521.8])</code></pre>
 </div>
 </div>
 <p><code>contextual_optimize</code> maximises the component’s value in that context over its legal strategies, the policies that read the soil moisture. It finds the optimum of the closed composite and the same policy:</p>
 <div id="40" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb38"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>local_best <span class="op">=</span> <span class="fu">contextual_optimize</span>(M, kernels, utilities; prior <span class="op">=</span> ν, continuation <span class="op">=</span> c)</span>
-<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>(local_best.expected_utility <span class="op">≈</span> best.expected_utility,</span>
-<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a> local_best.strategy <span class="op">==</span> best.strategy, local_best.diagnostics)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb39"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>local_best <span class="op">=</span> <span class="fu">contextual_optimize</span>(M, kernels, utilities; prior <span class="op">=</span> ν, continuation <span class="op">=</span> c)</span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>(local_best.expected_utility <span class="op">≈</span> best.expected_utility,</span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a> local_best.strategy <span class="op">==</span> best.strategy, local_best.diagnostics)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>(true, true, (nstrategies = 27, method = :value_table))</code></pre>
 </div>
 </div>
 <p>This is the contextual identity: for every strategy <code>σ</code> of the management component, its value in the context <code>(ν, c)</code> is the expected utility of the whole composite. The abiotic part earns no reward of its own, so nothing is added for it.</p>
 <div id="42" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb40"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="fu">all</span>(<span class="fu">contextual_value</span>(M, kernels, utilities, σ; prior <span class="op">=</span> ν, continuation <span class="op">=</span> c) <span class="op">≈</span></span>
-<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>    <span class="fu">contextual_value</span>(whole, kernels, utilities, σ)</span>
-<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> σ <span class="kw">in</span> (best.strategy,</span>
-<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>              (<span class="fu">Strategy</span>(<span class="op">:</span>GrazingManagement <span class="op">=&gt;</span> <span class="fu">ConstantPolicy</span>(a))</span>
-<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>               <span class="cf">for</span> a <span class="kw">in</span> (<span class="op">:</span>exclude, <span class="op">:</span>reduce, <span class="op">:</span>maintain))<span class="op">...</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb41"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="fu">all</span>(<span class="fu">contextual_value</span>(M, kernels, utilities, σ; prior <span class="op">=</span> ν, continuation <span class="op">=</span> c) <span class="op">≈</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>    <span class="fu">contextual_value</span>(whole, kernels, utilities, σ)</span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> σ <span class="kw">in</span> (best.strategy,</span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>              (<span class="fu">Strategy</span>(<span class="op">:</span>GrazingManagement <span class="op">=&gt;</span> <span class="fu">ConstantPolicy</span>(a))</span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>               <span class="cf">for</span> a <span class="kw">in</span> (<span class="op">:</span>exclude, <span class="op">:</span>reduce, <span class="op">:</span>maintain))<span class="op">...</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>true</code></pre>
 </div>
 </div>
 <p>The context matters. Optimised against a zero continuation, as if nothing downstream depended on the grazing, the component sees only the cost of management and maintains grazing everywhere. Composed with the network, that choice is worth less than the optimum:</p>
 <div id="44" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb42"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a>isolated <span class="op">=</span> <span class="fu">contextual_optimize</span>(M, kernels, utilities; prior <span class="op">=</span> ν, continuation <span class="op">=</span> <span class="fu">zeros</span>(<span class="fl">6</span>))</span>
-<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>(policy <span class="op">=</span> <span class="fu">policy_table</span>(isolated.strategy[<span class="op">:</span>GrazingManagement]),</span>
-<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a> composed_value <span class="op">=</span> <span class="fu">round</span>(<span class="fu">contextual_value</span>(whole, kernels, utilities, isolated.strategy);</span>
-<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a>                        digits <span class="op">=</span> <span class="fl">2</span>),</span>
-<span id="cb42-5"><a href="#cb42-5" aria-hidden="true" tabindex="-1"></a> optimum <span class="op">=</span> <span class="fu">round</span>(best.expected_utility; digits <span class="op">=</span> <span class="fl">2</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb43"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a>isolated <span class="op">=</span> <span class="fu">contextual_optimize</span>(M, kernels, utilities; prior <span class="op">=</span> ν, continuation <span class="op">=</span> <span class="fu">zeros</span>(<span class="fl">6</span>))</span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a>(policy <span class="op">=</span> <span class="fu">policy_table</span>(isolated.strategy[<span class="op">:</span>GrazingManagement]),</span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a> composed_value <span class="op">=</span> <span class="fu">round</span>(<span class="fu">contextual_value</span>(whole, kernels, utilities, isolated.strategy);</span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a>                        digits <span class="op">=</span> <span class="fl">2</span>),</span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a> optimum <span class="op">=</span> <span class="fu">round</span>(best.expected_utility; digits <span class="op">=</span> <span class="fl">2</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>(policy = [:maintain, :maintain, :maintain], composed_value = 451.45, optimum = 469.82)</code></pre>
 </div>
@@ -2561,7 +2563,7 @@ OpenInfluenceDiagram(5 variables, 3 mechanisms, 0 decisions, 0 utilities; [:Soil
 </section>
 <section id="summary" class="level2">
 <h2 class="anchored" data-anchor-id="summary">Summary</h2>
-<p>The reference habitat network of the model zoo was opened at the boundary between soil moisture and grazing pressure and the rest of the network, and composed back to itself with the same kernel of occupancy. Replacing the prior on grazing pressure by a management component, with a decision on the observed soil moisture, the SPEC section 46 kernel of achieved grazing pressure and its cost, and adding a valuation of occupancy, gave a closed influence diagram that <code>optimize</code> solves. The boundary had to declare the soil moisture observed: an embedded network hides everything, and a decision that reads a hidden input is refused. Optimised on its own against the law the network induces on its input and the value the network earns from its outputs, the decision component attains the optimum of the whole; optimised against a context that leaves the network out, it does not.</p>
+<p>The reference habitat network of the model zoo was opened at the boundary between soil moisture and grazing pressure and the rest of the network, and composed back to itself with the same kernel of occupancy. Replacing the prior on grazing pressure by a management component, with a decision on the observed soil moisture, the SPEC section 46 kernel of achieved grazing pressure and its cost, and adding a valuation of occupancy, gave a closed influence diagram that <code>optimize</code> solves. The boundary had to declare the soil moisture observed where the decision reads it, on the input foot of the management component: an embedded network hides everything, and a decision that reads a hidden input is refused. Nothing downstream needed it, so it left the component hidden, and the biotic part of the network was composed as it was opened. Optimised on its own against the law the network induces on its input and the value the network earns from its outputs, the decision component attains the optimum of the whole; optimised against a context that leaves the network out, it does not.</p>
 </section>
 <section id="references" class="level2">
 <h2 class="anchored" data-anchor-id="references">References</h2>

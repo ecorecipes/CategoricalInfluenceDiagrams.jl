@@ -14,7 +14,12 @@ Catlab out of the model layer (ADR 0009).
 - **Observability.** Every interface variable is `:observed`, remembered information that a
   later decision may read, or `:hidden`. The flags sit beside the cospan, one per interface
   position, rather than in the feet, so that the feet stay interchangeable with those of
-  `CategoricalBayesianNetworks.jl`. Everything is hidden unless declared observed. Two
+  `CategoricalBayesianNetworks.jl`. Everything is hidden unless declared observed, by name
+  on every foot (`observed = [...]`) or foot by foot
+  (`observed = (inputs = [...], outputs = [...])`). A pass-through variable observed on the
+  input foot and hidden on the output foot is forgotten at the boundary; hidden on the
+  input foot and observed on the output foot, it is revealed by the component, whose own
+  decisions still may not read it. Two
   interfaces that agree on variables and states but not on flags do not match
   ([`ObservabilityMismatchError`](@ref)).
 - **The typed-interface rule**, checked by
@@ -64,7 +69,10 @@ Catlab out of the model layer (ADR 0009).
   `f : X → Y` has no expected utility of its own: [`contextual_value`](@ref) scores it
   under a fixed strategy against an explicit prior `μ` on its joint input states and an
   explicit continuation `c` on its joint output states, `Σ_x μ(x) Σ_y (W(y, x) + K(y | x) c(y))`,
-  and [`contextual_optimize`](@ref) maximises that over the legal deterministic strategies.
+  and [`contextual_optimize`](@ref) maximises that over the legal deterministic strategies,
+  by handing the component to the `ExhaustivePolicySearch` of `InfluenceDiagrams.jl` with
+  the prior over its input variables and the continuation over its output variables as a
+  `DecisionContext` (its brute-force path, through `interpret`, is the cross-check).
   For a serial composite `f ⋅ g` the contexts are the suffix's value function
   ([`continuation_value`](@ref)) and the prefix's boundary law ([`boundary_law`](@ref)),
   and the contextual identity `EU_{f;g}(σ, τ; μ, c) = EU_f(σ; μ, c_τ) = L_σ + EU_g(τ; ν_σ, c)`

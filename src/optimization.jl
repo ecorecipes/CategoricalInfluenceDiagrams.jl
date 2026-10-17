@@ -29,13 +29,12 @@ function _model_tables(m::InfluenceDiagramModel, f::AbstractString)
     return kernels(m), bound_utilities(m)
 end
 
-# The closed composite `o` as an `InfluenceDiagramModel` with the tables of `kernels` and
-# `utilities` bound, resolved through the apex's references as `interpret` resolves them.
-function _closed_model(o::OpenInfluenceDiagram, kernels::AbstractDict,
-                       utilities::AbstractDict; atol::Real=DEFAULT_ATOL)
-    isempty(inputs(o)) && isempty(outputs(o)) ||
-        throw(ArgumentError("optimize: the diagram has inputs $(inputs(o)) and outputs $(outputs(o)); only a closed composite is optimised as a whole (optimise an open component with contextual_optimize, against an explicit prior and continuation)"))
-    validate(o)
+# The apex of `o` as an `InfluenceDiagramModel` with the tables of `kernels` and `utilities`
+# bound, resolved through the apex's references as `interpret` resolves them. The input
+# variables of an open `o` have no mechanism and stay without one: they are the model's
+# exogenous variables, whose law a `DecisionContext` supplies.
+function _bound_model(o::OpenInfluenceDiagram, kernels::AbstractDict,
+                      utilities::AbstractDict; atol::Real=DEFAULT_ATOL)
     id = apex(o)
     m = InfluenceDiagramModel(id)
     for mech in mechanisms(id)
@@ -55,6 +54,15 @@ function _closed_model(o::OpenInfluenceDiagram, kernels::AbstractDict,
         m = bind_utility(m, utility_name(id, u) => util)
     end
     return m
+end
+
+# The closed composite `o` as a bound `InfluenceDiagramModel`.
+function _closed_model(o::OpenInfluenceDiagram, kernels::AbstractDict,
+                       utilities::AbstractDict; atol::Real=DEFAULT_ATOL)
+    isempty(inputs(o)) && isempty(outputs(o)) ||
+        throw(ArgumentError("optimize: the diagram has inputs $(inputs(o)) and outputs $(outputs(o)); only a closed composite is optimised as a whole (optimise an open component with contextual_optimize, against an explicit prior and continuation)"))
+    validate(o)
+    return _bound_model(o, kernels, utilities; atol=atol)
 end
 
 """
@@ -101,7 +109,10 @@ end
 # Contexts
 ##########
 
-# The prior over the joint input states of `X`, in `joint_states` order, checked.
+# The prior over the joint input states of `X`, in `joint_states` order, checked as
+# `InfluenceDiagrams`' `DecisionContext` checks a prior: finite, nonnegative entries (no
+# tolerance below zero) summing to one within `atol` (`|Σ - 1| <= atol`, the
+# kernel-normalisation convention). It is never renormalised.
 function _prior_vector(prior, X::FiniteSpace, atol::Real)
     if prior === nothing
         isempty(X) ||
@@ -119,9 +130,9 @@ function _prior_vector(prior, X::FiniteSpace, atol::Real)
         throw(ArgumentError("the prior has $(length(prior)) entries but the inputs $(axis_names(X)) have $(length(X)) joint states"))
     all(isfinite, prior) ||
         throw(ArgumentError("the prior has an entry that is not finite"))
-    all(>=(-atol), prior) || throw(ArgumentError("the prior has a negative entry"))
-    abs(sum(prior) - 1) <= atol * length(prior) ||
-        throw(ArgumentError("the prior sums to $(sum(prior)), not one"))
+    all(>=(0), prior) || throw(ArgumentError("the prior has a negative entry"))
+    abs(sum(prior) - 1) <= atol ||
+        throw(ArgumentError("the prior sums to $(sum(prior)), not to one within atol = $atol"))
     return convert(Vector{Float64}, collect(prior))
 end
 
@@ -162,8 +173,9 @@ where `(K, W)` is the reward kernel of `f` under `σ`. The diagram forms compute
 whose arguments and keywords (`max_states`, `atol`) they take.
 
 - `prior` is a real vector over the joint input states, in `joint_states` order of
-  `dom(r)` (the first input varies fastest), nonnegative and summing to one (within `atol`
-  per entry), or a `FiniteKernel` state `I → dom(r)`. It is the joint law of the hidden
+  `dom(r)` (the first input varies fastest), with nonnegative entries summing to one
+  within `atol` (`|Σ μ - 1| <= atol`, as `InfluenceDiagrams`' `DecisionContext` requires;
+  it is never renormalised), or a `FiniteKernel` state `I → dom(r)`. It is the joint law of the hidden
   state and the remembered information at the boundary; no independence is assumed. It may
   be left out only when `f` has no inputs.
 - `continuation` is a real (signed) vector over the joint output states, in `joint_states`
@@ -279,15 +291,36 @@ end
 # Contextual optimisation
 #########################
 
-# The linear index, in `joint_states` order, of the joint state that `ci` gives the
-# variables at the positions `sel`, whose numbers of states are `sz`.
-@inline function _joint_index(ci::CartesianIndex, sel::Vector{Int}, sz::Vector{Int})
-    idx, stride = 1, 1
-    @inbounds for j in eachindex(sel)
-        idx += stride * (ci[sel[j]] - 1)
-        stride *= sz[j]
-    end
-    return idx
+# Optimisation keys policies, tables and the context by name, so the apex of a component
+# to optimise must have unique variable, decision and utility names. `interpret` and
+# `contextual_value` work part by part and keep supporting repeated names (equally named
+# decisions then share one policy).
+function _require_unique_names(id::AbstractInfluenceDiagram)
+    repeated(xs) = sort!(unique(x for x in xs if count(==(x), xs) > 1))
+    found = [(what, repeated(Symbol[subpart(id, p, attr) for p in parts(id, ob)]))
+             for (what, ob, attr) in (("decision", :Decision, :decision_name),
+                                      ("variable", :Variable, :variable_name),
+                                      ("utility", :Utility, :utility_name))]
+    filter!(x -> !isempty(last(x)), found)
+    isempty(found) ||
+        throw(ArgumentError("contextual_optimize: names must be unique for optimisation, but the diagram repeats the " *
+                            join(["$what names $(names_)" for (what, names_) in found],
+                                 ", the ") *
+                            " (as a diagram tensored with itself does); rename them, or value a fixed strategy with contextual_value"))
+    return nothing
+end
+
+# A boundary context as `vars => table` for `InfluenceDiagrams`' `DecisionContext`: the
+# vector `v` over the joint states of the apex variables `vs`, in `joint_states` order (the
+# first variable fastest), reshaped to one axis per position of `vs`. A repeated variable
+# repeats its name, as `DecisionContext` reads a repeated terminal variable on the
+# diagonal. An empty `vs` gives a 0-dimensional table: the one-entry continuation of a
+# component without outputs is a constant, which still counts.
+function _boundary_table(id::AbstractInfluenceDiagram, vs::AbstractVector{<:Integer},
+                         v::Vector{Float64})
+    return Symbol[variable_name(id, x) for x in vs] => reshape(v,
+                                                               Tuple(nstates(id, x)
+                                                                     for x in vs))
 end
 
 """
@@ -301,23 +334,32 @@ the open component `o : X → Y`, in the explicit context of a prior `μ` on its
 states and a continuation `c` on its joint output states, given as for
 [`contextual_value`](@ref) (ADR 0018, decision 4). The result is `InfluenceDiagrams`'
 `DecisionSolution`: the best value `EU_o(σ*; μ, c)`, a best strategy `σ*` with a
-`DeterministicPolicy` for every decision name of `o`, and the diagnostics
-`(nstrategies, method)`.
+`DeterministicPolicy` for every decision name of `o`, and diagnostics that include
+`nstrategies` and `method`.
 
 Only legal strategies are searched: each policy is a function of its decision's declared
 information set, which by rule 3 holds internal and *observed* input variables only. A
 hidden input is never read, so no strategy can maximise separately at each hidden boundary
 state; the bundle shows that doing so changes the problem (`INF-HIDDEN-OBSTRUCTION`).
 
-The search enumerates every deterministic strategy in the order of
-`all_deterministic_strategies(apex(o))` (`all_deterministic_policies` for each decision
-name, in `decision_order`, the first decision fastest) and returns the first one attaining
-the maximum, as `ExhaustivePolicySearch` does. More than `max_policies`
-strategies raise `PolicySearchTooLargeError`. By default each strategy is scored from one
-value table, computed by enumerating the joint states of the apex with the actions left
-free: `Σ μ(x) P_chance (U + c(y))` accumulated over the information and action variables.
-With `brute_force = true` every strategy is scored by [`contextual_value`](@ref) through
-`interpret` instead, which is slower and is the oracle the test suite compares with.
+By default the search is `InfluenceDiagrams`' own: the apex of `o` is bound to the tables
+of `kernels` and `utilities` as an `InfluenceDiagramModel` whose input variables keep no
+mechanism (they are its exogenous variables), the context becomes a `DecisionContext` with
+`μ` as the prior over the input variables and `c` as the terminal utility over the output
+variables (a repeated output repeats its name and is read on the diagonal; a pass-through
+variable is both), and `optimize(m, ExhaustivePolicySearch(; max_policies); context,
+max_states, atol)` solves it. The result and its diagnostics are that function's
+(`(nstrategies, method = :value_table)`, with `exact_fallback = true` when its value table
+falls back to scoring strategy by strategy). It enumerates the strategies in the order of
+`all_deterministic_strategies(apex(o))` (`all_deterministic_policies` for each decision, in
+`decision_order`, the first decision fastest) and returns the first one attaining the
+maximum. More than `max_policies` strategies raise `PolicySearchTooLargeError`. Decision
+variable elimination is never used, since it takes no context.
+
+With `brute_force = true` every strategy, in the same order, is scored by
+[`contextual_value`](@ref) through `interpret` instead, an independent path that is slower
+and is the oracle the test suite compares with; its diagnostics are
+`(nstrategies, method = :brute_force)`.
 
 The context is what makes the result meaningful. With `continuation` the
 [`continuation_value`](@ref) of a suffix `g` under `τ`, the optimum is the best prefix
@@ -330,9 +372,13 @@ composes isolated optima to `1` where the composite attains `4`
 and composes them.
 
 Arguments are checked as for `interpret` and [`contextual_value`](@ref): `o` is validated,
-at most `max_states` joint states of the apex are enumerated (`ModelTooLargeError`), and
-missing tables raise `MissingKernelError` or `MissingUtilityError`. Equally named decisions
-share one policy, which must fit each of them (`PolicySignatureError`). The model form reads
+the prior and continuation are checked as there (a prior's entries nonnegative and summing
+to one within `atol`, as `DecisionContext` requires), at most `max_states` joint states of
+the apex are enumerated (`ModelTooLargeError`), and missing tables raise
+`MissingKernelError` or `MissingUtilityError`. The apex's variable, decision and utility
+names must be unique, since the search keys policies and tables by name: equally named
+decisions (a diagram tensored with itself, say) raise `ArgumentError` on both paths, while
+`interpret` and [`contextual_value`](@ref) still accept them. The model form reads
 `kernels(m)` and `bound_utilities(m)` and refuses evidence (`ArgumentError`).
 """
 function contextual_optimize(o::OpenInfluenceDiagram, kernels::AbstractDict,
@@ -342,96 +388,35 @@ function contextual_optimize(o::OpenInfluenceDiagram, kernels::AbstractDict,
                              atol::Real=DEFAULT_ATOL)
     validate(o)
     id = apex(o)
+    _require_unique_names(id)
     in_ids, out_ids = input_variables(o), output_variables(o)
     X = FiniteSpace(FiniteAxis[axis(id, v) for v in in_ids])
     Y = FiniteSpace(FiniteAxis[axis(id, v) for v in out_ids])
     μ = _prior_vector(prior, X, atol)
     c = _continuation_vector(continuation, Y)
-    # The decision parts in decision order, and their distinct names: equally named
-    # decisions share one policy.
-    ds = decision_order(id)
-    dnames = Symbol[decision_name(id, d) for d in ds]
-    names_ = unique(dnames)
-    first_of = Dict(n => ds[findfirst(==(n), dnames)] for n in names_)
-    info_axes(d) = FiniteAxis[axis(id, v) for v in decision_information(id, d)]
-    action_axis(d) = axis(id, decision_variable(id, d))
-    total = prod(BigInt[n_deterministic_policies(info_axes(first_of[n]),
-                                                 action_axis(first_of[n]))
-                        for n in names_]; init=BigInt(1))
-    total <= max_policies || throw(PolicySearchTooLargeError(total, max_policies))
-    per = [all_deterministic_policies(n, info_axes(first_of[n]), action_axis(first_of[n]))
-           for n in names_]
-    for (i, d) in enumerate(ds)
-        validate_policy(dnames[i], info_axes(d), action_axis(d),
-                        first(per[findfirst(==(dnames[i]), names_)]))
-    end
-    function strategy_of(choice)
-        return Strategy(Dict{Symbol,AbstractPolicy}(names_[j] => per[j][choice[j]]
-                                                    for j in eachindex(names_)))
-    end
-    best, best_choice = -Inf, nothing
     if brute_force
-        for choice in Iterators.product(eachindex.(per)...)
-            v = contextual_value(o, kernels, utilities, strategy_of(choice); prior=μ,
-                                 continuation=c, max_states=max_states, atol=atol)
-            v > best && ((best, best_choice) = (v, choice))
+        total = n_deterministic_strategies(id)
+        total <= max_policies || throw(PolicySearchTooLargeError(total, max_policies))
+        best, best_strategy = -Inf, Strategy()
+        for σ in all_deterministic_strategies(id)
+            v = contextual_value(o, kernels, utilities, σ; prior=μ, continuation=c,
+                                 max_states=max_states, atol=atol)
+            v > best && ((best, best_strategy) = (v, σ))
         end
-        return DecisionSolution(best, strategy_of(best_choice),
+        return DecisionSolution(best, best_strategy,
                                 (nstrategies=Int(total), method=:brute_force))
     end
-    # The value table over the information and action variables of the decisions.
-    ids = collect(parts(id, :Variable))
-    n = prod(BigInt[nstates(id, v) for v in ids]; init=big(1))
-    n <= max_states || throw(ModelTooLargeError(Int(min(n, typemax(Int))), max_states))
-    pos = Dict{Int,Int}(v => i for (i, v) in enumerate(ids))
-    dims = Tuple(nstates(id, v) for v in ids)
-    factors = _factors(id, kernels, pos; atol=atol)
-    us = _utility_factors(id, utilities, pos)
-    keep = Int[]
-    for d in ds, v in vcat(decision_information(id, d), decision_variable(id, d))
-        pos[v] in keep || push!(keep, pos[v])
-    end
-    N = zeros(Float64, Tuple(dims[k] for k in keep))
-    in_sel, out_sel = Int[pos[v] for v in in_ids], Int[pos[v] for v in out_ids]
-    in_sz, out_sz = Int[nstates(id, v) for v in in_ids],
-                    Int[nstates(id, v) for v in out_ids]
-    for ci in CartesianIndices(dims)
-        w = μ[_joint_index(ci, in_sel, in_sz)]
-        w == 0 && continue
-        p = _product(factors, ci)
-        p == 0 && continue
-        u = c[_joint_index(ci, out_sel, out_sz)]
-        for f in us
-            u += _value(f, ci)
-        end
-        N[CartesianIndex(ntuple(j -> ci[keep[j]], length(keep)))] += w * p * u
-    end
-    # Each policy as a table of action indices; each decision part as the positions, in
-    # the value table, of its information and its action.
-    kpos = Dict{Int,Int}(k => j for (j, k) in enumerate(keep))
-    tables = [[map(a -> findfirst(==(a), p.action.labels), p.table) for p in per[j]]
-              for j in eachindex(names_)]
-    which = Int[findfirst(==(dn), names_) for dn in dnames]
-    info_k = [Int[kpos[pos[v]] for v in decision_information(id, d)] for d in ds]
-    act_k = Int[kpos[pos[decision_variable(id, d)]] for d in ds]
-    for choice in Iterators.product(eachindex.(per)...)
-        v = 0.0
-        for k in CartesianIndices(N)
-            ok = true
-            for i in eachindex(ds)
-                t = tables[which[i]][choice[which[i]]]
-                ik = info_k[i]
-                if t[ntuple(j -> k[ik[j]], length(ik))...] != k[act_k[i]]
-                    ok = false
-                    break
-                end
-            end
-            ok && (v += N[k])
-        end
-        v > best && ((best, best_choice) = (v, choice))
-    end
-    return DecisionSolution(best, strategy_of(best_choice),
-                            (nstrategies=Int(total), method=:value_table))
+    m = _bound_model(o, kernels, utilities; atol=atol)
+    # Without inputs there are no exogenous variables, so no prior (the one-entry `μ` is
+    # one within `atol`); a zero continuation adds nothing, so it is left out, and a closed
+    # composite is solved exactly as `optimize` solves it.
+    context = DecisionContext(;
+                              prior=isempty(in_ids) ? nothing :
+                                    _boundary_table(id, in_ids, μ),
+                              terminal=all(iszero, c) ? nothing :
+                                       _boundary_table(id, out_ids, c))
+    return optimize(m, ExhaustivePolicySearch(; max_policies=max_policies); context=context,
+                    max_states=max_states, atol=atol)
 end
 
 function contextual_optimize(o::OpenInfluenceDiagram, m::InfluenceDiagramModel; kw...)

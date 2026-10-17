@@ -88,6 +88,20 @@ end
 
 constant(d, a) = Strategy(d => ConstantPolicy(a))
 
+# The default search (`InfluenceDiagrams`' `ExhaustivePolicySearch` against a
+# `DecisionContext`) and the brute-force path through `interpret`, which must agree.
+function both_paths(o, ks, us; kw...)
+    return contextual_optimize(o, ks, us; kw...),
+           contextual_optimize(o, ks, us; brute_force=true, kw...)
+end
+function paths_agree(o, ks, us; kw...)
+    vt, bf = both_paths(o, ks, us; kw...)
+    return vt.expected_utility ≈ bf.expected_utility && vt.strategy == bf.strategy &&
+           vt.diagnostics.method === :value_table &&
+           bf.diagnostics.method === :brute_force &&
+           vt.diagnostics.nstrategies == bf.diagnostics.nstrategies
+end
+
 @testset "Optimisation" begin
     m = umbrella_model()
     ks, us = kernels_by_name(m), bound_utilities(m)
@@ -134,6 +148,16 @@ constant(d, a) = Strategy(d => ConstantPolicy(a))
         @test_throws ArgumentError contextual_value(r; prior=state(Y, [0.5, 0.5]),
                                                     continuation=c)
         @test_throws ArgumentError contextual_value(r; prior="uniform", continuation=c)
+        # The prior's rule is `DecisionContext`'s: no entry below zero, however small, and
+        # the sum within `atol` of one (not `atol` per entry).
+        neg = [1.0 + 1e-12, -1e-12, 0.0, 0.0, 0.0, 0.0]
+        @test_throws ArgumentError contextual_value(r; prior=neg, continuation=c)
+        @test_throws ArgumentError boundary_law(r; prior=neg)
+        @test_throws ArgumentError contextual_value(r; prior=μ .* (1 + 3e-7),
+                                                    continuation=c, atol=1e-7)
+        # Within `atol` the prior is used as given, never renormalised.
+        @test contextual_value(r; prior=μ .* (1 + 5e-8), continuation=c, atol=1e-7) ≈
+              expected * (1 + 5e-8)
         # A closed reward kernel needs no context: its value is its reward.
         closed = RewardKernel(state(FiniteSpace(), [1.0]), fill(7.5))
         @test contextual_value(closed) == 7.5
@@ -258,16 +282,24 @@ constant(d, a) = Strategy(d => ConstantPolicy(a))
         @test bf.expected_utility ≈ sol.expected_utility && bf.strategy == sol.strategy
         @test bf.diagnostics.method === :brute_force
         @test contextual_optimize(compose(A, B), ks, us).expected_utility ≈ 77
+        @test contextual_optimize(compose(A, B), ks, us;
+                                  continuation=[1.5]).expected_utility ≈ 78.5
+        @test paths_agree(compose(A, B), ks, us; continuation=[-1.0])
         @test_throws PolicySearchTooLargeError contextual_optimize(B, ks, us; prior=ν,
                                                                    max_policies=7)
         @test_throws ArgumentError contextual_optimize(B, ks, us)
         @test_throws ModelTooLargeError contextual_optimize(B, ks, us; prior=ν,
                                                             max_states=2)
+        @test_throws PolicySearchTooLargeError contextual_optimize(B, ks, us; prior=ν,
+                                                                   max_policies=7,
+                                                                   brute_force=true)
         # A component without decisions has one strategy, the empty one.
         none = contextual_optimize(A, ks, us;
                                    continuation=continuation_value(B, ks, us,
                                                                    sol.strategy))
         @test none.strategy == Strategy() && none.expected_utility ≈ 77
+        @test paths_agree(A, ks, us;
+                          continuation=continuation_value(B, ks, us, sol.strategy))
         # The oil wildcatter: both contextual forms and brute force agree with the solvers,
         # and the prefix optimised against the optimal suffix's value function attains it.
         mo = two_stage_model()
@@ -281,6 +313,7 @@ constant(d, a) = Strategy(d => ConstantPolicy(a))
         sP = contextual_optimize(P, kso, uso;
                                  continuation=continuation_value(Q, kso, uso, τstar))
         @test sP.expected_utility ≈ 21
+        @test paths_agree(P, kso, uso; continuation=continuation_value(Q, kso, uso, τstar))
         @test expected_utility(mo, merge_strategies(sP.strategy, τstar)) ≈ 21
         σstar = restrict(global_.strategy, P)
         sQ = contextual_optimize(Q, kso, uso; prior=boundary_law(P, kso, uso, σstar))
@@ -333,6 +366,7 @@ constant(d, a) = Strategy(d => ConstantPolicy(a))
             vt = contextual_optimize(P, ks_, us_; continuation=c)
             bf = contextual_optimize(P, ks_, us_; continuation=c, brute_force=true)
             @test vt.expected_utility ≈ bf.expected_utility
+            @test vt.diagnostics.nstrategies == bf.diagnostics.nstrategies
             @test contextual_value(P, ks_, us_, vt.strategy; continuation=c) ≈
                   vt.expected_utility
         end
@@ -357,6 +391,7 @@ constant(d, a) = Strategy(d => ConstantPolicy(a))
         # (`early_isolated_optimal`).
         iso_early = contextual_optimize(early, ksl, usl; continuation=zeros(4))
         @test iso_early.strategy[:A].table[] === :no && iso_early.expected_utility == 0
+        @test paths_agree(early, ksl, usl; continuation=zeros(4))
         @test contextual_value(early, ksl, usl, constant(:A, :yes);
                                continuation=zeros(4)) ==
               -1
@@ -369,6 +404,7 @@ constant(d, a) = Strategy(d => ConstantPolicy(a))
         end
         iso_late = contextual_optimize(late, ksl, usl; prior=ν)
         @test iso_late.expected_utility == 1 && all(==(:no), iso_late.strategy[:B].table)
+        @test paths_agree(late, ksl, usl; prior=ν)
         # Composed, the isolated choices are worth 1; the composite attains 4.
         isolated = contextual_value(whole, ksl, usl,
                                     merge_strategies(iso_early.strategy, iso_late.strategy))
@@ -388,6 +424,7 @@ constant(d, a) = Strategy(d => ConstantPolicy(a))
         cτ = continuation_value(late, ksl, usl, iso_late.strategy)
         repaired = contextual_optimize(early, ksl, usl; continuation=cτ)
         @test repaired.strategy[:A].table[] === :yes && repaired.expected_utility == 4
+        @test paths_agree(early, ksl, usl; continuation=cτ)
         @test suffix_first(early, late, ksl, usl) == 4
         @test prefix_first(early, late, ksl, usl) == 4
     end
@@ -422,6 +459,103 @@ constant(d, a) = Strategy(d => ConstantPolicy(a))
         # problem: the early component hides `H`, so the two no longer compose.
         peek = lean_late(; information=(:H, :A), observed=[:H, :A])
         @test contextual_optimize(peek, ksl, usl; prior=ν).expected_utility == 2
+        @test paths_agree(peek, ksl, usl; prior=ν) && paths_agree(late, ksl, usl; prior=ν)
         @test_throws ObservabilityMismatchError compose(early, peek)
+    end
+
+    @testset "contextual optimisation through a DecisionContext" begin
+        ksl, usl = lean_tables()
+        late = lean_late()
+        # A joint prior over the two inputs (H, A), the first fastest, that is not the
+        # product of its marginals. `B` reads `A`: at `A = no` the state `H = yes` is
+        # likelier, at `A = yes` the state `H = no`, so the best policy matches them and is
+        # worth 4 * 0.5 + 2 * (0.4 + 0.3) = 3.4.
+        μ = [0.1, 0.4, 0.3, 0.2]
+        sol = contextual_optimize(late, ksl, usl; prior=μ)
+        @test sol.expected_utility ≈ 3.4 && sol.strategy[:B].table == [:yes, :no]
+        @test paths_agree(late, ksl, usl; prior=μ)
+        @test contextual_value(late, ksl, usl, sol.strategy; prior=μ) ≈ 3.4
+        # The product of the marginals is another context, with another optimum (H = yes
+        # has probability 0.6 whatever A is): no independence is assumed.
+        product = kron([0.5, 0.5], [0.4, 0.6])
+        @test sum(product) ≈ 1 && product != μ
+        ind = contextual_optimize(late, ksl, usl; prior=product)
+        @test ind.expected_utility ≈ 3.2 && all(==(:yes), ind.strategy[:B].table)
+        @test paths_agree(late, ksl, usl; prior=product)
+        # The prior is given as a state kernel too.
+        X = tensor_space(FiniteSpace(:H, LEAN_BOOL), FiniteSpace(:A, LEAN_BOOL))
+        @test contextual_optimize(late, ksl, usl;
+                                  prior=state(X, reshape(μ, 2, 2))).expected_utility ≈ 3.4
+        # Without outputs the continuation is one constant, which still counts.
+        @test contextual_optimize(late, ksl, usl; prior=μ,
+                                  continuation=[2.5]).expected_utility ≈ 5.9
+        @test paths_agree(late, ksl, usl; prior=μ, continuation=[2.5])
+        @test paths_agree(lean_early(), ksl, usl; continuation=[1.0, -2.0, 0.5, 3.0])
+        # A slightly negative prior entry is refused, as `DecisionContext` refuses it.
+        @test_throws ArgumentError contextual_optimize(late, ksl, usl;
+                                                       prior=[0.5 + 1e-12, 0.5, -1e-12,
+                                                              0.0])
+
+        # A repeated output and a pass-through variable: `B` is an output twice and `A` is
+        # both an input and an output. The continuation is over the joint states of
+        # (B, A, B), the first fastest; only its diagonal in the two copies of `B` is
+        # reachable, so the other entries must not count.
+        late_id = influence_diagram(:H => LEAN_BOOL, :A => LEAN_BOOL, :B => LEAN_BOOL;
+                                    decisions=[:B => (:A,)],
+                                    utilities=[:LateBenefit => :A,
+                                               :HiddenMatch => (:H, :B)],
+                                    closed=false)
+        relay = Open(late_id; inputs=[:H, :A], outputs=[:B, :A, :B], observed=[:A])
+        @test outputs(relay) == [:B, :A, :B]
+        rng = Xoshiro(91)
+        c = randn(rng, 8)
+        for (j, (b1, _, b2)) in enumerate(Iterators.product(1:2, 1:2, 1:2))
+            b1 == b2 || (c[j] = 1000.0)
+        end
+        C = reshape(c, 2, 2, 2)
+        U(h, a, b) = 4 * (a - 1) + 2 * (b == h) + C[b, a, b]
+        value(pol) = sum(μ[h + 2 * (a - 1)] * U(h, a, pol[a]) for h in 1:2, a in 1:2)
+        pols = [[b1, b2] for b1 in 1:2 for b2 in 1:2]
+        best = maximum(value, pols)
+        sr = contextual_optimize(relay, ksl, usl; prior=μ, continuation=c)
+        @test sr.expected_utility ≈ best < 1000
+        @test value([findfirst(==(b), LEAN_BOOL) for b in sr.strategy[:B].table]) ≈ best
+        @test paths_agree(relay, ksl, usl; prior=μ, continuation=c)
+        @test contextual_value(relay, ksl, usl, sr.strategy; prior=μ, continuation=c) ≈
+              best
+
+        # Equally named decisions (a diagram tensored with itself) cannot be optimised: the
+        # search keys policies by name. Both paths refuse them; `interpret` and
+        # `contextual_value` still value a fixed strategy, the one policy shared.
+        twice = otimes(lean_early(), lean_early())
+        @test count(==(:A), decision_names(apex(twice))) == 2
+        for bf in (false, true)
+            e = try
+                contextual_optimize(twice, ksl, usl; continuation=zeros(16), brute_force=bf)
+            catch err
+                err
+            end
+            @test e isa ArgumentError && occursin("unique", e.msg) &&
+                  occursin("decision names [:A]", e.msg)
+        end
+        @test contextual_value(twice, ksl, usl, constant(:A, :yes);
+                               continuation=zeros(16)) == -2
+        @test interpret(twice, ksl, usl, constant(:A, :no)) isa RewardKernel
+
+        # Evidence and decision variable elimination are not reachable: the model form
+        # refuses evidence, and there is no backend to choose, the search being
+        # `ExhaustivePolicySearch`'s.
+        m = umbrella_model()
+        @test_throws ArgumentError contextual_optimize(Open(syntax(m)),
+                                                       observe(m, :Forecast => :rainy))
+        ν = boundary_law(umbrella_chance(), kernels_by_name(m), bound_utilities(m),
+                         Strategy())
+        @test_throws MethodError contextual_optimize(umbrella_decision(),
+                                                     kernels_by_name(m),
+                                                     bound_utilities(m); prior=ν,
+                                                     backend=DecisionVariableElimination())
+        @test contextual_optimize(umbrella_decision(), kernels_by_name(m),
+                                  bound_utilities(m); prior=ν).diagnostics.method ===
+              :value_table
     end
 end

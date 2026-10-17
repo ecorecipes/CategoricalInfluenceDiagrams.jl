@@ -17,9 +17,11 @@
 #   `MissingKernelError`, `KernelBindingError` and `ModelTooLargeError`, InfluenceDiagrams'
 #   `IncompleteStrategyError`, `PolicySignatureError`, `MissingUtilityError` and
 #   `UtilityScopeError`, and FiniteKernels' `SpaceMismatchError`; and, from the
-#   optimisation, InfluenceDiagrams' `PolicySearchTooLargeError` (which
-#   `contextual_optimize` raises itself, as `ExhaustivePolicySearch` does, for the same
-#   condition) and the errors of its solvers, among them `IrregularDiagramError`.
+#   optimisation, InfluenceDiagrams' `PolicySearchTooLargeError` (from
+#   `ExhaustivePolicySearch`, to which `contextual_optimize` delegates, and raised by the
+#   brute-force path itself for the same condition), `ExogenousCoverageError` and
+#   `ContextStateCountError` (which the context `contextual_optimize` builds cannot
+#   trigger) and the errors of its solvers, among them `IrregularDiagramError`.
 # - A docstring names another package's type as a code span, never with `@ref`.
 
 """

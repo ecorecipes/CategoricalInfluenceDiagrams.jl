@@ -113,8 +113,11 @@ kernel(rN) ≈ marginal(habitat, :Occupancy), all(iszero, reward(rN))
 The manager replaces the prior on grazing pressure. The management component holds a
 decision, `GrazingManagement` (exclude, reduce or maintain grazing), made on the soil
 moisture; a mechanism for the grazing pressure that the decision achieves; and the cost
-of the decision. It takes the soil moisture as an observed input and passes it on with
-the grazing pressure. The kernel of the grazing pressure and the cost are those of the
+of the decision. It takes the soil moisture as an observed input and passes it on, with
+the grazing pressure, to the biotic part. What the manager observed is information for the
+decision, and the biotic part has no decision to inform, so the soil moisture leaves the
+component hidden: `observed` takes a named tuple that flags each foot separately, and here
+names the soil moisture on the input foot only. The kernel of the grazing pressure and the cost are those of the
 zoo's SPEC section 46 grazing diagram: excluding grazing makes low pressure likely but
 not certain, and costs 40, reducing it costs 15, maintaining it nothing.
 
@@ -127,7 +130,8 @@ management = influence_diagram(:SoilMoisture => [:low, :medium, :high],
                                utilities = [:ManagementCost => :GrazingManagement],
                                closed = false)
 M = Open(management; inputs = [:SoilMoisture],
-         outputs = [:SoilMoisture, :GrazingPressure], observed = [:SoilMoisture])
+         outputs = [:SoilMoisture, :GrazingPressure],
+         observed = (inputs = [:SoilMoisture],))
 println(M)
 utility_table(bound_utilities(grazing)[:ManagementCost])
 ```
@@ -181,18 +185,17 @@ catch e
 end
 ```
 
-So the abiotic part is opened with soil moisture observed. `Open`'s keyword `observed`
-flags a name on every foot it appears on, so the management component passes soil
-moisture on observed, and the biotic part, which has no decision of its own, takes it
-observed as well. Grazing pressure stays hidden: the manager chooses the management, not
-the pressure it achieves.
+So the abiotic part is opened with soil moisture observed. The management component
+passes the soil moisture on hidden, so the biotic part is used exactly as it was opened
+above, with everything hidden: it has no decision, and nothing downstream reads the soil
+moisture as information. Grazing pressure stays hidden too: the manager chooses the
+management, not the pressure it achieves. Both boundaries now match:
 
 ```{julia}
 E = Open(InfluenceDiagram(abiotic); outputs = [:SoilMoisture], observed = [:SoilMoisture])
-H = Open(InfluenceDiagram(biotic); inputs = [:SoilMoisture, :GrazingPressure],
-         outputs = [:Occupancy], observed = [:SoilMoisture])
+H = H0
 println(E)
-println(H)
+interface_matches(codom(E), dom(M)), interface_matches(codom(M), dom(H))
 ```
 
 ## Composing and optimising the closed composite
@@ -305,8 +308,10 @@ with the same kernel of occupancy. Replacing the prior on grazing pressure by a 
 component, with a decision on the observed soil moisture, the SPEC section 46 kernel of
 achieved grazing pressure and its cost, and adding a valuation of occupancy, gave a closed
 influence diagram that `optimize` solves. The boundary had to declare the soil moisture
-observed: an embedded network hides everything, and a decision that reads a hidden input
-is refused. Optimised on its own against the law the network induces on its input and the
+observed where the decision reads it, on the input foot of the management component: an
+embedded network hides everything, and a decision that reads a hidden input is refused.
+Nothing downstream needed it, so it left the component hidden, and the biotic part of the
+network was composed as it was opened. Optimised on its own against the law the network induces on its input and the
 value the network earns from its outputs, the decision component attains the optimum of
 the whole; optimised against a context that leaves the network out, it does not.
 

@@ -183,11 +183,37 @@ references and states (with positions), exactly as for an `OpenBayesNet`. Names 
 in `outputs` (an implicit copy) but not in `inputs`.
 
 `observed` names the interface variables that are `:observed`: remembered information that
-a decision may read. Every other interface variable is `:hidden`. A name in `observed` is
-observed on every foot it appears on, and a name that is on neither foot raises
-`ArgumentError`. **The default is that everything is hidden.** It is the conservative
-choice: a decision may never read a hidden input (rule 3), so an interface carries
-information only where it says so, and an `OpenBayesNet` embeds with every variable hidden.
+a decision may read. Every other interface variable is `:hidden`. It takes two forms.
+
+- A vector of names. A name in it is observed on every foot it appears on, and a name that
+  is on neither foot raises `ArgumentError`.
+- A named tuple `(inputs = [...], outputs = [...])`, either field optional (default
+  empty), which flags each foot separately: the names in `observed.inputs` are observed on
+  the input foot, those in `observed.outputs` on the output foot. A name in
+  `observed.inputs` that is not an input, or in `observed.outputs` that is not an output,
+  raises `ArgumentError` naming them, as does any other field or an entry that is not a
+  `Symbol`. The vector `[n...]` is the named tuple that lists each `n` on every foot it is
+  on.
+
+**The default is that everything is hidden.** It is the conservative choice: a decision may
+never read a hidden input (rule 3), so an interface carries information only where it says
+so, and an `OpenBayesNet` embeds with every variable hidden.
+
+Per-foot flags matter for a pass-through variable, one on both feet:
+
+- *observed on the input foot, hidden on the output foot*: the boundary forgets the
+  variable. The component's decisions may read it, but a decision downstream cannot, since
+  the next component must take it hidden to match (or [`ObservabilityMismatchError`](@ref))
+  and rule 3 then forbids reading it. If such a decision comes after one that read the
+  variable, the composite fails rule 6 ([`NoForgettingError`](@ref)).
+- *hidden on the input foot, observed on the output foot*: the component reveals the
+  variable, as a perfect observation made inside the component, and a downstream decision
+  may read it. The component's own decisions still may not, since rule 3 is about inputs.
+  Composites are validated again, so a decision downstream still cannot read the variable
+  when a composite's input foot hides it: `compose(R, B)`, with `R` revealing `X` to a
+  decision of `B` that reads it, fails rule 3 on the composite, because `X` is a hidden
+  input of `R ⋅ B`; composed after a component that generates `X`, it is internal and
+  legal.
 
 With `validate = true` the typed-interface rule is checked (see
 [`validate`](@ref validate(::OpenInfluenceDiagram))) and the first violation thrown. An
@@ -206,22 +232,55 @@ julia> B = Open(id; inputs = [:Weather, :Forecast], observed = [:Forecast]);
 
 julia> inputs(B), input_observability(B)
 ([:Weather, :Forecast], [:hidden, :observed])
+
+julia> R = Open(influence_diagram(:X => [:a, :b]; closed = false);
+                inputs = [:X], outputs = [:X], observed = (outputs = [:X],));
+
+julia> input_observability(R), output_observability(R)
+([:hidden], [:observed])
 ```
 """
 function Open(id::InfluenceDiagram; inputs::AbstractVector{Symbol}=Symbol[],
               outputs::AbstractVector{Symbol}=Symbol[],
-              observed::AbstractVector{Symbol}=Symbol[], validate::Bool=true)
+              observed::Union{AbstractVector{Symbol},NamedTuple}=Symbol[],
+              validate::Bool=true)
+    in_flags, out_flags = _observed_flags(observed, inputs, outputs)
+    in_ids = [variable_id(id, n) for n in inputs]
+    out_ids = [variable_id(id, n) for n in outputs]
+    o = OpenInfluenceDiagram(_cospan(id, in_ids, out_ids), in_flags, out_flags)
+    validate && _validate_open(o)
+    return o
+end
+
+# The flags of the two feet that `Open`'s `observed` declares. A vector observes a name on
+# every foot it is on; a named tuple `(inputs = ..., outputs = ...)` names the observed
+# variables of each foot separately.
+function _observed_flags(observed::AbstractVector{Symbol}, inputs, outputs)
     for n in observed
         (n in inputs || n in outputs) ||
             throw(ArgumentError("Open: observed variable :$n is neither an input nor an output"))
     end
-    in_ids = [variable_id(id, n) for n in inputs]
-    out_ids = [variable_id(id, n) for n in outputs]
     flag(n) = n in observed ? :observed : :hidden
-    o = OpenInfluenceDiagram(_cospan(id, in_ids, out_ids), map(flag, inputs),
-                             map(flag, outputs))
-    validate && _validate_open(o)
-    return o
+    return map(flag, inputs), map(flag, outputs)
+end
+
+function _observed_flags(observed::NamedTuple, inputs, outputs)
+    extra = [k for k in keys(observed) if !(k in (:inputs, :outputs))]
+    isempty(extra) ||
+        throw(ArgumentError("Open: observed has the fields $extra; a named tuple takes only `inputs` and `outputs`"))
+    return (_foot_flags(get(observed, :inputs, Symbol[]), inputs, :inputs, "an input"),
+            _foot_flags(get(observed, :outputs, Symbol[]), outputs, :outputs, "an output"))
+end
+
+# The flags of one foot whose observed variables are `names`.
+function _foot_flags(names, foot::AbstractVector{Symbol}, side::Symbol,
+                     what::AbstractString)
+    (names isa AbstractVector && all(n -> n isa Symbol, names)) ||
+        throw(ArgumentError("Open: observed.$side must be a vector of variable names, got $(repr(names))"))
+    stray = Symbol[n for n in names if !(n in foot)]
+    isempty(stray) ||
+        throw(ArgumentError("Open: observed.$side names $stray, each of which is not $what"))
+    return [n in names ? :observed : :hidden for n in foot]
 end
 
 function Open(id::InfluenceDiagram, inputs::AbstractVector{Symbol},

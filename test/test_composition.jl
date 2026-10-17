@@ -278,6 +278,163 @@ end
         @test isvalid(compose(lim, id(munit(OpenInfluenceDiagramOb))))
     end
 
+    @testset "rule 3 survives gluing an unvalidated operand" begin
+        # The decision reads a hidden input; built with `validate = false`, it would pass on
+        # a composite that turns the input into an internal variable, so `glue` and
+        # `oapply` validate their operands as `compose` does.
+        hidden = umbrella_chance(; observed=Symbol[])
+        bad = umbrella_decision(; observed=Symbol[], validate=false)
+        @test !isvalid(bad)
+        is_rule3(e) = e isa DiagramInterfaceError && e.rule == 3 && e.variable == :Forecast
+        e = try
+            glue(hidden, bad; along=[:Weather => :Weather, :Forecast => :Forecast])
+        catch err
+            err
+        end
+        @test is_rule3(e)
+        uwd = @relation () begin
+            chance(weather, forecast)
+            decide(weather, forecast)
+        end
+        e = try
+            oapply(uwd, [hidden, bad])
+        catch err
+            err
+        end
+        @test is_rule3(e)
+        # `validate = false` remains the deliberate way around every check.
+        @test oapply(uwd, [hidden, bad]; validate=false) isa OpenInfluenceDiagram
+    end
+
+    @testset "per-foot flags on a pass-through variable" begin
+        # A relay that passes the oil, the test and its result through unchanged, with its
+        # own flags on each foot.
+        relay_diagram = influence_diagram(:Oil => [:dry, :wet], :Test => [:test, :skip],
+                                          :Result => [:pos, :neg, :none]; closed=false)
+        relay(observed) = Open(relay_diagram; inputs=[:Oil, :Test, :Result],
+                               outputs=[:Oil, :Test, :Result], observed=observed)
+        P = two_stage_test()
+
+        # Forgetting: the test is observed on the input foot and hidden on the output foot.
+        forget = relay((inputs=[:Test, :Result], outputs=[:Result]))
+        @test input_observability(forget) == [:hidden, :observed, :observed]
+        @test output_observability(forget) == [:hidden, :hidden, :observed]
+        PF = compose(P, forget)
+        @test output_observability(PF) == [:hidden, :hidden, :observed]
+        # The drilling decision downstream needs the test. Taking it observed does not match
+        # the boundary; taking it hidden, it may not read it (rule 3).
+        @test_throws ObservabilityMismatchError compose(PF, two_stage_drill())
+        e = try
+            two_stage_drill(; observed=[:Result])
+        catch err
+            err
+        end
+        @test e == DiagramInterfaceError(3, :Test, :Drill, :hidden_input)
+        unchecked = Open(apex(two_stage_drill()); inputs=[:Oil, :Test, :Result],
+                         observed=[:Result], validate=false)
+        @test_throws DiagramInterfaceError compose(PF, unchecked)
+        # Without the test, the drilling decision forgets what the test decision did
+        # (rule 6), however the pieces are bracketed.
+        blind = two_stage_drill(; information=(:Result,), observed=[:Result])
+        e = try
+            compose(PF, blind)
+        catch err
+            err
+        end
+        @test e == NoForgettingError(:Drill, :Test, :Test)
+        @test_throws NoForgettingError compose(P, compose(forget, blind))
+        @test isvalid(compose(PF, blind; no_forgetting=false))
+
+        # Revealing: the test is hidden on the input foot and observed on the output foot.
+        reveal = relay((inputs=[:Result], outputs=[:Test, :Result]))
+        @test input_observability(reveal) == [:hidden, :hidden, :observed]
+        @test output_observability(reveal) == [:hidden, :observed, :observed]
+        Ph = two_stage_test(; observed=[:Result])
+        C = compose(compose(Ph, reveal), two_stage_drill())
+        @test isvalid(C) && is_isomorphic(apex(C), two_stage_diagram())
+        # Composed without the test decision, the composite's input foot hides the test,
+        # and the drilling decision may not read it: rule 3 on the composite.
+        e = try
+            compose(reveal, two_stage_drill())
+        catch err
+            err
+        end
+        @test e == DiagramInterfaceError(3, :Test, :Drill, :hidden_input)
+        @test_throws DiagramInterfaceError glue(reveal, two_stage_drill();
+                                                along=[:Oil => :Oil, :Test => :Test,
+                                                       :Result => :Result])
+        # glue, otimes, id and the semantics read the flags of each foot as they are.
+        G = glue(glue(Ph, reveal; along=[:Oil => :Oil, :Test => :Test, :Result => :Result]),
+                 two_stage_drill();
+                 along=[:Oil => :Oil, :Test => :Test, :Result => :Result])
+        @test is_isomorphic(apex(G), apex(C))
+        T = otimes(forget, reveal)
+        @test input_observability(T) == vcat(input_observability(forget),
+                                             input_observability(reveal))
+        @test output_observability(T) == vcat(output_observability(forget),
+                                              output_observability(reveal))
+        for I in (compose(forget, id(codom(forget))), compose(id(dom(reveal)), reveal))
+            @test isvalid(I)
+        end
+        @test output_observability(compose(forget, id(codom(forget)))) ==
+              output_observability(forget)
+        @test input_observability(compose(id(dom(reveal)), reveal)) ==
+              input_observability(reveal)
+        # The semantics does not read the flags: the revealing composite is functorial and
+        # agrees with the closed-composite oracle.
+        mo = two_stage_model()
+        kso = Dict{Symbol,FiniteKernel}(x => kernel(mo, x)
+                                        for x in chance_names(syntax(mo)))
+        uso = bound_utilities(mo)
+        PR = compose(Ph, reveal)
+        for σ in collect(all_deterministic_strategies(apex(C)))[1:16:end]
+            rC = interpret(C, kso, uso, σ)
+            @test reward(rC)[] ≈ expected_utility(mo, σ)
+            @test rC ≈ compose(interpret(PR, kso, uso, σ),
+                               interpret(two_stage_drill(), kso, uso, σ))
+        end
+
+        # oapply. The relay's two ports for the test on one junction must agree, so a relay
+        # that flags the test differently on its two feet cannot sit there.
+        same = @relation () begin
+            test(oil, t, result)
+            relay(oil, t, result, oil, t, result)
+            drill(oil, t, result)
+        end
+        e = try
+            oapply(same, [Ph, reveal, two_stage_drill()])
+        catch err
+            err
+        end
+        @test e isa ObservabilityMismatchError && e.variable == :Test &&
+              e.left == :hidden && e.right == :observed
+        @test_throws ObservabilityMismatchError oapply(same, [P, forget, blind])
+        # On two junctions each keeps its flag, and the colimit joins them into one
+        # variable: revealing gives the two-stage diagram, forgetting fails rule 6.
+        split = @relation () begin
+            test(oil, t, result)
+            relay(oil, t, result, oil, t2, result)
+            drill(oil, t2, result)
+        end
+        O = oapply(split, [Ph, reveal, two_stage_drill()])
+        @test isvalid(O) && is_isomorphic(apex(O), two_stage_diagram())
+        @test_throws NoForgettingError oapply(split, [P, forget, blind])
+        @test_throws ObservabilityMismatchError oapply(split,
+                                                       [P, forget, two_stage_drill()])
+        # An outer port carries the flag of its own junction.
+        before = @relation (t,) begin
+            test(oil, t, result)
+            relay(oil, t, result, oil, t2, result)
+        end
+        after = @relation (t2,) begin
+            test(oil, t, result)
+            relay(oil, t, result, oil, t2, result)
+        end
+        @test output_observability(oapply(before, [Ph, reveal])) == [:hidden]
+        @test output_observability(oapply(after, [Ph, reveal])) == [:observed]
+        @test outputs(oapply(after, [Ph, reveal])) == [:Test]
+    end
+
     @testset "the grazing diagram split and composed back" begin
         M, H = grazing_management(), grazing_habitat()
         C = compose(M, H)
