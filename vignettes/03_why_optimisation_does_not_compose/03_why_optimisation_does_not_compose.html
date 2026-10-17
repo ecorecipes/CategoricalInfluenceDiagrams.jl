@@ -2317,11 +2317,11 @@ OpenInfluenceDiagram(3 variables, 0 mechanisms, 1 decisions, 2 utilities; [:H, :
 <div id="8" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>whole <span class="op">=</span> <span class="fu">compose</span>(early, late)</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">constant</span>(d, a) <span class="op">=</span> <span class="fu">Strategy</span>(d <span class="op">=&gt;</span> <span class="fu">ConstantPolicy</span>(a))</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>late_policies <span class="op">=</span> <span class="fu">all_deterministic_policies</span>(<span class="op">:</span>B, [<span class="fu">ax</span>(<span class="op">:</span>A)], <span class="fu">ax</span>(<span class="op">:</span>B))</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>[(A <span class="op">=</span> a, B <span class="op">=</span> <span class="fu">Tuple</span>(<span class="fu">policy_table</span>(p)),</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>late_strategies <span class="op">=</span> <span class="fu">all_deterministic_strategies</span>(<span class="fu">apex</span>(late))</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>[(A <span class="op">=</span> a, B <span class="op">=</span> <span class="fu">Tuple</span>(<span class="fu">policy_table</span>(τ[<span class="op">:</span>B])),</span>
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  value <span class="op">=</span> <span class="fu">contextual_value</span>(whole, kernels, utilities,</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>                           <span class="fu">merge_strategies</span>(<span class="fu">constant</span>(<span class="op">:</span>A, a), <span class="fu">Strategy</span>(<span class="op">:</span>B <span class="op">=&gt;</span> p))))</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a> for a <span class="kw">in</span> bool for p <span class="kw">in</span> late_policies]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>                           <span class="fu">merge_strategies</span>(<span class="fu">constant</span>(<span class="op">:</span>A, a), τ)))</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a> for a <span class="kw">in</span> bool for τ <span class="kw">in</span> late_strategies]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>8-element Vector{@NamedTuple{A::Symbol, B::Tuple{Symbol, Symbol}, value::Float64}}:
  (A = :no, B = (:no, :no), value = 1.0)
@@ -2358,9 +2358,9 @@ OpenInfluenceDiagram(3 variables, 0 mechanisms, 1 decisions, 2 utilities; [:H, :
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>ν <span class="op">=</span> <span class="fu">boundary_law</span>(early, kernels, utilities, iso_early.strategy)</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>iso_late <span class="op">=</span> <span class="fu">contextual_optimize</span>(late, kernels, utilities; prior <span class="op">=</span> ν)</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>(boundary_law <span class="op">=</span> ν,</span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a> values <span class="op">=</span> [<span class="fu">Tuple</span>(<span class="fu">policy_table</span>(p)) <span class="op">=&gt;</span></span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>           <span class="fu">contextual_value</span>(late, kernels, utilities, <span class="fu">Strategy</span>(<span class="op">:</span>B <span class="op">=&gt;</span> p); prior <span class="op">=</span> ν)</span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>           for p <span class="kw">in</span> late_policies],</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a> values <span class="op">=</span> [<span class="fu">Tuple</span>(<span class="fu">policy_table</span>(τ[<span class="op">:</span>B])) <span class="op">=&gt;</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>           <span class="fu">contextual_value</span>(late, kernels, utilities, τ; prior <span class="op">=</span> ν)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>           for τ <span class="kw">in</span> late_strategies],</span>
 <span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a> chosen <span class="op">=</span> <span class="fu">Tuple</span>(<span class="fu">policy_table</span>(iso_late.strategy[<span class="op">:</span>B])))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>(boundary_law = [0.5, 0.5, 0.0, 0.0], values = [(:no, :no) =&gt; 1.0, (:yes, :no) =&gt; 1.0, (:no, :yes) =&gt; 1.0, (:yes, :yes) =&gt; 1.0], chosen = (:no, :no))</code></pre>
@@ -2381,7 +2381,7 @@ OpenInfluenceDiagram(3 variables, 0 mechanisms, 1 decisions, 2 utilities; [:H, :
 <p>Two things go wrong, and both are about the boundary.</p>
 <p><strong>The prefix’s choice changes the suffix’s value.</strong> The late component’s value from a boundary state is not fixed: it is 4 more when the early action was taken. That value is the continuation of the early component, its value function over the boundary states. For the late policy that ignores <code>A</code> and plays <code>no</code>, <code>continuation_value</code> gives it over the joint states of <code>(H, A)</code>, <code>H</code> varying fastest:</p>
 <div id="18" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>τ <span class="op">=</span> <span class="fu">Strategy</span>(<span class="op">:</span>B <span class="op">=&gt;</span> <span class="fu">first</span>(late_policies))</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>τ <span class="op">=</span> <span class="fu">first</span>(late_strategies)</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>c <span class="op">=</span> <span class="fu">continuation_value</span>(late, kernels, utilities, τ)</span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>[s <span class="op">=&gt;</span> v for (s, v) <span class="kw">in</span> <span class="fu">zip</span>(<span class="fu">joint_states</span>(<span class="fu">dom</span>(<span class="fu">interpret</span>(late, kernels, utilities, τ))), c)]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
@@ -2410,9 +2410,8 @@ OpenInfluenceDiagram(3 variables, 0 mechanisms, 1 decisions, 2 utilities; [:H, :
 <div id="22" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>suffix_first <span class="op">=</span> <span class="fu">maximum</span>(<span class="fu">contextual_optimize</span>(early, kernels, utilities;</span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>                                           continuation <span class="op">=</span> <span class="fu">continuation_value</span>(late, kernels,</span>
-<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>                                                                             utilities,</span>
-<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>                                                                             <span class="fu">Strategy</span>(<span class="op">:</span>B <span class="op">=&gt;</span> p))).expected_utility</span>
-<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>                       <span class="cf">for</span> p <span class="kw">in</span> late_policies)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>                                                                             utilities, τ)).expected_utility</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>                       <span class="cf">for</span> τ <span class="kw">in</span> late_strategies)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>4.0</code></pre>
 </div>

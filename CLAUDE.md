@@ -102,7 +102,7 @@ export `is_isomorphic`, `validate` and `to_graphviz`, and the parents' bindings 
   Lean witness (`1 < 4`). What exists: `optimize(o, kernels, utilities)` on a *closed*
   composite only (an open `o` is an `ArgumentError`), which binds the apex's tables into an
   `InfluenceDiagramModel` (`_closed_model`, resolving kernels with `BayesianNetworks`'
-  `_resolve_kernel` and utilities with `_lookup_utility`) and calls `InfluenceDiagrams`'
+  `resolve_kernel` and utilities with `_lookup_utility`) and calls `InfluenceDiagrams`'
   `optimize`; `contextual_value(o, ..., σ; prior, continuation)`,
   `EU_f(σ; μ, c) = Σ_x μ(x) Σ_y (W(y, x) + K(y | x) c(y))`; `contextual_optimize`; and the
   two contexts of a serial composite, `continuation_value` (`c_τ`, over `dom`) and
@@ -112,10 +112,12 @@ export `is_isomorphic`, `validate` and `to_graphviz`, and the parents' bindings 
   `RewardKernel` `Y → I`) may be left out only for an empty interface, never defaulted to
   something else. `contextual_optimize` enumerates the legal deterministic strategies only
   (policies over each decision's declared information, so never a hidden input), in
-  `decision_order` with the first decision fastest, and returns the first maximum as an
-  `InfluenceDiagrams` `DecisionSolution` with diagnostics `(nstrategies, method)`; more
-  than `max_policies` strategies raise `PolicySearchTooLargeError`, as in
-  `ExhaustivePolicySearch`. Its default value table (`Σ μ(x) P_chance (U + c(y))` over the
+  `decision_order` with the first decision fastest (the order of `InfluenceDiagrams`'
+  `all_deterministic_strategies(apex(o))`, which the tests and vignettes use to list
+  strategies; the value table keeps its own per-decision index loop), and returns the
+  first maximum as an `InfluenceDiagrams` `DecisionSolution` with diagnostics
+  `(nstrategies, method)`; more than `max_policies` strategies raise
+  `PolicySearchTooLargeError`, as in `ExhaustivePolicySearch`. Its default value table (`Σ μ(x) P_chance (U + c(y))` over the
   information and action variables) is checked against `brute_force = true`, which scores
   each strategy with `contextual_value` through `interpret`. Model forms read
   `kernels(m)`/`bound_utilities(m)` through the apex's references (so they need a diagram
@@ -146,9 +148,9 @@ influence-diagram schema); later loads are fast.
   change on either side has to be made on both. Likewise `BayesianNetworks`' brute-force
   factor machinery, which `CategoricalBayesianNetworks`' `interpret` also uses:
   `DEFAULT_MAX_STATES`, `_Factor` (whose fields `table`, `axes` and `strides` `_value`
-  reads), `_factors`, `_product` and `_joint_atol`; and `_resolve_kernel`, the kernel
-  lookup through a mechanism's reference that `optimize` uses to bind a closed composite's
-  tables.
+  reads), `_factors`, `_product` and `_joint_atol`. The kernel lookup through a
+  mechanism's reference that `optimize` uses to bind a closed composite's tables is
+  `BayesianNetworks`' public `resolve_kernel`, no longer an internal.
 - `src/errors.jl`: `OpenInfluenceDiagramError <: BayesNetError` (ADR 0013, since the package
   defines several types) and its subtypes `ObservabilityMismatchError`,
   `DiagramInterfaceError`, `NoForgettingError` and `DuplicatePolicyError`, with

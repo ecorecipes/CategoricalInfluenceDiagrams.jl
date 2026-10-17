@@ -26,18 +26,13 @@ end
 # A random probability vector of length `n`.
 random_prior(rng, n) = (v = rand(rng, n) .+ 0.01; v ./ sum(v))
 
-# The number of deterministic strategies of the decisions of `id`.
-function nstrategies(id)
-    return prod(BigInt[n_deterministic_policies(info_axes(id, d), action_axis(id, d))
-                       for d in parts(id, :Decision)]; init=BigInt(1))
-end
-
 # The best composite value of `f ⋅ g` by brute force: the maximum over the strategies of
 # `f` and of `g` of the oracle's expected utility.
 function brute_force_optimum(f, g, ks, us)
     C = compose(f, g; no_forgetting=false)
     return maximum(oracle(C, ks, us, merge_strategies(σ, τ))
-                   for σ in all_strategies(apex(f)), τ in all_strategies(apex(g)))
+                   for σ in all_deterministic_strategies(apex(f)),
+                       τ in all_deterministic_strategies(apex(g)))
 end
 
 # The two contextual forms of the optimum of `f ⋅ g` (the bundle's `INF-ATTAINMENT`):
@@ -46,7 +41,7 @@ function suffix_first(f, g, ks, us; kw...)
     return maximum(contextual_optimize(f, ks, us;
                                        continuation=continuation_value(g, ks, us, τ),
                                        kw...).expected_utility
-                   for τ in all_strategies(apex(g)))
+                   for τ in all_deterministic_strategies(apex(g)))
 end
 function prefix_first(f, g, ks, us; kw...)
     return maximum(begin
@@ -56,7 +51,7 @@ function prefix_first(f, g, ks, us; kw...)
                        contextual_optimize(g, ks, us; prior=boundary_law(rf),
                                            kw...).expected_utility
                    end
-                   for σ in all_strategies(apex(f)))
+                   for σ in all_deterministic_strategies(apex(f)))
 end
 
 # The Lean witness of `INF-ISOLATED-OBSTRUCTION` (`SerialInfluence.Witness` in the sealed
@@ -145,7 +140,7 @@ constant(d, a) = Strategy(d => ConstantPolicy(a))
     end
 
     @testset "the contextual identity on the umbrella split, every strategy" begin
-        for τ in all_strategies(apex(B))
+        for τ in all_deterministic_strategies(apex(B))
             eu = expected_utility(m, τ)
             @test identity_holds(A, B, ks, us, Strategy(), τ; eu=eu)
             # The suffix's value function from each boundary state, and the prefix's law.
@@ -173,7 +168,7 @@ constant(d, a) = Strategy(d => ConstantPolicy(a))
         kso, uso = kernels_by_name(mo), bound_utilities(mo)
         P, Q = two_stage_test(), two_stage_drill()
         C = compose(P, Q)
-        for σ in all_strategies(apex(C))
+        for σ in all_deterministic_strategies(apex(C))
             @test identity_holds(P, Q, kso, uso, restrict(σ, P), restrict(σ, Q);
                                  eu=oracle(C, kso, uso, σ))
         end
@@ -230,7 +225,8 @@ constant(d, a) = Strategy(d => ConstantPolicy(a))
         @test optimize(C, ks, us; backend=ExhaustivePolicySearch()).expected_utility ≈ 77
         @test optimize(Open(syntax(m)), m).expected_utility ≈ optimize(m).expected_utility
         @test contextual_value(C, ks, us, sol.strategy) ≈ 77
-        @test maximum(oracle(C, ks, us, τ) for τ in all_strategies(apex(C))) ≈ 77
+        @test maximum(oracle(C, ks, us, τ) for τ in all_deterministic_strategies(apex(C))) ≈
+              77
         # Kernels and utilities keyed by reference, as `interpret` takes them.
         whole = Open(syntax(m))
         @test optimize(whole, kernels(m), Dict(NamedRef("U") => us[:U])).expected_utility ≈
@@ -323,7 +319,8 @@ constant(d, a) = Strategy(d => ConstantPolicy(a))
             P, S = random_pieces(spec, [rand(rng, 2:length(spec.vars))])
             C = compose(P, S; no_forgetting=false)
             # Brute force enumerates every strategy pair: only small searches.
-            nstrategies(apex(P)) <= 64 && nstrategies(apex(S)) <= 64 || continue
+            n_deterministic_strategies(apex(P)) <= 64 &&
+                n_deterministic_strategies(apex(S)) <= 64 || continue
             checked += 1
             best = optimize(C, ks_, us_; backend=ExhaustivePolicySearch()).expected_utility
             @test brute_force_optimum(P, S, ks_, us_) ≈ best
@@ -349,7 +346,7 @@ constant(d, a) = Strategy(d => ConstantPolicy(a))
         @test isvalid(whole) && inputs(whole) == outputs(whole) == Symbol[]
         # The closed objective is 1 + 3p, p the early probability of `A`: 1 or 4 for the two
         # early actions, whatever the late policy (`whole_pure_early`).
-        for a in LEAN_BOOL, τ in all_strategies(apex(late))
+        for a in LEAN_BOOL, τ in all_deterministic_strategies(apex(late))
             σ = merge_strategies(constant(:A, a), τ)
             @test oracle(whole, ksl, usl, σ) == contextual_value(whole, ksl, usl, σ) ==
                   (a === :yes ? 4.0 : 1.0)
@@ -367,7 +364,7 @@ constant(d, a) = Strategy(d => ConstantPolicy(a))
         # is worth 1 (`late_isolated`), and the search returns the first, `B = no`.
         ν = boundary_law(early, ksl, usl, iso_early.strategy)
         @test ν == [0.5, 0.5, 0.0, 0.0]
-        for τ in all_strategies(apex(late))
+        for τ in all_deterministic_strategies(apex(late))
             @test contextual_value(late, ksl, usl, τ; prior=ν) == 1
         end
         iso_late = contextual_optimize(late, ksl, usl; prior=ν)

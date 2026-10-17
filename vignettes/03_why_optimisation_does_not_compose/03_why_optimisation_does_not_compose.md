@@ -96,11 +96,11 @@ each value of `A`.
 ``` julia
 whole = compose(early, late)
 constant(d, a) = Strategy(d => ConstantPolicy(a))
-late_policies = all_deterministic_policies(:B, [ax(:A)], ax(:B))
-[(A = a, B = Tuple(policy_table(p)),
+late_strategies = all_deterministic_strategies(apex(late))
+[(A = a, B = Tuple(policy_table(τ[:B])),
   value = contextual_value(whole, kernels, utilities,
-                           merge_strategies(constant(:A, a), Strategy(:B => p))))
- for a in bool for p in late_policies]
+                           merge_strategies(constant(:A, a), τ)))
+ for a in bool for τ in late_strategies]
 ```
 
     8-element Vector{@NamedTuple{A::Symbol, B::Tuple{Symbol, Symbol}, value::Float64}}:
@@ -146,9 +146,9 @@ worth the same 1, and the search returns the first:
 ν = boundary_law(early, kernels, utilities, iso_early.strategy)
 iso_late = contextual_optimize(late, kernels, utilities; prior = ν)
 (boundary_law = ν,
- values = [Tuple(policy_table(p)) =>
-           contextual_value(late, kernels, utilities, Strategy(:B => p); prior = ν)
-           for p in late_policies],
+ values = [Tuple(policy_table(τ[:B])) =>
+           contextual_value(late, kernels, utilities, τ; prior = ν)
+           for τ in late_strategies],
  chosen = Tuple(policy_table(iso_late.strategy[:B])))
 ```
 
@@ -177,7 +177,7 @@ ignores `A` and plays `no`, `continuation_value` gives it over the joint
 states of `(H, A)`, `H` varying fastest:
 
 ``` julia
-τ = Strategy(:B => first(late_policies))
+τ = first(late_strategies)
 c = continuation_value(late, kernels, utilities, τ)
 [s => v for (s, v) in zip(joint_states(dom(interpret(late, kernels, utilities, τ))), c)]
 ```
@@ -228,9 +228,8 @@ value function and keeping the best:
 ``` julia
 suffix_first = maximum(contextual_optimize(early, kernels, utilities;
                                            continuation = continuation_value(late, kernels,
-                                                                             utilities,
-                                                                             Strategy(:B => p))).expected_utility
-                       for p in late_policies)
+                                                                             utilities, τ)).expected_utility
+                       for τ in late_strategies)
 ```
 
     4.0

@@ -41,7 +41,7 @@ function _closed_model(o::OpenInfluenceDiagram, kernels::AbstractDict,
     for mech in mechanisms(id)
         kernel_ref(id, mech) isa PointMassRef && continue
         x = variable_name(id, target(id, mech))
-        k = _resolve_kernel(id, mech, kernels)
+        k = resolve_kernel(id, mech, kernels)
         k === nothing && throw(MissingKernelError(x, kernel_ref(id, mech)))
         m = bind_kernel(m, x => k; atol=atol)
     end
@@ -309,9 +309,10 @@ information set, which by rule 3 holds internal and *observed* input variables o
 hidden input is never read, so no strategy can maximise separately at each hidden boundary
 state; the bundle shows that doing so changes the problem (`INF-HIDDEN-OBSTRUCTION`).
 
-The search enumerates every deterministic strategy (`all_deterministic_policies` for each
-decision name, in `decision_order`, the first decision fastest) and returns the first one
-attaining the maximum, as `ExhaustivePolicySearch` does. More than `max_policies`
+The search enumerates every deterministic strategy in the order of
+`all_deterministic_strategies(apex(o))` (`all_deterministic_policies` for each decision
+name, in `decision_order`, the first decision fastest) and returns the first one attaining
+the maximum, as `ExhaustivePolicySearch` does. More than `max_policies`
 strategies raise `PolicySearchTooLargeError`. By default each strategy is scored from one
 value table, computed by enumerating the joint states of the apex with the actions left
 free: `Σ μ(x) P_chance (U + c(y))` accumulated over the information and action variables.

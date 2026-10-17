@@ -307,21 +307,20 @@ r = compose(rA, rB)
 
 Functoriality says that interpreting the composite gives the composite of the
 interpretations. The check runs over every deterministic strategy of the umbrella
-decision, eight in all (a choice of action for each of the three forecasts). For each, the
+decision, eight in all (a choice of action for each of the three forecasts), which
+`all_deterministic_strategies` lists from the decision component's apex. For each, the
 reward kernel of `compose(A, B)` is compared with the composite of the two reward
 kernels, and its reward with the expected utility that `InfluenceDiagrams.jl` computes on
 the closed composite, instantiated as an ordinary model:
 
 ```{julia}
-policies = all_deterministic_policies(:Umbrella, factors(information_space(m, :Umbrella)),
-                                      only(factors(action_space(m, :Umbrella))))
+strategies = all_deterministic_strategies(apex(B))
 closed_model = bind_utility(bind_kernel(InfluenceDiagramModel(apex(C)),
                                         [x => ks[x] for x in (:Weather, :Forecast)]),
                             :U => us[:U])
-checks = map(policies) do p
-    τ = Strategy(:Umbrella => p)
+checks = map(strategies) do τ
     whole = interpret(C, ks, us, τ)
-    (actions = Tuple(policy_table(p)),
+    (actions = Tuple(policy_table(τ[:Umbrella])),
      functorial = whole ≈ compose(rA, interpret(B, ks, us, τ)),
      eu = reward(whole)[],
      oracle = expected_utility(closed_model, τ))

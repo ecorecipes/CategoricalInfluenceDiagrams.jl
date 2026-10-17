@@ -29,14 +29,6 @@ end
 info_axes(id, d) = FiniteAxis[axis(id, v) for v in decision_information(id, d)]
 action_axis(id, d) = axis(id, decision_variable(id, d))
 
-# Every deterministic strategy of the decisions of `id`.
-function all_strategies(id)
-    per = [all_deterministic_policies(decision_name(id, d), info_axes(id, d),
-                                      action_axis(id, d)) for d in parts(id, :Decision)]
-    return [Strategy(Dict{Symbol,AbstractPolicy}(p.decision => p for p in combo))
-            for combo in Iterators.product(per...)]
-end
-
 # A deterministic strategy of `id` with every action drawn at random.
 function random_strategy(rng::AbstractRNG, id)
     ps = Dict{Symbol,AbstractPolicy}()
@@ -55,9 +47,7 @@ end
 
 # Up to `n` strategies of `id`: all of them when there are few, else a seeded sample.
 function some_strategies(rng, id; n=12)
-    total = prod(Int[length(action_axis(id, d))^prod(length.(info_axes(id, d)); init=1)
-                     for d in parts(id, :Decision)]; init=1)
-    total <= n && return all_strategies(id)
+    n_deterministic_strategies(id) <= n && return collect(all_deterministic_strategies(id))
     return [random_strategy(rng, id) for _ in 1:n]
 end
 
@@ -324,7 +314,7 @@ end
             decide(weather, forecast)
         end
         O = oapply(uwd, [A, B])
-        σs = all_strategies(apex(B))
+        σs = all_deterministic_strategies(apex(B))
         @test length(σs) == 8
         for σ in σs
             rB = interpret(B, ks, us, σ)
@@ -397,7 +387,7 @@ end
         @test observed_outputs(P) == [:Test, :Result]
         C = compose(P, Q)
         G = glue(P, Q; along=[:Oil => :Oil, :Test => :Test, :Result => :Result])
-        σs = all_strategies(apex(C))
+        σs = all_deterministic_strategies(apex(C))
         @test length(σs) == 2 * 2^6
         best = -Inf
         for σ in σs

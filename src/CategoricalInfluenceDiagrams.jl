@@ -51,8 +51,7 @@ using BayesianNetworks: AbstractVariableSpace, BayesNetUntyped, VariableSpace,
                         DanglingReferenceError, MissingAttributeError
 # The brute-force factor machinery that `CategoricalBayesianNetworks`' `interpret` uses,
 # shared with it (see CLAUDE.md): none of it is `BayesianNetworks`' public interface.
-using BayesianNetworks: DEFAULT_MAX_STATES, _Factor, _factors, _product, _joint_atol,
-                        _resolve_kernel
+using BayesianNetworks: DEFAULT_MAX_STATES, _Factor, _factors, _product, _joint_atol
 using FiniteKernels: compose_kernel, tensor_kernel, identity_kernel, copy_kernel,
                      discard_kernel, swap_kernel, axis_names
 using CategoricalBayesianNetworks
