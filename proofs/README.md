@@ -35,6 +35,10 @@ Each sentence below is registered as an SA-Pass claim in `conformance/sapass/cla
    (`cid.isolated-obstruction`)
 8. Against the boundary law of the isolated-optimal prefix, every legal suffix policy has value 1, while maximising at each boundary state gives value 2 with a selector that reads the hidden variable and is not a legal policy.
    (`cid.hidden-obstruction`)
+9. If the reward-certificate checker accepts a decoded certificate at tolerance `τ`, its network is valid, no decision of the decoded open influence diagram reads an input flagged hidden, and for every pair of boundary assignments `(x, y)` the recorded `K` and `W` cells at the flat index of `(x, y)`, which is a bijection onto the cells of `K`, are within `τ` of `interpret σ f` at `(x, y)`, for the decoded diagram `f` and strategy `σ`.
+   (`cid.certificate-sound`)
+10. `decodeCertificate_eq_ok` proves that the reward-certificate decoder succeeds on a parsed JSON value with a certificate `c` exactly when the value is `c`'s layout key for key, with exactly the nine top-level keys and with the network and the utility scope rows read by CategoricalBayesianNetworks' record readers.
+    (`cid.certificate-decode`)
 
 Here `EU_f(μ, c) = Σ_x μ x Σ_y (W x y + K x y · c y)` for a boundary prior `μ` and a terminal
 continuation `c`; `c_g y = Σ_z (W_g y z + K_g y z · c z)` is the suffix's value function,
@@ -64,9 +68,27 @@ continuation `c`; `c_g y = Σ_z (W_g y z + K_g y z · c z)` is the suffix's valu
 - **Obstructions.** The two witnesses are stated in the reward-kernel semantics (explicit
   `K` and `W` tables for the bundle's two components), not built in the typed syntax. They
   follow the bundle's Lean witness; the bundle is not imported.
+- **Reward certificates** (ADR 0019; modules `Certificate/Record`, `Json`, `Exact`, `Check`,
+  `Sound`). `lake exe check_certificate` decodes an `OpenInfluence.RewardCertificate/v1`
+  file that `export_reward_certificate` wrote and decides `check τ c`. The theorems are
+  about the decoded record. JSON parsing (CategoricalBayesianNetworks' strict parser), the
+  Julia exporter, Catlab's colimits and Julia's `Float64` arithmetic are trusted, not proved
+  (ADR 0019, decision 5). Acceptance requires every chance row to sum to exactly one over
+  the rationals, because the decoded `IDInterpretation` must be normalised. Binary64 rows
+  seldom do, so most `binary64_exact` certificates are rejected as outside the exact
+  semantics, with their largest row deviation and result errors reported. The
+  `rational_exact` mode, whose exact companions the checker also verifies to round to their
+  words, is the way to certify such a model. State `k` of a variable (`Fin (dimension t)`) is
+  read as the state of position `k + 1`; this is the format's convention, not a theorem. The
+  checker also requires generators with equal labels to have equal tables, since the decoded
+  signature keys tables by label. The exact reward kernel is computed by enumeration, so
+  checking costs about `|X| · |Y| · |Z|` weight evaluations, for the input, output and
+  generator state spaces.
 - **Not proved:** a category of open influence diagrams with arbitrary gluing, evidence
-  composition, optimisation of composites beyond the contextual identity, and the
-  Julia-to-Lean refinement (ADR 0018, decision 6).
+  composition, and optimisation of composites beyond the contextual identity. Reward
+  certificates check Julia's numbers for the diagram a certificate records against
+  `interpret`, but that the recorded diagram is the Julia composite of its parts, the
+  refinement of Julia's composition operations (ADR 0018, decision 6), is still unproved.
 
 ## Theorems
 
@@ -102,15 +124,36 @@ continuation `c`; `c_g y = Σ_z (W_g y z + K_g y z · c z)` is the suffix's valu
 | `Obstruction.isolated_optimisation_fails` | `INF-ISOLATED-OBSTRUCTION`: every pair of isolated optima composes to `1`, the joint optimum is `4` |
 | `Obstruction.early_isolatedOptimal_iff`, `late_isolatedOptimal`, `composite_eu` | The prefix is isolated-optimal iff `a = false`; every suffix is isolated-optimal; the composite value is `1 + 3[a]` |
 | `Obstruction.hidden_input_obstruction`, `peek_pointwise_max`, `peek_not_legal` | `INF-HIDDEN-OBSTRUCTION`: legal suffixes have value `1`; the pointwise maximiser has value `2` and reads the hidden `H` |
+| `RewardCertificate.Certificate`, `Value`, `ChanceTable`, `Utility`, `Policy`, `Result`, `isPolicy` | The decoded record: CategoricalBayesianNetworks' raw network, flags, chance and utility tables, one policy per decision name, the recorded `K` and `W`; a generator is a decision when its reference is a `policy` reference |
+| `Json.decodeCertificate`, `read`, `decodeCertificate_eq_ok`, `read_eq_ok`, `networkBody_fields` | The decoder succeeds with `c` exactly when the JSON is `c`'s layout key for key, reusing CategoricalBayesianNetworks' network readers and InfluenceDiagrams' value decoder |
+| `Json.decodeFlag_eq_ok`, `decodeMode_eq_ok`, `decodeMetadata_eq_ok`, `decodeObservability_eq_ok`, `decodeChanceTable_eq_ok`, `decodeUtility_eq_ok`, `decodePolicy_eq_ok`, `decodeResult_eq_ok` | Each new record decodes exactly when the JSON has its layout |
+| `flatIndex`, `flatIndex_lt`, `flatIndex_append`, `flatIndex_injective` | The lexicographic cell index, last axis fastest: in range, a chance table is a list of rows, distinct coordinates have distinct cells |
+| `Certificate.exactK`, `exactW`, `resultIndex`, `resultCell_bijective` | The reward kernel of the certificate's numbers over `ℚ` by enumeration; the result layout is a bijection onto the cells |
+| `Certificate.check`, `stages`, `firstFailure`, `check_iff_firstFailure`, `Accepted`, `check_iff_accepted` | The checker as sixteen ordered stages; acceptance is their conjunction, and the reported stage is the first that fails |
+| `Certificate.check_sound`, `InformationLocal` | Acceptance gives a valid network and information locality with the recorded flags |
+| `sig`, `Certificate.model`, `strategyOf`, `diagram`, `chanceEntry_normalized` | The decoded signature, `IDInterpretation` (normalised by the exact row sums), strategy and `IDNet` |
+| `Certificate.interpret_K_eq`, `interpret_W_eq` | `interpret σ f` at the boundary assignments of coordinates `x`, `y` is exactly `exactK x y`, `exactW x y` |
+| `Certificate.reward_certificate_sound_K`, `reward_certificate_sound_W`, `boundaryIndex_bijective`, `diagram_informationLocal`, `semantics_stochastic` | On acceptance, every recorded cell is within `τ` of `interpret σ f` at the boundary assignment its flat index encodes, a bijection; no decision reads an input not flagged `observed` |
 
 ## Build and inspect
 
 ```sh
 lake build --wfail
 make audit
+make check-certificates
+lake exe check_certificate PATH [--tol τ]                          # one reward certificate
 make docs
 python3 ../../conformance/sapass/run.py --claim cid.functoriality   # one SA-Pass claim
 ```
+
+`lake exe check_certificate PATH [--tol τ]` decodes and checks one reward certificate. The
+tolerance is a decimal such as `1e-12` (the default), parsed exactly to a rational. It prints
+the counts, the largest chance-row deviation and the largest `K` and `W` errors, then
+`accepted` (exit 0) or `rejected:` with the first failing stage (exit 1); a usage or file
+error exits 2. `make check-certificates` builds it and runs it on every file in
+`certificate-fixtures/`, comparing each outcome with `certificate-fixtures/EXPECTED.md`. The
+Julia fixtures there are written by the package's `scripts/write_certificate_fixtures.jl`,
+the `hand-*.json` and `*.bad.json` ones by `scripts/hand_fixtures.py`.
 
 `make audit` kernel-checks every declaration listed in `Audit.lean`, uses
 `assert_no_sorry`, and fails unless every printed axiom belongs to

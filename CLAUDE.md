@@ -156,6 +156,7 @@ julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.test()'   # the test suite
 julia --project=docs docs/make.jl --no-deploy                     # build docs locally (strict)
 cd vignettes && quarto render                                     # render vignettes (render each .qmd on its own to re-execute)
 julia scripts/sync_vignettes.jl [--check]                         # copy vignettes into docs/src/tutorials
+julia --project scripts/write_certificate_fixtures.jl [--check]   # write the reward-certificate fixtures
 cd proofs && lake build --wfail && make audit && make docs        # the Lean project
 ```
 
@@ -176,11 +177,18 @@ influence-diagram schema); later loads are fast.
   `DEFAULT_MAX_STATES`, `_Factor` (whose fields `table`, `axes` and `strides` `_value`
   reads), `_factors`, `_product` and `_joint_atol`. The kernel lookup through a
   mechanism's reference that `optimize` and `contextual_optimize` use to bind an apex's tables is
-  `BayesianNetworks`' public `resolve_kernel`, no longer an internal.
+  `BayesianNetworks`' public `resolve_kernel`, no longer an internal. For the reward
+  certificates, two more `BayesianNetworks` internals: `OrderedDict` (the binding it
+  imports from OrderedCollections, taken from there, as InfluenceDiagrams does, so that no
+  dependency is added) and `_nearest_binary64` (ADR 0016's correct rounding, which checks
+  exact companions); and `scripts/write_certificate_fixtures.jl` (hence the tests) writes
+  JSON with `InfluenceDiagrams.JSON3`, the JSON3 that InfluenceDiagrams writes its own
+  certificates with, so JSON3 is in neither `[deps]` nor `[extras]`. Keep these in step.
 - `src/errors.jl`: `OpenInfluenceDiagramError <: BayesNetError` (ADR 0013, since the package
   defines several types) and its subtypes `ObservabilityMismatchError`,
-  `DiagramInterfaceError`, `NoForgettingError` and `DuplicatePolicyError`, with
-  `showerror` methods that name the variables and decisions; included first.
+  `DiagramInterfaceError`, `NoForgettingError`, `DuplicatePolicyError` and
+  `RewardCertificateError(code, path, message)`, with `showerror` methods that name the
+  variables and decisions; included first.
 - `src/open.jl`: `InfluenceDiagramCospan(Ob)(Untyped)` from
   `OpenACSetTypes(InfluenceDiagramUntyped, VariableSpaceUntyped)`; `OBSERVABILITY`;
   `OpenInfluenceDiagramOb` (space plus flags); `OpenInfluenceDiagram{C}` (a two-footed
@@ -206,6 +214,39 @@ influence-diagram schema); later loads are fast.
   `continuation_value` and `boundary_law` (each on a `RewardKernel` and, through
   `interpret`, on a diagram, dictionary and model forms), and `contextual_optimize`
   (`InfluenceDiagrams`' exhaustive search with a `DecisionContext`, or brute force).
+- `src/certificates.jl` (ADR 0019): `export_reward_certificate(o, kernels, utilities, σ;
+  numeric_mode, exact_tables, description, max_entries)` and the model form, writing
+  `OpenInfluence.RewardCertificate/v1`. The format section of the workspace plan
+  `docs/REWARD-CERTIFICATES-PLAN-2026-10-17.md` is a contract with the Lean checker
+  (`lake exe check_certificate` in `proofs/`), mirrored by
+  `docs/src/reward-certificate-v1.schema.json`: change the exporter, the schema and the
+  checker together. The result is an `OrderedDict{String,Any}` whose keys, and every named
+  tuple's fields, are in the format's order (the tests check it against the schema's
+  property order). `network` mirrors CategoricalBayesianNetworks' `open_network_certificate`
+  (dense 0-based ids in part order, rows in part order with their actual positions,
+  boundary attributes read from the feet), with the reference tags reimplemented in
+  `_reward_ref` so that they raise `RewardCertificateError`; chance mechanisms come first,
+  then decisions as `policy(name)` generators whose input rows are the information inputs
+  (`position` = `information_position`); ranks are a Kahn order of the
+  causal-plus-information graph. Every table is flat, lexicographic, last axis fastest
+  (`_cell_order`); `K` and `W` are converted from the reward kernel's outputs-first layout.
+  Order of work: keywords (`ArgumentError`), `validate`, the network (reference codes),
+  equally named decisions (`:inconsistent_decision`), the cell budget (`:too_many_entries`,
+  from the structure alone), the utility tables (so a non-finite utility is `:non_finite`),
+  `interpret` (whose errors pass through), the chance tables, unused companions, the
+  strategy and the result. Binary64 words are those of InfluenceDiagrams'
+  `_dve_float_bits`; companions are keyed `(:chance | :utility, part id, zero-based
+  coordinates)` and must round to their cell by `_nearest_binary64`.
+- `scripts/write_certificate_fixtures.jl`: `certificate_fixtures()` builds the eight
+  fixtures of the plan, `write_certificate_fixtures` writes them into
+  `proofs/certificate-fixtures/` (compact `JSON3.write` plus a newline; `--check` compares
+  instead). It writes only those eight files: the `hand-*.json` and `*.bad.json` fixtures
+  beside them are written by `proofs/scripts/hand_fixtures.py`, and
+  `proofs/certificate-fixtures/EXPECTED.md` lists the checker's expected outcome for every
+  fixture (`make check-certificates` fails on an unlisted one). `test/test_certificates.jl` includes the script and
+  compares the fixtures byte for byte, apart from `metadata.julia_version`. Rerun the
+  script after a deliberate change to the format or to a fixture's model, and keep the
+  Lean checker's expectations in step.
 - `test/runtests.jl`: `test_open.jl` (construction, accessors, flags, per-foot flags and
   their errors, one failing case per rule, the Bayesian-network embedding; defines the umbrella split `umbrella_chance` and
   `umbrella_decision`), `test_composition.jl` (every operation; the umbrella, the SPEC §46
@@ -227,9 +268,15 @@ influence-diagram schema); later loads are fast.
   decision variable elimination unreachable; the bundle's Lean witness of
   `INF-ISOLATED-OBSTRUCTION`, `lean_early` and `lean_late`, giving `1 < 4`, and of
   `INF-HIDDEN-OBSTRUCTION`, where the pointwise value 2 needs a policy reading the hidden
-  input and rule 3 rejects it), `test_errors.jl` (hierarchy, re-exports, frozen names,
-  messages) and `test_docstrings.jl`.
-- `proofs/`: the Lean project (see below).
+  input and rule 3 rejects it), `test_certificates.jl` (reward certificates: the umbrella
+  split's cells by hand; every cell re-derived from `cpt`, `utility_value`, the policies
+  and `kernel_matrix`/`reward_matrix` on the fixtures, the oil wildcatter's strategies and
+  seeded random pieces; the model form; rational companions and their rounding; every
+  error code; the schema's key order; the committed fixtures), `test_errors.jl`
+  (hierarchy, re-exports, frozen names, messages) and `test_docstrings.jl`.
+- `proofs/`: the Lean project (see below). `proofs/certificate-fixtures/*.json` is written by
+  `scripts/write_certificate_fixtures.jl` (other than `hand-*.json` and `*.bad.json`, written
+  by `proofs/scripts/hand_fixtures.py`); do not edit it by hand.
 - `vignettes/`: the quarto project: 01 open influence diagrams and composition, 02 a management decision composed with the zoo's `reference_habitat_bn` (MIT, built in), 03 why optimisation does not compose.
 
 ## Proofs
@@ -263,6 +310,9 @@ workflow checks out the four sibling repositories beside this one.
 - `docs/adr/` is copied from the workspace `docs/adr/` by `scripts/sync_adrs.jl`; edit the workspace copy.
 - `proofs/CategoricalInfluenceDiagramsProofs.{md,html,pdf}` are generated from the Lean
   source by `make docs`.
+- `proofs/certificate-fixtures/*.json` are written by
+  `julia --project scripts/write_certificate_fixtures.jl`, except `hand-*.json` and
+  `*.bad.json`, which `python3 proofs/scripts/hand_fixtures.py` writes.
 
 ## Style
 

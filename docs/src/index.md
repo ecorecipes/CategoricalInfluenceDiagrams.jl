@@ -85,74 +85,23 @@ Catlab out of the model layer (ADR 0009).
   continuation, actual induced prior) composes to the value `1`, while the composite
   attains `4`. Maximising separately at each hidden boundary state would need a policy that
   reads the hidden input, which rule 3 rejects.
+- **Reward certificates** (ADR 0019). [`export_reward_certificate`](@ref) writes a
+  diagram, its flags and tables, a deterministic strategy and the reward kernel
+  `interpret` computed for it as an `OpenInfluence.RewardCertificate/v1` record, for the
+  Lean checker in `proofs/` (`lake exe check_certificate`). See
+  [Reward certificates](certificates.md).
 
-## Not yet here
+## Proofs, and what is not here
 
-ADR 0018 also plans the Lean proofs of the semantics and of the optimisation results, and
-vignettes. They are later milestones. The functoriality of `interpret`, the contextual
-identity and the counterexample are checked numerically, not proved. Randomised
-(behavioural) policies and evidence across a boundary are outside the first release. The
-Lean project in `proofs/` builds on the proof projects of `CategoricalBayesianNetworks.jl`
-and `InfluenceDiagrams.jl` and so far states only boundary observability and information
-locality.
+The Lean project in `proofs/` builds on the proof projects of
+`CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl`. It proves the
+reward-kernel category and its symmetric monoidal structure, the functoriality of the
+fixed-strategy interpretation under serial composition and tensor, the contextual
+identity, and the two obstructions of the research bundle. Its checker for reward
+certificates ties Julia's `interpret` of a recorded diagram to that interpretation, cell
+by cell (ADR 0019). `proofs/README.md` lists the theorems and their restrictions; the
+test suite checks the same laws numerically.
 
-## Example
-
-```@meta
-DocTestSetup = :(using CategoricalInfluenceDiagrams)
-```
-
-```jldoctest umbrella
-julia> chance = Open(influence_diagram(:Weather => [:sunny, :rainy],
-                                       :Forecast => [:sunny, :cloudy, :rainy];
-                                       mechanisms = [:Weather => (), :Forecast => :Weather],
-                                       closed = false);
-                     outputs = [:Weather, :Forecast], observed = [:Forecast]);
-
-julia> decide = Open(influence_diagram(:Weather => [:sunny, :rainy],
-                                       :Forecast => [:sunny, :cloudy, :rainy],
-                                       :Umbrella => [:take, :leave];
-                                       decisions = [:Umbrella => :Forecast],
-                                       utilities = [:U => (:Weather, :Umbrella)],
-                                       closed = false);
-                     inputs = [:Weather, :Forecast], observed = [:Forecast]);
-
-julia> is_isomorphic(apex(compose(chance, decide)), umbrella_diagram())
-true
-```
-
-With the numbers of `umbrella_model`, the chance component's reward kernel composed with
-the decision component's equals the composite's, whose reward is the expected utility:
-
-```jldoctest umbrella
-julia> m = umbrella_model();
-
-julia> ks = Dict(x => kernel(m, x) for x in (:Weather, :Forecast));
-
-julia> σ = Strategy(:Umbrella => deterministic_policy(m, :Umbrella, [:leave, :leave, :take]));
-
-julia> r = compose(interpret(chance, ks, bound_utilities(m), Strategy()),
-                   interpret(decide, ks, bound_utilities(m), σ));
-
-julia> r ≈ interpret(compose(chance, decide), ks, bound_utilities(m), σ)
-true
-
-julia> reward(r)[] ≈ expected_utility(m, σ) ≈ 77
-true
-```
-
-The closed composite is solved by `InfluenceDiagrams.jl`'s solvers; the open decision
-component reaches the same optimum when it is optimised against the law the chance
-component induces on the boundary:
-
-```jldoctest umbrella
-julia> optimize(compose(chance, decide), ks, bound_utilities(m)).expected_utility ≈ 77
-true
-
-julia> ν = boundary_law(chance, ks, bound_utilities(m), Strategy());
-
-julia> contextual_optimize(decide, ks, bound_utilities(m); prior = ν).expected_utility ≈ 77
-true
-```
-
-See the API Reference for the docstrings.
+Randomised (behavioural) policies and evidence across a boundary are outside the first
+release. That a Julia composite is the Lean composite of its parts is not proved: a
+certificate checks the diagram it records, not the operation that built it.

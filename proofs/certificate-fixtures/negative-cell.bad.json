@@ -1,0 +1,339 @@
+{
+ "format": "OpenInfluence.RewardCertificate/v1",
+ "numeric_mode": "binary64_exact",
+ "metadata": {
+  "producer": "hand_fixtures.py",
+  "producer_version": "0.1.0",
+  "julia_version": "none",
+  "description": "negative fixture derived from hand-mixed.json: negative-cell.bad.json"
+ },
+ "network": {
+  "variableCount": 4,
+  "variableData": [
+   {
+    "name": "Forecast",
+    "spaceRef": {
+     "tag": "noRef"
+    },
+    "stateRows": [
+     {
+      "name": "sunny",
+      "position": 1
+     },
+     {
+      "name": "rainy",
+      "position": 2
+     }
+    ],
+    "rank": 0
+   },
+   {
+    "name": "Season",
+    "spaceRef": {
+     "tag": "noRef"
+    },
+    "stateRows": [
+     {
+      "name": "wet",
+      "position": 1
+     },
+     {
+      "name": "dry",
+      "position": 2
+     }
+    ],
+    "rank": 0
+   },
+   {
+    "name": "Weather",
+    "spaceRef": {
+     "tag": "noRef"
+    },
+    "stateRows": [
+     {
+      "name": "dry",
+      "position": 2
+     },
+     {
+      "name": "rain",
+      "position": 1
+     }
+    ],
+    "rank": 1
+   },
+   {
+    "name": "Umbrella",
+    "spaceRef": {
+     "tag": "noRef"
+    },
+    "stateRows": [
+     {
+      "name": "take",
+      "position": 1
+     },
+     {
+      "name": "leave",
+      "position": 2
+     }
+    ],
+    "rank": 1
+   }
+  ],
+  "mechanisms": [
+   {
+    "name": "Weather",
+    "kernelRef": {
+     "tag": "named",
+     "id": "weather"
+    },
+    "target": 2,
+    "inputRows": [
+     {
+      "varId": 1,
+      "position": 1
+     }
+    ]
+   },
+   {
+    "name": "Umbrella",
+    "kernelRef": {
+     "tag": "policy",
+     "decision": "Umbrella"
+    },
+    "target": 3,
+    "inputRows": [
+     {
+      "varId": 0,
+      "position": 1
+     }
+    ]
+   }
+  ],
+  "inputs": [
+   {
+    "varId": 0,
+    "attrs": {
+     "name": "Forecast",
+     "spaceRef": {
+      "tag": "noRef"
+     },
+     "states": [
+      "sunny",
+      "rainy"
+     ]
+    }
+   },
+   {
+    "varId": 1,
+    "attrs": {
+     "name": "Season",
+     "spaceRef": {
+      "tag": "noRef"
+     },
+     "states": [
+      "wet",
+      "dry"
+     ]
+    }
+   }
+  ],
+  "outputs": [
+   {
+    "varId": 2,
+    "attrs": {
+     "name": "Weather",
+     "spaceRef": {
+      "tag": "noRef"
+     },
+     "states": [
+      "rain",
+      "dry"
+     ]
+    }
+   },
+   {
+    "varId": 3,
+    "attrs": {
+     "name": "Umbrella",
+     "spaceRef": {
+      "tag": "noRef"
+     },
+     "states": [
+      "take",
+      "leave"
+     ]
+    }
+   }
+  ]
+ },
+ "observability": {
+  "inputs": [
+   "observed",
+   "hidden"
+  ],
+  "outputs": [
+   "hidden",
+   "observed"
+  ]
+ },
+ "chance_tables": [
+  {
+   "mechanism": 0,
+   "cells": [
+    {
+     "f64": "bfe8000000000000"
+    },
+    {
+     "f64": "3fd0000000000000"
+    },
+    {
+     "f64": "3fd0000000000000"
+    },
+    {
+     "f64": "3fe8000000000000"
+    }
+   ]
+  }
+ ],
+ "utilities": [
+  {
+   "name": "U",
+   "scopeRows": [
+    {
+     "varId": 3,
+     "position": 2
+    },
+    {
+     "varId": 2,
+     "position": 1
+    }
+   ],
+   "cells": [
+    {
+     "f64": "4051800000000000"
+    },
+    {
+     "f64": "0000000000000000"
+    },
+    {
+     "f64": "4034000000000000"
+    },
+    {
+     "f64": "4059000000000000"
+    }
+   ]
+  }
+ ],
+ "strategy": [
+  {
+   "decision": "Umbrella",
+   "actions": [
+    2,
+    1
+   ]
+  }
+ ],
+ "result": {
+  "arithmetic": "binary64",
+  "K": [
+   {
+    "f64": "0000000000000000"
+   },
+   {
+    "f64": "3fe8000000000000"
+   },
+   {
+    "f64": "0000000000000000"
+   },
+   {
+    "f64": "3fd0000000000000"
+   },
+   {
+    "f64": "0000000000000000"
+   },
+   {
+    "f64": "3fd0000000000000"
+   },
+   {
+    "f64": "0000000000000000"
+   },
+   {
+    "f64": "3fe8000000000000"
+   },
+   {
+    "f64": "3fe8000000000000"
+   },
+   {
+    "f64": "0000000000000000"
+   },
+   {
+    "f64": "3fd0000000000000"
+   },
+   {
+    "f64": "0000000000000000"
+   },
+   {
+    "f64": "3fd0000000000000"
+   },
+   {
+    "f64": "0000000000000000"
+   },
+   {
+    "f64": "3fe8000000000000"
+   },
+   {
+    "f64": "0000000000000000"
+   }
+  ],
+  "W": [
+   {
+    "f64": "0000000000000000"
+   },
+   {
+    "f64": "0000000000000000"
+   },
+   {
+    "f64": "0000000000000000"
+   },
+   {
+    "f64": "4039000000000000"
+   },
+   {
+    "f64": "0000000000000000"
+   },
+   {
+    "f64": "0000000000000000"
+   },
+   {
+    "f64": "0000000000000000"
+   },
+   {
+    "f64": "4052c00000000000"
+   },
+   {
+    "f64": "404a400000000000"
+   },
+   {
+    "f64": "0000000000000000"
+   },
+   {
+    "f64": "4014000000000000"
+   },
+   {
+    "f64": "0000000000000000"
+   },
+   {
+    "f64": "4031800000000000"
+   },
+   {
+    "f64": "0000000000000000"
+   },
+   {
+    "f64": "402e000000000000"
+   },
+   {
+    "f64": "0000000000000000"
+   }
+  ]
+ }
+}

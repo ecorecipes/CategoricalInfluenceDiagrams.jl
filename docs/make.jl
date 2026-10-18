@@ -26,7 +26,8 @@ function tutorial_pages()
     end
 end
 
-pages = Any["Home" => "index.md", "API Reference" => "api.md"]
+pages = Any["Home" => "index.md", "Reward certificates" => "certificates.md",
+            "API Reference" => "api.md"]
 tutorials = tutorial_pages()
 isempty(tutorials) || push!(pages, "Tutorials" => tutorials)
 

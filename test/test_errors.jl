@@ -14,7 +14,7 @@ end
     @test OpenInfluenceDiagramError <: BayesNetError
     @test isabstracttype(OpenInfluenceDiagramError)
     for T in (ObservabilityMismatchError, DiagramInterfaceError, NoForgettingError,
-              DuplicatePolicyError)
+              DuplicatePolicyError, RewardCertificateError)
         @test T <: OpenInfluenceDiagramError
         @test T <: AnyBayesNetError
         @test parentmodule(T) === CID
@@ -42,7 +42,11 @@ end
          (DiagramInterfaceError(2, :A, :D, :decision), (":A", "decision :D")),
          (DiagramInterfaceError(3, :W, :D, :hidden_input), (":W", "decision :D")),
          (NoForgettingError(:Drill, :Test, :Test), (":Drill", ":Test -> :Drill")),
-         (DuplicatePolicyError(:Drill), (":Drill",)))
+         (DuplicatePolicyError(:Drill), (":Drill",)),
+         (RewardCertificateError(:policy_reference_on_chance,
+                                 "network.mechanisms[0].kernelRef",
+                                 "mechanism X_mechanism (part 1) is a chance mechanism"),
+          (":policy_reference_on_chance", "network.mechanisms[0]", "X_mechanism")))
         msg = sprint(showerror, e)
         @test all(occursin(n, msg) for n in needles)
     end

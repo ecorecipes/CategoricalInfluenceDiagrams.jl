@@ -1,11 +1,12 @@
-.PHONY: build cache audit docs mdgen html pdf clean
+.PHONY: build cache audit check-certificates docs mdgen html pdf clean
 
 LIB := CategoricalInfluenceDiagramsProofs
 TITLE := Open Influence Diagrams: Proofs
 AUTHOR := Simon Frost
 # Modules in import (dependency) order, as in $(LIB).lean.
 MD_FILES := Basic.md RewardKernel.md Category.md Context.md Syntax.md Interpretation.md \
-	Obstruction.md
+	Obstruction.md Certificate/Record.md Certificate/Json.md Certificate/Exact.md \
+	Certificate/Check.md Certificate/Sound.md
 JULIAMONO_DIR := $(abspath ../../fonts/JuliaMono)/
 PANDOC_COMMON := --toc --toc-depth=2 --syntax-definition=lean.xml --syntax-highlighting=tango \
 	--metadata title="$(TITLE)" --metadata author="$(AUTHOR)" --metadata date="2026-10-16"
@@ -26,6 +27,12 @@ audit:
 	@cat .lake/audit.log
 	python3 scripts/audit.py .lake/audit.log
 	python3 scripts/test_audit.py
+
+# Decode and check every reward-certificate fixture (ADR 0019) and compare each outcome with
+# certificate-fixtures/EXPECTED.md: positives accepted, negatives rejected at the stated stage.
+check-certificates:
+	lake build check_certificate --wfail
+	python3 scripts/check_certificates.py
 
 # Documents: $(LIB).md (mdgen), $(LIB).html (pandoc) and $(LIB).pdf (pandoc + lualatex),
 # generated from the checked Lean source and committed. Fonts: STIX Two Text/Math and

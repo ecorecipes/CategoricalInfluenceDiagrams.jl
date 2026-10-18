@@ -62,3 +62,6 @@ jobs:
       - name: Audit theorem dependencies
         working-directory: CategoricalInfluenceDiagrams.jl/proofs
         run: make audit
+      - name: Check the reward-certificate fixtures
+        working-directory: CategoricalInfluenceDiagrams.jl/proofs
+        run: make check-certificates

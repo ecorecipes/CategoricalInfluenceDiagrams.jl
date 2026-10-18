@@ -138,3 +138,43 @@ function Base.showerror(io::IO, e::DuplicatePolicyError)
                  " has a policy in more than one of the merged strategies; the strategy ",
                  "of a composite is the disjoint union of its components' strategies")
 end
+
+"""
+    RewardCertificateError(code, path, message)
+
+[`export_reward_certificate`](@ref) cannot write an `OpenInfluence.RewardCertificate/v1`
+record (ADR 0019) for the diagram and tables it was given. `code` names the condition,
+`path` locates it in the certificate (dotted keys with 0-based array indices, such as
+`network.mechanisms[1].kernelRef`, or the companion key for `exact_tables`) and `message`
+names the parts and variables involved. The codes are:
+
+- `:unset_reference`: a `space_ref` or `kernel_ref` has no value; the certificate records
+  every reference (`NoRef()` records none);
+- `:unsupported_reference`: a reference of a type the format has no tag for (a
+  user-defined `KernelRef` subtype);
+- `:policy_reference_on_chance`: a chance mechanism carries a `PolicyRef`, which the
+  format reserves for decisions;
+- `:inconsistent_decision`: two equally named decisions, which share one policy, differ
+  in the number of their information inputs, in those inputs' state counts or in their
+  action's state count;
+- `:too_many_entries`: the certificate would hold more than `max_entries` cells;
+- `:non_finite`: a cell to be written is not finite;
+- `:missing_companion`, `:extra_companion` and `:companion_rounding`: in
+  `rational_exact` mode, a chance or utility cell has no exact companion, a companion
+  matches no cell, or a companion does not round (to nearest, ties to even) to the
+  `Float64` cell it accompanies.
+
+Invalid keyword values raise `ArgumentError` instead, and structural and semantic
+failures keep the exceptions of `validate` and `interpret`.
+"""
+struct RewardCertificateError <: OpenInfluenceDiagramError
+    code::Symbol
+    path::String
+    message::String
+end
+
+function Base.showerror(io::IO, e::RewardCertificateError)
+    print(io, "RewardCertificateError: :", e.code)
+    isempty(e.path) || print(io, " at ", e.path)
+    return print(io, ": ", e.message)
+end

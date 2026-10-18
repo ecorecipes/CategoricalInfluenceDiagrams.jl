@@ -1,5 +1,5 @@
 name = "categorical_influence_diagrams_proofs"
-defaultTargets = ["CategoricalInfluenceDiagramsProofs"]
+defaultTargets = ["CategoricalInfluenceDiagramsProofs", "check_certificate"]
 # Share one dependency checkout across the ecosystem's proofs/ projects. See ADR 0005.
 packagesDir = "../../.lake-packages"
 
@@ -28,6 +28,12 @@ path = "../../CategoricalBayesianNetworks.jl/proofs"
 [[require]]
 name = "influence_diagrams_proofs"
 path = "../../InfluenceDiagrams.jl/proofs"
+
+# `lake exe check_certificate PATH [--tol τ]`: decode and check an
+# `OpenInfluence.RewardCertificate/v1` file (ADR 0019; `Certificate/Check.lean`).
+[[lean_exe]]
+name = "check_certificate"
+root = "CertificateMain"
 
 # SA-Pass shadow modules (conformance/sapass), built by the runner, not by default.
 [[lean_lib]]

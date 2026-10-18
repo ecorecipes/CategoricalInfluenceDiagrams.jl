@@ -1,0 +1,622 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpenInfluence.RewardCertificate/v1",
+  "description": "An open influence diagram, its observability flags, tables, one deterministic strategy and the reward kernel (K, W) that CategoricalInfluenceDiagrams' interpret computed for it (ADR 0019). Every table is a flat list of cells in lexicographic order of its axes, the last axis fastest. Variable and generator indices are 0-based; positions and action cells are 1-based. Cross-field conditions (cell counts, ranks, positions, flag counts, information locality, row sums, the result) are the checker's.",
+  "type": "object",
+  "properties": {
+    "format": {
+      "const": "OpenInfluence.RewardCertificate/v1"
+    },
+    "numeric_mode": {
+      "enum": [
+        "binary64_exact",
+        "rational_exact"
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "producer": {
+          "type": "string"
+        },
+        "producer_version": {
+          "type": "string"
+        },
+        "julia_version": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "producer",
+        "producer_version",
+        "julia_version",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "network": {
+      "type": "object",
+      "properties": {
+        "variableCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "variableData": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/variableRecord"
+          }
+        },
+        "mechanisms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/mechanismRecord"
+          }
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/boundaryRow"
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/boundaryRow"
+          }
+        }
+      },
+      "required": [
+        "variableCount",
+        "variableData",
+        "mechanisms",
+        "inputs",
+        "outputs"
+      ],
+      "additionalProperties": false,
+      "description": "The body of CategoricalBayesianNetworks' OpenNet.RawCertificate/v1, without format: chance mechanisms first, then decisions."
+    },
+    "observability": {
+      "type": "object",
+      "properties": {
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/flag"
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/flag"
+          }
+        }
+      },
+      "required": [
+        "inputs",
+        "outputs"
+      ],
+      "additionalProperties": false
+    },
+    "chance_tables": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/chanceTable"
+      }
+    },
+    "utilities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/utilityTable"
+      }
+    },
+    "strategy": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/policy"
+      }
+    },
+    "result": {
+      "type": "object",
+      "properties": {
+        "arithmetic": {
+          "const": "binary64"
+        },
+        "K": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/f64Value"
+          }
+        },
+        "W": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/f64Value"
+          }
+        }
+      },
+      "required": [
+        "arithmetic",
+        "K",
+        "W"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "format",
+    "numeric_mode",
+    "metadata",
+    "network",
+    "observability",
+    "chance_tables",
+    "utilities",
+    "strategy",
+    "result"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "numeric_mode": {
+            "const": "binary64_exact"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "chance_tables": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "mechanism": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "cells": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/f64Value"
+                  }
+                }
+              },
+              "required": [
+                "mechanism",
+                "cells"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "utilities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "scopeRows": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/inputRow"
+                  }
+                },
+                "cells": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/f64Value"
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "scopeRows",
+                "cells"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "numeric_mode": {
+            "const": "rational_exact"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "chance_tables": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "mechanism": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "cells": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/rationalValue"
+                  }
+                }
+              },
+              "required": [
+                "mechanism",
+                "cells"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "utilities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "scopeRows": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/inputRow"
+                  }
+                },
+                "cells": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/rationalValue"
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "scopeRows",
+                "cells"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "binary64": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$",
+      "description": "The IEEE binary64 bit word, 16 lowercase hexadecimal digits; non-finite words are rejected."
+    },
+    "rational": {
+      "type": "object",
+      "properties": {
+        "num": {
+          "type": "string",
+          "pattern": "^(0|-?[1-9][0-9]*)$"
+        },
+        "den": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        }
+      },
+      "required": [
+        "num",
+        "den"
+      ],
+      "additionalProperties": false
+    },
+    "f64Value": {
+      "type": "object",
+      "properties": {
+        "f64": {
+          "$ref": "#/$defs/binary64"
+        }
+      },
+      "required": [
+        "f64"
+      ],
+      "additionalProperties": false
+    },
+    "rationalValue": {
+      "type": "object",
+      "properties": {
+        "q": {
+          "$ref": "#/$defs/rational"
+        },
+        "f64": {
+          "$ref": "#/$defs/binary64"
+        }
+      },
+      "required": [
+        "q",
+        "f64"
+      ],
+      "additionalProperties": false,
+      "description": "An exact companion q and the binary64 word f64, the nearest-even rounding of q."
+    },
+    "value": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/f64Value"
+        },
+        {
+          "$ref": "#/$defs/rationalValue"
+        }
+      ]
+    },
+    "reference": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "const": "noRef"
+            }
+          },
+          "required": [
+            "tag"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "const": "named"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "tag",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "const": "pointMass"
+            },
+            "state": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "tag",
+            "state"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "const": "policy"
+            },
+            "decision": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "tag",
+            "decision"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "stateRow": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "position": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "name",
+        "position"
+      ],
+      "additionalProperties": false
+    },
+    "inputRow": {
+      "type": "object",
+      "properties": {
+        "varId": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "position": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "varId",
+        "position"
+      ],
+      "additionalProperties": false
+    },
+    "variableRecord": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "spaceRef": {
+          "$ref": "#/$defs/reference"
+        },
+        "stateRows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stateRow"
+          }
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "name",
+        "spaceRef",
+        "stateRows",
+        "rank"
+      ],
+      "additionalProperties": false
+    },
+    "mechanismRecord": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "kernelRef": {
+          "$ref": "#/$defs/reference"
+        },
+        "target": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inputRows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/inputRow"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "kernelRef",
+        "target",
+        "inputRows"
+      ],
+      "additionalProperties": false,
+      "description": "A generator: a chance mechanism, or a decision (kernelRef policy(name), inputRows its information inputs)."
+    },
+    "boundaryRow": {
+      "type": "object",
+      "properties": {
+        "varId": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "spaceRef": {
+              "$ref": "#/$defs/reference"
+            },
+            "states": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "name",
+            "spaceRef",
+            "states"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "varId",
+        "attrs"
+      ],
+      "additionalProperties": false
+    },
+    "flag": {
+      "enum": [
+        "observed",
+        "hidden"
+      ]
+    },
+    "chanceTable": {
+      "type": "object",
+      "properties": {
+        "mechanism": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cells": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/value"
+          }
+        }
+      },
+      "required": [
+        "mechanism",
+        "cells"
+      ],
+      "additionalProperties": false
+    },
+    "utilityTable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "scopeRows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/inputRow"
+          }
+        },
+        "cells": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/value"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "scopeRows",
+        "cells"
+      ],
+      "additionalProperties": false
+    },
+    "policy": {
+      "type": "object",
+      "properties": {
+        "decision": {
+          "type": "string"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "required": [
+        "decision",
+        "actions"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

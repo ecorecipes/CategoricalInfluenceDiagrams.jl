@@ -57,6 +57,12 @@ which stays free of Catlab. The design is the workspace's ADR 0018,
   then compose" operation: the test suite reproduces the research bundle's Lean
   counterexample, where components optimised in isolation compose to the value 1 and the
   composite attains 4.
+- Reward certificates (ADR 0019): `export_reward_certificate` writes a diagram, its
+  observability flags and tables, a deterministic strategy and the reward kernel that
+  `interpret` computed for it as an `OpenInfluence.RewardCertificate/v1` record, which the
+  Lean checker in `proofs/` (`lake exe check_certificate`) decodes and checks against the
+  exact semantics. Exact rational companions certify models whose binary64 tables do not
+  sum to exactly one.
 - Every name of `CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl` is re-exported.
 
 Randomised (behavioural) policies and evidence across a boundary are outside the first
@@ -71,10 +77,15 @@ The Lean project in [`proofs/`](proofs/) builds on the proof projects of
 - For a fixed deterministic strategy, the interpretation of open influence diagrams sends serial composition to composition of reward kernels, identities to `(id, 0)`, and tensor to the tensor of reward kernels.
 - For reward kernels whose suffix has a normalised probability component, and so for all open influence diagrams under a fixed strategy, `EU_{f;g}(μ, c) = EU_f(μ, c_g) = L_f + EU_g(ν_f, c)`.
 - In the bundle's witness, every pair of separately optimal components composes to expected utility 1, while the joint optimum is 4.
+- If the reward-certificate checker accepts a decoded certificate at tolerance `τ`, its network is valid, no decision of the decoded open influence diagram reads an input flagged hidden, and for every pair of boundary assignments `(x, y)` the recorded `K` and `W` cells at the flat index of `(x, y)`, which is a bijection onto the cells of `K`, are within `τ` of `interpret σ f` at `(x, y)`, for the decoded diagram `f` and strategy `σ`.
 
-The syntax is not quotiented by isomorphism, the semantics does not read observability
-flags, and nothing is proved about arbitrary gluing, evidence or the refinement from Julia
-to Lean; [`proofs/README.md`](proofs/README.md) lists every theorem and these restrictions.
+The last result is about reward certificates (ADR 0019): `lake exe check_certificate`
+decodes a certificate written by `export_reward_certificate` and checks it, so Julia's
+numbers for a recorded diagram are checked against the Lean semantics. The syntax is not
+quotiented by isomorphism, the semantics does not read observability flags, and nothing is
+proved about arbitrary gluing, evidence, or whether a Julia composite is the Lean composite
+of its parts; [`proofs/README.md`](proofs/README.md) lists every theorem and these
+restrictions.
 Each sentence above is checked against its Lean statement by the workspace's SA-Pass
 harness. The Julia test suite checks the same laws numerically.
 

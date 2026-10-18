@@ -30,6 +30,10 @@ Catlab-free (ADR 0009), the open-system machinery of the categorical layer.
     [`contextual_optimize`](@ref) on an open component against an explicit boundary prior
     and continuation value, with [`continuation_value`](@ref) and
     [`boundary_law`](@ref) the contexts a serial composite induces.
+  - **Reward certificates** (`src/certificates.jl`, ADR 0019):
+    [`export_reward_certificate`](@ref) writes a diagram, a strategy and the reward kernel
+    `interpret` computed for it as an `OpenInfluence.RewardCertificate/v1` record, which
+    the Lean checker in `proofs/` reads.
 
 Every exported name of `CategoricalBayesianNetworks` and `InfluenceDiagrams` is re-exported,
 so `using CategoricalInfluenceDiagrams` is a superset of using both.
@@ -52,6 +56,11 @@ using BayesianNetworks: AbstractVariableSpace, BayesNetUntyped, VariableSpace,
 # The brute-force factor machinery that `CategoricalBayesianNetworks`' `interpret` uses,
 # shared with it (see CLAUDE.md): none of it is `BayesianNetworks`' public interface.
 using BayesianNetworks: DEFAULT_MAX_STATES, _Factor, _factors, _product, _joint_atol
+# For reward certificates (see CLAUDE.md): the `OrderedDict` binding `BayesianNetworks`
+# imports from OrderedCollections, taken from there so that no dependency is added (as
+# `InfluenceDiagrams` does), and its correctly rounded `_nearest_binary64` (ADR 0016), which
+# checks exact companions.
+using BayesianNetworks: OrderedDict, _nearest_binary64
 using FiniteKernels: compose_kernel, tensor_kernel, identity_kernel, copy_kernel,
                      discard_kernel, swap_kernel, axis_names
 using CategoricalBayesianNetworks
@@ -90,7 +99,7 @@ end
 
 # errors.jl
 export OpenInfluenceDiagramError, ObservabilityMismatchError, DiagramInterfaceError,
-       NoForgettingError, DuplicatePolicyError
+       NoForgettingError, DuplicatePolicyError, RewardCertificateError
 # open.jl
 export InfluenceDiagramCospanObUntyped, InfluenceDiagramCospanUntyped,
        InfluenceDiagramCospanOb, InfluenceDiagramCospan, OpenInfluenceDiagramOb,
@@ -101,11 +110,14 @@ export RewardKernel, reward, reward_matrix, identity_reward_kernel, copy_reward_
        discard_reward_kernel, swap_reward_kernel, merge_strategies
 # optimization.jl
 export contextual_value, contextual_optimize, continuation_value, boundary_law
+# certificates.jl
+export export_reward_certificate
 
 include("errors.jl")
 include("open.jl")
 include("composition.jl")
 include("semantics.jl")
 include("optimization.jl")
+include("certificates.jl")
 
 end # module
