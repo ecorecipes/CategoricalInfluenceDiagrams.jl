@@ -285,9 +285,9 @@ end
         σ = Strategy(:Umbrella => ConstantPolicy(:take))
         @test_throws IncompleteStrategyError interpret(B, ks, us, Strategy())
         stoch = StochasticPolicy(:Umbrella,
-                                 random_kernel(Xoshiro(3), FiniteSpace(axis(apex(B), 2)),
+                                 random_kernel(Xoshiro(3), FiniteSpace(axis(apex(B), 1)),
                                                FiniteSpace(axis(apex(B), 3))))
-        @test_throws ArgumentError interpret(B, ks, us, Strategy(:Umbrella => stoch))
+        @test_throws PolicySignatureError interpret(B, ks, us, Strategy(:Umbrella => stoch))
         wrong = DeterministicPolicy(:Umbrella, FiniteAxis[axis(apex(B), 1)],
                                     axis(apex(B), 3), [:take, :leave])
         @test_throws PolicySignatureError interpret(B, ks, us,

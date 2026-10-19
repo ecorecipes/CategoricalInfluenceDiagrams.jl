@@ -71,7 +71,7 @@ which stays free of Catlab. The design is the workspace's ADR 0018,
   gain. An equilibrium is what composes; it can be worth less than the optimum, which
   `optimize` on the closed composite finds.
 - Evidence across a boundary (ADR 0021): `interpret(...; evidence)` conditions a component
-  on hard evidence, which gives a substochastic reward kernel that composes as any other.
+  on hard evidence or on likelihood (virtual) evidence, which gives a substochastic reward kernel that composes as any other.
   The contexts then carry the evidence mass: `boundary_state` pushes forward a state (the
   unnormalised law and the reward earned so far), `continuation_effect` pulls back an
   effect (the probability of the evidence still to come and the value downstream), and
@@ -81,9 +81,13 @@ which stays free of Catlab. The design is the workspace's ADR 0018,
   below binary64's normal range is resolved exactly, as ADR 0014 requires. Normalising each
   component on its own evidence is not sound, and the test suite reproduces the Lean
   witness.
+- Behavioural strategies (ADR 0022): a `StochasticPolicy` draws a decision's action from a
+  table given its information; `interpret` and every function built on it take them.
+  `contextual_optimize` searches deterministic strategies, which suffice when every decision
+  has its own policy; decisions that share a name share a policy, and then randomising can
+  help (the absent-minded driver), so `contextual_optimize` refuses shared names.
 - Every name of `CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl` is re-exported.
 
-Randomised (behavioural) policies are outside the first release.
 
 ## Proofs
 
@@ -99,17 +103,24 @@ The Lean project in [`proofs/`](proofs/) builds on the proof projects of
 - For two decision games, a pair of strategies is an equilibrium of their serial composite exactly when neither component can raise the composite's expected utility by changing its own strategy alone.
 - Every strategy that maximises expected utility in a context is an equilibrium there, for every game built from decision games and identities by serial composition.
 - An equilibrium need not be optimal: in a witness of two decisions that must agree, the later not observing the earlier, an equilibrium is worth 1 where the optimum is 2.
-- Evidence composes: weighting the fixed-strategy interpretation of open influence diagrams by a likelihood on the values of the generators sends serial composition to composition of reward kernels, and the likelihood one gives back the unweighted interpretation.
+- Evidence composes: weighting the fixed-strategy interpretation of open influence diagrams by a likelihood on the values of the generators sends serial composition to composition of reward kernels and tensor to the tensor of reward kernels, and the likelihood one gives back the unweighted interpretation.
 - Carrying the evidence mass, the backward action of reward kernels on effects and the forward action on states are functorial with no normalisation hypothesis, and the evidence mass and the evidence-weighted value of a state against an effect are the same on either side of a reward kernel.
 - Normalising each component on its own evidence before composing is not sound: with a uniform binary state worth 1 when true and evidence nine times likelier when it is true, the conditional value is 9/10, while the components normalised one by one give 1/2.
+- For a behavioural strategy, which gives every decision a table of action probabilities, the interpretation of open influence diagrams sends serial composition to composition of reward kernels, identities to `(id, 0)` and tensor to the tensor of reward kernels, and a deterministic strategy has the interpretation of its point masses.
+- A mixture of reward kernels with nonnegative weights summing to one has expected utility at most that of one of its components, and, when masses are nonnegative and a component of zero mass has zero evidence-weighted value, conditional value at most that of one of its components of positive mass.
+- For two decision games and a prior that is a product of probability vectors, a pair of strategies is an equilibrium of their tensor exactly when neither factor can raise the composite's expected utility by changing its own strategy alone.
+- A strategy that maximises the value from every input state is a best response under every nonnegative prior, and a strategy of two such perfect games in series is an equilibrium exactly when, by backward induction, the suffix is perfect against the continuation and the prefix against the suffix's value function.
+- When two decisions share a policy, randomising can help: in the absent-minded driver, continuing with probability 2/3 at both junctions is worth 4/3, while either deterministic policy is worth at most 1; with a policy each, the deterministic pair that continues and then exits is worth 4 and no pair of probabilities does better.
 
 The certificate result is about reward certificates (ADR 0019): `lake exe check_certificate`
 decodes a certificate written by `export_reward_certificate` and checks it, so Julia's
 numbers for a recorded diagram are checked against the Lean semantics. The four after it
-are about lenses and open games (ADR 0020), over the reward-kernel semantics; the tensor of
-games is not defined. The last three are about evidence (ADR 0021): the evidence-weighted
-interpretation is proved functorial for serial composition, not for the tensor, and the
-binary64 rules of `conditional_value` are Julia's. The syntax is not
+are about lenses and open games (ADR 0020), over the reward-kernel semantics, with the tensor of
+games after them: exact for product priors, and for correlated priors not expressible
+through a context of one factor. The next three are about evidence (ADR 0021): the evidence-weighted
+interpretation is proved functorial for serial composition and tensor, and the
+binary64 rules of `conditional_value` are Julia's. The last three are about behavioural
+strategies (ADR 0022). The syntax is not
 quotiented by isomorphism, the semantics does not read observability flags, and nothing is
 proved about arbitrary gluing, or whether a Julia composite is the Lean composite
 of its parts; [`proofs/README.md`](proofs/README.md) lists every theorem and these

@@ -91,8 +91,8 @@ def report (c : Certificate) (τ : ℚ) : IO UInt32 := do
   IO.println s!"  tolerance {showQ τ}"
   IO.println s!"  largest row deviation |row sum - 1|: {showQ c.rowDeviation}"
   if c.network.check && decide c.CellCounts then
-    IO.println s!"  largest K error: {showQ c.kError}"
-    IO.println s!"  largest W error: {showQ c.wError}"
+    IO.println s!"  largest K error: {showQ c.kErrorFast}"
+    IO.println s!"  largest W error: {showQ c.wErrorFast}"
   else
     IO.println "  largest K and W errors: not computed (invalid network or cell counts)"
   if c.check τ then

@@ -552,7 +552,9 @@ end
         m = umbrella_model()
         mo = observe(m, :Forecast => :rainy)
         sol = contextual_optimize(Open(syntax(m)), mo)
-        @test sol.diagnostics.method === :conditional
+        @test sol.diagnostics.method === :conditional_value_table
+        @test contextual_optimize(Open(syntax(m)), mo; brute_force=true).diagnostics.method ===
+              :conditional
         @test sol.expected_utility ≈
               optimize(mo; backend=ExhaustivePolicySearch()).expected_utility
         ν = boundary_law(umbrella_chance(), kernels_by_name(m), bound_utilities(m),

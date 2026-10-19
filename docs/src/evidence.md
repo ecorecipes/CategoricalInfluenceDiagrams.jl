@@ -14,6 +14,10 @@ takes hard evidence on any variable of a component's apex, its inputs and output
 r = interpret(o, kernels, utilities, σ; evidence = [:Sighting => :seen])
 ```
 
+Evidence may also be soft: a likelihood vector, `:Weather => [0.2, 0.9]`, one entry in
+`[0, 1]` per state, the probability of an observation given each state. It acts as the hard
+observation of a virtual child variable with that likelihood would.
+
 The result is still a [`RewardKernel`](@ref) `(K, W)`, but `K(y | x)` is now the probability
 of reaching the output state `y` *and* seeing the evidence, and `W` the reward earned on
 those paths. `K` is substochastic: its column sums are the probability of the evidence given
@@ -75,8 +79,9 @@ contextual value.
 ## Optimisation and equilibria given evidence
 
 [`contextual_optimize`](@ref) takes `evidence`, and a state or an effect as its context, and
-then maximises the conditional value, scoring every legal strategy and skipping those under
-which the evidence is impossible, as `InfluenceDiagrams`' exhaustive search does on a closed
+then maximises the conditional value over the legal strategies, from value tables built in
+one pass over the component's joint states, skipping strategies under which the evidence is
+impossible, as `InfluenceDiagrams`' exhaustive search does on a closed
 model with evidence. On a closed composite, `optimize(o, kernels, utilities; evidence)`
 records the evidence on the model and calls `InfluenceDiagrams`' solvers. When the evidence
 lies downstream of a decision, its probability depends on the strategy, and the conditional
@@ -108,6 +113,5 @@ evidence-weighted value are the same on either side of a reward kernel, that the
 contextual identity holds without normalisation once the mass is carried, that hard evidence
 on a boundary is idempotent and commutes, and the local-normalisation witness. For the
 syntax, it proves that weighting the interpretation by a likelihood on the generators' values
-is functorial under serial composition. The tensor of evidence-weighted interpretations, and
-the binary64 rules above, are not proved; the test suite checks the Julia functions against
+is functorial under serial composition and tensor. The binary64 rules above are not proved; the test suite checks the Julia functions against
 `InfluenceDiagrams`' `expected_utility` of the closed composite with the evidence observed.

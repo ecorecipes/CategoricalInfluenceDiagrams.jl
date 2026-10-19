@@ -51,7 +51,7 @@ Each sentence below is registered as an SA-Pass claim in `conformance/sapass/cla
     (`cid.game-coordination`)
 16. In the bundle's witness, the equilibria are exactly the strategies that take the early action, and each of them attains the joint optimum 4.
     (`cid.obstruction-equilibria`)
-17. Evidence composes: weighting the fixed-strategy interpretation of open influence diagrams by a likelihood on the values of the generators sends serial composition to composition of reward kernels, and the likelihood one gives back the unweighted interpretation.
+17. Evidence composes: weighting the fixed-strategy interpretation of open influence diagrams by a likelihood on the values of the generators sends serial composition to composition of reward kernels and tensor to the tensor of reward kernels, and the likelihood one gives back the unweighted interpretation.
     (`cid.evidence-functor`)
 18. Carrying the evidence mass, the backward action of reward kernels on effects and the forward action on states are functorial with no normalisation hypothesis, and the evidence mass and the evidence-weighted value of a state against an effect are the same on either side of a reward kernel.
     (`cid.evidence-lens`)
@@ -61,6 +61,20 @@ Each sentence below is registered as an SA-Pass claim in `conformance/sapass/cla
     (`cid.observe-idempotent`)
 21. Normalising each component on its own evidence before composing is not sound: with a uniform binary state worth 1 when true and evidence nine times likelier when it is true, the conditional value is 9/10, while the components normalised one by one give 1/2.
     (`cid.local-normalisation`)
+22. For a behavioural strategy, which gives every decision a table of action probabilities, the interpretation of open influence diagrams sends serial composition to composition of reward kernels, identities to `(id, 0)` and tensor to the tensor of reward kernels, and a deterministic strategy has the interpretation of its point masses.
+    (`cid.behaviour-functor`)
+23. A mixture of reward kernels with nonnegative weights summing to one has expected utility at most that of one of its components, and, when masses are nonnegative and a component of zero mass has zero evidence-weighted value, conditional value at most that of one of its components of positive mass.
+    (`cid.mixture-sufficiency`)
+24. When two decisions share a policy, randomising can help: in the absent-minded driver, continuing with probability 2/3 at both junctions is worth 4/3, while either deterministic policy is worth at most 1; with a policy each, the deterministic pair that continues and then exits is worth 4 and no pair of probabilities does better.
+    (`cid.absent-minded`)
+25. For two decision games and a prior that is a product of probability vectors, a pair of strategies is an equilibrium of their tensor exactly when neither factor can raise the composite's expected utility by changing its own strategy alone.
+    (`cid.game-tensor`)
+26. With a correlated prior no context of a factor alone is exact: in a witness with two equal binary inputs and a payoff for matching outputs, the first factor's best responses are exactly the policy that copies its input, but in no context of a probability vector on its input and a continuation on its output are its equilibria exactly that policy.
+    (`cid.tensor-correlated`)
+27. A strategy that maximises the value from every input state is a best response under every nonnegative prior, and a strategy of two such perfect games in series is an equilibrium exactly when, by backward induction, the suffix is perfect against the continuation and the prefix against the suffix's value function.
+    (`cid.perfect-equilibrium`)
+28. An equilibrium can rest on a choice at a state it never reaches: in a witness where acting first is worth 4 if the second decision cooperates, 0 if it does not and 1 without acting, not acting against a refusal is an equilibrium worth 1, while the perfect equilibria are exactly the strategies that act and cooperate, worth the optimum 4.
+    (`cid.threat-witness`)
 
 Here `EU_f(μ, c) = Σ_x μ x Σ_y (W x y + K x y · c y)` for a boundary prior `μ` and a terminal
 continuation `c`; `c_g y = Σ_z (W_g y z + K_g y z · c z)` is the suffix's value function,
@@ -81,10 +95,15 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
   isomorphism, so functoriality is a set of equations on representatives
   (`interpret_comp`, `interpret_identity`, `interpret_tensor`), not a Mathlib `Functor` out of
   a syntax category. The isomorphism invariance of `interpret` is not proved.
-- **Strategies.** Policies are deterministic and keyed by decision label (decisions with
-  equal labels share one), as in the Julia package; a policy is a function of the values on
-  the decision's information ports (its ordered parents). Behavioural policies are out of
-  scope (ADR 0018, decision 4).
+- **Strategies.** Policies are keyed by decision label (decisions with equal labels share
+  one), as in the Julia package. A deterministic policy is a function of the values on the
+  decision's information ports (its ordered parents); a behavioural policy (module
+  `Behaviour`, ADR 0022) is a table of probabilities given those values, normalised on
+  correctly typed rows, drawn from independently at every use. Deterministic sufficiency
+  is proved here for mixtures of reward kernels (`eu_mix_le`, `conditionalValue_mix_le`);
+  that a behavioural strategy of decisions with distinct labels is such a mixture is
+  `InfluenceDiagrams.jl`'s `exists_deterministic_optimal_all`, proved there for its finite
+  model, not here for `IDNet`. With shared labels it fails (`AbsentMinded`).
 - **Observability.** The fixed-strategy semantics does not read observability flags.
   Information locality (`InformationLocal`, rule 3) is a separate predicate on finite
   influence diagrams; the hidden-input obstruction states legality directly on its witness.
@@ -108,15 +127,19 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
   words, is the way to certify such a model. State `k` of a variable (`Fin (dimension t)`) is
   read as the state of position `k + 1`; this is the format's convention, not a theorem. The
   checker also requires generators with equal labels to have equal tables, since the decoded
-  signature keys tables by label. The exact reward kernel is computed by enumeration, so
-  checking costs about `|X| · |Y| · |Z|` weight evaluations, for the input, output and
-  generator state spaces.
+  signature keys tables by label. The exact reward kernel is computed by enumeration, one
+  pass over the generator states per input state (`Certificate/Fast`, proved equal to the
+  cell-by-cell sums), so checking costs about `|X| · |Z|` weight evaluations, for the input
+  and generator state spaces, rather than `|X| · |Y| · |Z|`.
 - **Lenses and games** (ADR 0020; module `Lens`). A reward kernel's lens is the pair
   (`pushforward`, `continuation`) on real functions; its laws need the later kernel
   normalised, as the contextual identity does. A `Game` has a type of strategies, a
-  normalised play for each and an equilibrium predicate; decision games, identity games and
-  serial composition are defined, the tensor of games is not (the context of a tensor factor
-  depends on the other factor's input state). Equilibrium is a person-by-person optimum, not
+  normalised play for each and an equilibrium predicate; decision games, identity games,
+  serial composition and the tensor (module `GameTensor`) are defined. The tensor gives each
+  factor the context of its marginal prior and the continuation the other factor induces; it
+  is exact for product priors (`tensor_decision_eq_iff`), and no context of a factor alone is
+  exact for correlated priors (`correlated_no_factor_context`), since the context a tensor
+  factor needs depends on the other factor's input state. Equilibrium is a person-by-person optimum, not
   the optimum (`coordination_equilibrium_not_optimal`). The results are about the reward-kernel
   semantics, like the obstructions; that Julia's `component_contexts`, `regrets` and
   `best_response_dynamics` compute these contexts and equilibria is checked by the test
@@ -125,7 +148,7 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
   of a general likelihood on the values of generators, keyed by label as strategies are
   (`IDInterpretation.Likelihood`); the evidence-weighted interpretation is not stochastic, so
   it is a reward kernel but not a morphism of `FinRew`. Its functoriality is proved for
-  serial composition (`interpretE_comp`), not for the tensor. Evidence on an input of the
+  serial composition (`interpretE_comp`) and tensor (`interpretE_tensor`). Evidence on an input of the
   syntax, which has no generator, is the composition with `observe` on that boundary, so it is
   covered at the level of reward kernels only. The conditional value is a real quotient: it
   is `0` when the evidence mass is `0` (Lean's division), and nothing is claimed about that
@@ -133,8 +156,8 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
   masses, exact fallback, tolerated negative entries) are Julia's, not proved. That Julia's
   `boundary_state`, `continuation_effect`, `evidence_mass` and `conditional_value` compute
   these quantities is checked by the test suite against the closed-composite oracle.
-- **Not proved:** a category of open influence diagrams with arbitrary gluing, the tensor of
-  evidence-weighted interpretations, and optimisation of composites beyond the contextual
+- **Not proved:** a category of open influence diagrams with arbitrary gluing, and
+  optimisation of composites beyond the contextual
   identity. Reward
   certificates check Julia's numbers for the diagram a certificate records against
   `interpret`, but that the recorded diagram is the Julia composite of its parts, the
@@ -181,18 +204,27 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
 | `Game.seq_decision_eq_iff` | Two decision games: an equilibrium is a pair from which neither gains alone, measured by the composite's expected utility |
 | `Game.Sound`, `decision_sound`, `idGame_sound`, `seq_sound` | Maximisers are equilibria, for decision and identity games and serial composites of such games |
 | `Coordination.first`, `second`, `payoff`, `game`, `composite_eu`, `game_eq_iff`, `coordination_equilibrium_not_optimal` | Two decisions that must agree, the later blind to the earlier: equilibria worth 1 and 2, optimum 2 |
+| `Game.marg₁`, `marg₂`, `leftCont`, `rightCont`, `tensor`, `prodPrior`, `marg₁_prod`, `marg₂_prod`, `sum_comm4`, `tensor_eu_sum`, `tensor_eu_left`, `tensor_eu_right`, `tensor_decision_eq_iff` | The tensor of games; with a product prior a factor's context is exact, and an equilibrium of two decision games is a pair of mutual best responses |
+| `CorrelatedTensor.copyPlay`, `first`, `prior`, `payoff`, `joint_eu`, `correlated_best_responses`, `first_eu`, `correlated_no_factor_context` | With equal inputs, the best response copies its input, and no context of the factor alone has exactly that equilibrium |
+| `Game.perfect`, `perfect_eq_decision`, `seq_perfect_eq_iff` | Perfect decision games (optimal from every input state); perfection refines equilibrium for nonnegative priors; perfect equilibria of a series are found by backward induction |
+| `Threat.first`, `second`, `payoff`, `composite_eu`, `first_value`, `second_value`, `threat`, `threat_equilibrium`, `threat_perfect_iff`, `threat_optimum` | An equilibrium worth 1 sustained by an untested refusal; the perfect equilibria act and cooperate, worth the optimum 4 |
 | `Obstruction.early_normalised`, `Obstruction.game`, `obstruction_eq_iff` | In the obstruction witness the equilibria are exactly the strategies taking the early action |
 | `RewardKernel.Effect`, `State`, `Effect.ofValue`, `State.ofPrior`, `pull`, `push`, `mass`, `value`, `conditionalValue` | Effects `(m, c)` and states `(ν, ρ)`, the backward and forward actions of a reward kernel, and the evidence mass, evidence-weighted value and conditional value of a state against an effect |
 | `RewardKernel.pull_comp`, `push_comp`, `pull_id`, `push_id`, `mass_push`, `value_push` | Both actions are functorial with no normalisation hypothesis; the pairing is the same on either side of a reward kernel |
 | `RewardKernel.mass_comp`, `conditionalValue_comp`, `value_ofPrior`, `pull_ofValue`, `eu_comp_pull` | The composite's evidence mass is the pairing of the prefix's boundary law with the suffix's likelihood; its conditional value is computed at the boundary; with mass one these are ADR 0018's expected utility and ADR 0020's value function; `EU_{f;g}(μ, c)` is the prefix's value against the suffix's effect, normalised or not |
 | `RewardKernel.observe`, `observe_comp_observe`, `observe_idem`, `observe_comm` | Hard evidence on a boundary: two observations compose to their conjunction, so observing is idempotent and commutes |
 | `LocalNormalisation.normalise`, `prior`, `evidence`, `composite_conditionalValue`, `normalised_conditionalValue`, `local_normalisation_obstruction` | Normalising each component on its own evidence gives `1/2` where the composite conditioned on all of it gives `9/10` |
-| `IDInterpretation.Likelihood`, `lik`, `kernelE`, `rewardTableE`, `interpretE`, `lik_comp`, `kernelE_comp`, `rewardTableE_comp`, `interpretE_comp`, `interpretE_one` | The evidence-weighted interpretation of the syntax, functorial under serial composition; the likelihood one gives `interpret` |
+| `IDInterpretation.Likelihood`, `lik`, `kernelE`, `rewardTableE`, `interpretE`, `lik_comp`, `kernelE_comp`, `rewardTableE_comp`, `interpretE_comp`, `lik_tensor`, `kernelE_tensor`, `rewardTableE_tensor`, `interpretE_tensor`, `interpretE_one` | The evidence-weighted interpretation of the syntax, functorial under serial composition and tensor; the likelihood one gives `interpret` |
+| `IDInterpretation.Behaviour`, `interpB`, `pointMass`, `interpB_pointMass`, `rewardB`, `rewardTableB`, `interpretB`, `interpretB_stochastic` | Behavioural strategies and their semantics; the point masses of a deterministic strategy give `interp` |
+| `rewardB_comp`, `rewardTableB_comp`, `interpretB_comp`, `interpretB_identity`, `rewardB_tensor`, `rewardTableB_tensor`, `kernel_tensor_joinB`, `interpretB_tensor`, `contextual_identityB`, `interpretB_pointMass` | Functoriality and the contextual identity for behavioural strategies |
+| `RewardKernel.mix`, `mix_comp`, `comp_mix`, `eu_mix`, `eu_mix_le`, `mediant_le`, `pull_mix`, `mass_value_mix`, `conditionalValue_mix_le` | Mixtures compose affinely; their expected utility, and given evidence their conditional value, never exceed the best component's |
+| `AbsentMinded.first`, `second`, `drive_eu`, `randomising_helps`, `independent_deterministic_optimal` | The absent-minded driver: a shared policy is best randomised (`4/3 > 1`); separate policies are best deterministic (`4`) |
 | `RewardCertificate.Certificate`, `Value`, `ChanceTable`, `Utility`, `Policy`, `Result`, `isPolicy` | The decoded record: CategoricalBayesianNetworks' raw network, flags, chance and utility tables, one policy per decision name, the recorded `K` and `W`; a generator is a decision when its reference is a `policy` reference |
 | `Json.decodeCertificate`, `read`, `decodeCertificate_eq_ok`, `read_eq_ok`, `networkBody_fields` | The decoder succeeds with `c` exactly when the JSON is `c`'s layout key for key, reusing CategoricalBayesianNetworks' network readers and InfluenceDiagrams' value decoder |
 | `Json.decodeFlag_eq_ok`, `decodeMode_eq_ok`, `decodeMetadata_eq_ok`, `decodeObservability_eq_ok`, `decodeChanceTable_eq_ok`, `decodeUtility_eq_ok`, `decodePolicy_eq_ok`, `decodeResult_eq_ok` | Each new record decodes exactly when the JSON has its layout |
 | `flatIndex`, `flatIndex_lt`, `flatIndex_append`, `flatIndex_injective` | The lexicographic cell index, last axis fastest: in range, a chance table is a list of rows, distinct coordinates have distinct cells |
 | `Certificate.exactK`, `exactW`, `resultIndex`, `resultCell_bijective` | The reward kernel of the certificate's numbers over `ℚ` by enumeration; the result layout is a bijection onto the cells |
+| `Certificate.readOut?`, `reads_iff`, `outIndex`, `outIndex_injective`, `accRow`, `accRow_getD`, `kErrorFast`, `wErrorFast`, `kErrorFast_le_iff`, `wErrorFast_le_iff`, `kErrorFast_eq`, `wErrorFast_eq` | One pass over the generator states per input state gives the row of `K` and `W`; the fast errors are the errors, so the checker uses them |
 | `Certificate.check`, `stages`, `firstFailure`, `check_iff_firstFailure`, `Accepted`, `check_iff_accepted` | The checker as sixteen ordered stages; acceptance is their conjunction, and the reported stage is the first that fails |
 | `Certificate.check_sound`, `InformationLocal` | Acceptance gives a valid network and information locality with the recorded flags |
 | `sig`, `Certificate.model`, `strategyOf`, `diagram`, `chanceEntry_normalized` | The decoded signature, `IDInterpretation` (normalised by the exact row sums), strategy and `IDNet` |

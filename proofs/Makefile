@@ -5,7 +5,7 @@ TITLE := Open Influence Diagrams: Proofs
 AUTHOR := Simon Frost
 # Modules in import (dependency) order, as in $(LIB).lean.
 MD_FILES := Basic.md RewardKernel.md Category.md Context.md Syntax.md Interpretation.md \
-	Obstruction.md Lens.md Evidence.md Certificate/Record.md Certificate/Json.md Certificate/Exact.md \
+	Obstruction.md Lens.md GameTensor.md Perfection.md Evidence.md Behaviour.md Certificate/Record.md Certificate/Json.md Certificate/Exact.md Certificate/Fast.md \
 	Certificate/Check.md Certificate/Sound.md
 JULIAMONO_DIR := $(abspath ../../fonts/JuliaMono)/
 PANDOC_COMMON := --toc --toc-depth=2 --syntax-definition=lean.xml --syntax-highlighting=tango \

@@ -97,6 +97,12 @@ Catlab out of the model layer (ADR 0009).
   [`evidence_mass`](@ref) and [`conditional_value`](@ref), the expected utility given the
   evidence, are the same at every cut. Normalising each component on its own evidence is
   not sound; see [Evidence across a boundary](evidence.md).
+- **Behavioural strategies** (ADR 0022). A `StochasticPolicy` draws a decision's action
+  from a table given its information, and every function that takes a strategy takes one.
+  Searches stay over deterministic strategies, which suffice when every decision has its
+  own policy (with or without evidence); decisions that share a name share a policy, and
+  then randomising can help, as in the absent-minded driver, so `contextual_optimize`
+  refuses shared names.
 - **Reward certificates** (ADR 0019). [`export_reward_certificate`](@ref) writes a
   diagram, its flags and tables, a deterministic strategy and the reward kernel
   `interpret` computed for it as an `OpenInfluence.RewardCertificate/v1` record, for the
@@ -110,10 +116,13 @@ The Lean project in `proofs/` builds on the proof projects of
 reward-kernel category and its symmetric monoidal structure, the functoriality of the
 fixed-strategy interpretation under serial composition and tensor, the contextual
 identity, the two obstructions of the research bundle, lenses and open-game equilibria
-(ADR 0020), and the composition of evidence (ADR 0021). Its checker for reward
+(ADR 0020), the composition of evidence (ADR 0021), and behavioural strategies with the
+value of randomising (ADR 0022). Its checker for reward
 certificates ties Julia's `interpret` of a recorded diagram to that interpretation, cell
 by cell (ADR 0019). `proofs/README.md` lists the theorems and their restrictions; the
 test suite checks the same laws numerically.
 
-Randomised (behavioural) policies are outside the first release. That a Julia composite is the Lean composite of its parts is not proved: a
+Behavioural (randomised) policies are interpreted like deterministic ones (ADR 0022); the
+search for an optimum stays over deterministic strategies, which suffice when every decision
+has its own policy. That a Julia composite is the Lean composite of its parts is not proved: a
 certificate checks the diagram it records, not the operation that built it.

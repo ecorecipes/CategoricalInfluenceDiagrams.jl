@@ -16,7 +16,7 @@ game is one component whose decisions are controlled together; its equilibria ar
 strategies that maximise expected utility in the context. The serial composite `G.seq H` plays
 the composite kernel, and `(s, t)` is an equilibrium in `(μ, c)` when `s` is one of `G` in the
 context `(μ, c_t)` and `t` one of `H` in `(ν_s, c)`: each part sees the context the other
-induces, transported by the lenses. The tensor is not defined (ADR 0020, decision 2).
+induces, transported by the lenses. The tensor is in `GameTensor.lean` (ADR 0020, amended).
 
 **Results.**
 - Serial composition is associative and unital on equilibria (`seq_assoc_eq`,

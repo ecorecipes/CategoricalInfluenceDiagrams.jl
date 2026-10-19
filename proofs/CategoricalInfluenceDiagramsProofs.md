@@ -1767,7 +1767,7 @@ game is one component whose decisions are controlled together; its equilibria ar
 strategies that maximise expected utility in the context. The serial composite `G.seq H` plays
 the composite kernel, and `(s, t)` is an equilibrium in `(μ, c)` when `s` is one of `G` in the
 context `(μ, c_t)` and `t` one of `H` in `(ν_s, c)`: each part sees the context the other
-induces, transported by the lenses. The tensor is not defined (ADR 0020, decision 2).
+induces, transported by the lenses. The tensor is in `GameTensor.lean` (ADR 0020, amended).
 
 **Results.**
 - Serial composition is associative and unital on equilibria (`seq_assoc_eq`,
@@ -2120,6 +2120,490 @@ end OpenInfluence
 ```
 
 
+<!-- CategoricalInfluenceDiagramsProofs/GameTensor.lean -->
+
+# The tensor of open games (ADR 0020, amended)
+
+```lean
+import CategoricalInfluenceDiagramsProofs.Lens
+import Mathlib.Tactic.Linarith
+```
+
+ADR 0020 left the tensor of games undefined: the context a factor of `G ⊗ H` receives can
+depend on the other factor's input state. This module makes that precise in both directions.
+
+**The tensor.** `Game.tensor G H` plays `play s ⊗ play t`, and `(s, t)` is an equilibrium in
+`(μ, c)` when `s` is one of `G` in the context of the first marginal of `μ` and the
+continuation the second factor induces (`leftCont`: its reward, and the continuation `c`,
+averaged over its input under the second marginal and over its output), and symmetrically
+for `t`. When the prior is a product of probability vectors, this context is exact: the
+composite's expected utility is the first factor's expected utility in it
+(`tensor_eu_left`, `tensor_eu_right`). So for two decision games and a product prior, an
+equilibrium of the tensor is exactly a pair from which neither factor gains alone, measured
+by the composite's expected utility (`tensor_decision_eq_iff`).
+
+**Correlated priors.** No such context exists in general. With two binary inputs that are
+equal, a first factor that copies its input and a second that passes its input through, and
+a payoff for matching outputs, the best responses of the first factor are exactly the policy
+that copies (`correlated_best_responses`). But in no context of the first factor alone, a
+probability vector on its input and a continuation on its output, are the decision game's
+equilibria exactly that policy (`correlated_no_factor_context`): the continuation would have
+to depend on the input, through the correlation. A tensor that is exact for correlated
+priors needs contexts in which the continuation reads the input, which ADR 0020's `Game`
+does not have.
+
+```lean
+set_option autoImplicit false
+
+noncomputable section
+
+namespace OpenInfluence
+
+open FiniteKernelsProofs.Finite
+
+namespace Game
+
+open RewardKernel
+
+variable {X Y X' Y' : Type} [Fintype X] [Fintype Y] [Fintype X'] [Fintype Y']
+
+/-- The first marginal of a prior on a product. -/
+def marg₁ (μ : X × X' → ℝ) : X → ℝ := fun x => ∑ x', μ (x, x')
+
+/-- The second marginal of a prior on a product. -/
+def marg₂ (μ : X × X' → ℝ) : X' → ℝ := fun x' => ∑ x, μ (x, x')
+
+omit [Fintype Y] [Fintype X] in
+/-- The continuation the second factor `g` induces for the first, with law `ν` on its input:
+its reward and the continuation `c`, averaged over its input and its output. -/
+def leftCont (g : RewardKernel X' Y') (ν : X' → ℝ) (c : Y × Y' → ℝ) : Y → ℝ :=
+  fun y => ∑ x', ν x' * ∑ y', (g.W x' y' + g.K x' y' * c (y, y'))
+
+omit [Fintype Y'] [Fintype X'] in
+/-- The continuation the first factor `f` induces for the second, with law `ν` on its input. -/
+def rightCont (f : RewardKernel X Y) (ν : X → ℝ) (c : Y × Y' → ℝ) : Y' → ℝ :=
+  fun y' => ∑ x, ν x * ∑ y, (f.W x y + f.K x y * c (y, y'))
+
+/-- The tensor of open games: each factor in equilibrium in the context of its marginal prior
+and the continuation the other factor induces. Exact for product priors
+(`tensor_decision_eq_iff`); no context of a factor alone is exact for correlated priors
+(`correlated_no_factor_context`). -/
+def tensor (G : Game X Y) (H : Game X' Y') : Game (X × X') (Y × Y') where
+  Strat := G.Strat × H.Strat
+  play p := (G.play p.1).tensor (H.play p.2)
+  normalised p := Kernel.Normalised.tensor (G.normalised p.1) (H.normalised p.2)
+  Eq μ c p := G.Eq (marg₁ μ) (leftCont (H.play p.2) (marg₂ μ) c) p.1 ∧
+    H.Eq (marg₂ μ) (rightCont (G.play p.1) (marg₁ μ) c) p.2
+
+/-- The product of two priors. -/
+def prodPrior (μ₁ : X → ℝ) (μ₂ : X' → ℝ) : X × X' → ℝ := fun p => μ₁ p.1 * μ₂ p.2
+
+omit [Fintype X] in
+theorem marg₁_prod (μ₁ : X → ℝ) (μ₂ : X' → ℝ) (h₂ : ∑ x', μ₂ x' = 1) :
+    marg₁ (prodPrior μ₁ μ₂) = μ₁ := by
+  funext x
+  simp [marg₁, prodPrior, ← Finset.mul_sum, h₂]
+
+omit [Fintype X'] in
+theorem marg₂_prod (μ₁ : X → ℝ) (μ₂ : X' → ℝ) (h₁ : ∑ x, μ₁ x = 1) :
+    marg₂ (prodPrior μ₁ μ₂) = μ₂ := by
+  funext x'
+  simp [marg₂, prodPrior, ← Finset.sum_mul, h₁]
+
+omit [Fintype X] [Fintype Y] [Fintype X'] [Fintype Y'] in
+/-- Reordering a fourfold sum. -/
+theorem sum_comm4 {A B C D : Type} [Fintype A] [Fintype B] [Fintype C] [Fintype D]
+    (F : A → B → C → D → ℝ) :
+    ∑ a, ∑ b, ∑ c, ∑ d, F a b c d = ∑ b, ∑ d, ∑ a, ∑ c, F a b c d := by
+  calc ∑ a, ∑ b, ∑ c, ∑ d, F a b c d = ∑ a, ∑ b, ∑ d, ∑ c, F a b c d :=
+        Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => Finset.sum_comm
+    _ = ∑ b, ∑ a, ∑ d, ∑ c, F a b c d := Finset.sum_comm
+    _ = ∑ b, ∑ d, ∑ a, ∑ c, F a b c d := Finset.sum_congr rfl fun _ _ => Finset.sum_comm
+
+/-- The expected utility of a tensor with a product prior, as a fourfold sum. -/
+theorem tensor_eu_sum (f : RewardKernel X Y) (g : RewardKernel X' Y') (μ₁ : X → ℝ)
+    (μ₂ : X' → ℝ) (c : Y × Y' → ℝ) :
+    (f.tensor g).eu (prodPrior μ₁ μ₂) c = ∑ x, ∑ x', ∑ y, ∑ y', μ₁ x * μ₂ x' *
+      (f.W x y * g.K x' y' + f.K x y * g.W x' y' + f.K x y * g.K x' y' * c (y, y')) := by
+  unfold eu prodPrior
+  simp only [tensor_K, tensor_W, Kernel.tensor_apply, Pi.add_apply, Fintype.sum_prod_type,
+    Finset.mul_sum]
+
+/-- With a product prior whose second factor is a probability vector, the expected utility of a
+tensor is the first factor's expected utility in the context the second induces. -/
+theorem tensor_eu_left (f : RewardKernel X Y) (g : RewardKernel X' Y')
+    (hg : Kernel.Normalised g.K) (μ₁ : X → ℝ) (μ₂ : X' → ℝ) (h₂ : ∑ x', μ₂ x' = 1)
+    (c : Y × Y' → ℝ) :
+    (f.tensor g).eu (prodPrior μ₁ μ₂) c = f.eu μ₁ (leftCont g μ₂ c) := by
+  have hone : ∑ x', μ₂ x' * ∑ y', g.K x' y' = 1 := by simp [hg _, h₂]
+  have rhs : f.eu μ₁ (leftCont g μ₂ c) = ∑ x, ∑ y, ∑ x', ∑ y', μ₁ x * μ₂ x' *
+      (f.W x y * g.K x' y' + f.K x y * g.W x' y' + f.K x y * g.K x' y' * c (y, y')) := by
+    unfold eu leftCont
+    refine Finset.sum_congr rfl fun x _ => ?_
+    rw [Finset.mul_sum]
+    refine Finset.sum_congr rfl fun y _ => ?_
+    conv_lhs => rw [← mul_one (f.W x y), ← hone]
+    simp only [Finset.mul_sum, mul_add, ← Finset.sum_add_distrib]
+    refine Finset.sum_congr rfl fun x' _ => Finset.sum_congr rfl fun y' _ => by ring
+  rw [rhs, tensor_eu_sum]
+  exact Finset.sum_congr rfl fun _ _ => Finset.sum_comm
+
+/-- With a product prior whose first factor is a probability vector, the expected utility of a
+tensor is the second factor's expected utility in the context the first induces. -/
+theorem tensor_eu_right (f : RewardKernel X Y) (g : RewardKernel X' Y')
+    (hf : Kernel.Normalised f.K) (μ₁ : X → ℝ) (μ₂ : X' → ℝ) (h₁ : ∑ x, μ₁ x = 1)
+    (c : Y × Y' → ℝ) :
+    (f.tensor g).eu (prodPrior μ₁ μ₂) c = g.eu μ₂ (rightCont f μ₁ c) := by
+  have hone : ∑ x, μ₁ x * ∑ y, f.K x y = 1 := by simp [hf _, h₁]
+  have rhs : g.eu μ₂ (rightCont f μ₁ c) = ∑ x', ∑ y', ∑ x, ∑ y, μ₁ x * μ₂ x' *
+      (f.W x y * g.K x' y' + f.K x y * g.W x' y' + f.K x y * g.K x' y' * c (y, y')) := by
+    unfold eu rightCont
+    refine Finset.sum_congr rfl fun x' _ => ?_
+    rw [Finset.mul_sum]
+    refine Finset.sum_congr rfl fun y' _ => ?_
+    conv_lhs => rw [← mul_one (g.W x' y'), ← hone]
+    simp only [Finset.mul_sum, mul_add, ← Finset.sum_add_distrib]
+    refine Finset.sum_congr rfl fun x _ => Finset.sum_congr rfl fun y _ => by ring
+  rw [rhs, tensor_eu_sum, sum_comm4]
+
+/-- **The tensor of two decision games, with a product prior**: an equilibrium is exactly a
+pair from which neither factor can raise the composite's expected utility alone. -/
+theorem tensor_decision_eq_iff {S T : Type} (pf : S → RewardKernel X Y)
+    (hf : ∀ s, Kernel.Normalised (pf s).K) (pg : T → RewardKernel X' Y')
+    (hg : ∀ t, Kernel.Normalised (pg t).K) (μ₁ : X → ℝ) (μ₂ : X' → ℝ) (h₁ : ∑ x, μ₁ x = 1)
+    (h₂ : ∑ x', μ₂ x' = 1) (c : Y × Y' → ℝ) (s : S) (t : T) :
+    ((decision pf hf).tensor (decision pg hg)).Eq (prodPrior μ₁ μ₂) c (s, t) ↔
+      (∀ s', ((pf s').tensor (pg t)).eu (prodPrior μ₁ μ₂) c ≤
+        ((pf s).tensor (pg t)).eu (prodPrior μ₁ μ₂) c) ∧
+      ∀ t', ((pf s).tensor (pg t')).eu (prodPrior μ₁ μ₂) c ≤
+        ((pf s).tensor (pg t)).eu (prodPrior μ₁ μ₂) c := by
+  have L : ∀ s' t', ((pf s').tensor (pg t')).eu (prodPrior μ₁ μ₂) c =
+      (pf s').eu μ₁ (leftCont (pg t') μ₂ c) := fun s' t' => tensor_eu_left _ _ (hg t') μ₁ μ₂ h₂ c
+  have R : ∀ s' t', ((pf s').tensor (pg t')).eu (prodPrior μ₁ μ₂) c =
+      (pg t').eu μ₂ (rightCont (pf s') μ₁ c) := fun s' t' => tensor_eu_right _ _ (hf s') μ₁ μ₂ h₁ c
+  change (∀ s', (pf s').eu (marg₁ (prodPrior μ₁ μ₂)) (leftCont (pg t) (marg₂ (prodPrior μ₁ μ₂)) c) ≤
+      (pf s).eu (marg₁ (prodPrior μ₁ μ₂)) (leftCont (pg t) (marg₂ (prodPrior μ₁ μ₂)) c)) ∧
+    (∀ t', (pg t').eu (marg₂ (prodPrior μ₁ μ₂)) (rightCont (pf s) (marg₁ (prodPrior μ₁ μ₂)) c) ≤
+      (pg t).eu (marg₂ (prodPrior μ₁ μ₂)) (rightCont (pf s) (marg₁ (prodPrior μ₁ μ₂)) c)) ↔ _
+  rw [marg₁_prod μ₁ μ₂ h₂, marg₂_prod μ₁ μ₂ h₁]
+  constructor
+  · rintro ⟨h1, h2⟩
+    exact ⟨fun s' => by rw [L, L]; exact h1 s', fun t' => by rw [R, R]; exact h2 t'⟩
+  · rintro ⟨h1, h2⟩
+    refine ⟨fun s' => ?_, fun t' => ?_⟩
+    · have := h1 s'
+      rwa [L, L] at this
+    · have := h2 t'
+      rwa [R, R] at this
+
+end Game
+```
+
+### Correlated priors: no context of a factor alone
+
+```lean
+namespace CorrelatedTensor
+
+open RewardKernel
+
+/-- The first factor's play: output the state the policy `s` assigns to the input. -/
+def copyPlay (s : Bool → Bool) : RewardKernel Bool Bool :=
+  ⟨fun x y => if y = s x then 1 else 0, fun _ _ => 0⟩
+
+theorem copyPlay_normalised (s : Bool → Bool) : Kernel.Normalised (copyPlay s).K := by
+  intro x
+  simp [copyPlay]
+
+/-- The first factor as a decision game over all policies. -/
+def first : Game Bool Bool := Game.decision copyPlay copyPlay_normalised
+
+/-- The two inputs are equal, each value with probability one half. -/
+def prior : Bool × Bool → ℝ := fun p => if p.1 = p.2 then 1 / 2 else 0
+
+/-- One for matching outputs. -/
+def payoff : Bool × Bool → ℝ := fun p => if p.1 = p.2 then 1 else 0
+
+/-- The composite's value: one half for each input the policy copies. -/
+theorem joint_eu (s : Bool → Bool) :
+    ((copyPlay s).tensor (RewardKernel.id Bool)).eu prior payoff =
+      (if s true = true then 1 / 2 else 0) + (if s false = false then 1 / 2 else 0) := by
+  simp only [eu, copyPlay, prior, payoff, tensor_K, tensor_W, RewardKernel.id, lift,
+    Kernel.tensor_apply, Pi.add_apply, Fintype.sum_prod_type, Fintype.sum_bool,
+    Kernel.idK_apply]
+  rcases Bool.eq_false_or_eq_true (s true) with h1 | h1 <;>
+    rcases Bool.eq_false_or_eq_true (s false) with h2 | h2 <;> simp [h1, h2]
+
+/-- With the correlated prior, the first factor's best responses are exactly the policy that
+copies its input. -/
+theorem correlated_best_responses (s : Bool → Bool) :
+    (∀ s', ((copyPlay s').tensor (RewardKernel.id Bool)).eu prior payoff ≤
+        ((copyPlay s).tensor (RewardKernel.id Bool)).eu prior payoff) ↔ ∀ x, s x = x := by
+  constructor
+  · intro h
+    have hid := h id
+    rw [joint_eu, joint_eu] at hid
+    intro x
+    cases x <;> cases h1 : s true <;> cases h2 : s false <;> simp_all <;> norm_num at hid
+  · intro hs s'
+    rw [joint_eu, joint_eu, hs true, hs false]
+    cases s' true <;> cases s' false <;> norm_num
+
+/-- The first factor's expected utility in a context of its own. -/
+theorem first_eu (s : Bool → Bool) (μ₁ c₁ : Bool → ℝ) :
+    (copyPlay s).eu μ₁ c₁ = μ₁ true * c₁ (s true) + μ₁ false * c₁ (s false) := by
+  simp only [eu, copyPlay, Fintype.sum_bool]
+  cases s true <;> cases s false <;> simp
+
+/-- **No context of a factor alone is exact for a correlated prior.** For every probability
+context `(μ₁, c₁)` of the first factor, its equilibria as a decision game differ from its best
+responses in the composite. -/
+theorem correlated_no_factor_context :
+    ¬ ∃ μ₁ c₁ : Bool → ℝ, (∀ x, 0 ≤ μ₁ x) ∧ ∀ s, (first.Eq μ₁ c₁ s ↔ ∀ x, s x = x) := by
+  rintro ⟨μ₁, c₁, hμ, h⟩
+  have eq_iff : ∀ s : Bool → Bool, first.Eq μ₁ c₁ s ↔
+      ∀ s' : Bool → Bool, μ₁ true * c₁ (s' true) + μ₁ false * c₁ (s' false) ≤
+        μ₁ true * c₁ (s true) + μ₁ false * c₁ (s false) := by
+    intro s
+    change (∀ s', (copyPlay s').eu μ₁ c₁ ≤ (copyPlay s).eu μ₁ c₁) ↔ _
+    simp only [first_eu]
+  have hid := (eq_iff _root_.id).mp ((h _root_.id).mpr fun _ => rfl)
+  -- The copying policy beats both constant policies.
+  have h_t := hid (fun _ => true)
+  have h_f := hid (fun _ => false)
+  simp only [_root_.id_eq] at h_t h_f
+  have a0 := hμ true
+  have b0 := hμ false
+  -- If the constant `true` policy ties, it is an equilibrium that does not copy.
+  by_cases hb : μ₁ false * (c₁ false - c₁ true) = 0
+  · have heq : first.Eq μ₁ c₁ (fun _ => true) := by
+      rw [eq_iff]
+      intro s'
+      have := hid s'
+      simp only [_root_.id_eq] at this
+      have hb' : μ₁ false * c₁ false = μ₁ false * c₁ true := by
+        rw [mul_sub, sub_eq_zero] at hb
+        exact hb
+      linarith
+    have := ((h _).mp heq) false
+    simp at this
+  · -- Otherwise the second input has positive weight and `c₁ false > c₁ true`, so the first
+    -- input has weight zero and the constant `false` policy ties.
+    have hpos : 0 < μ₁ false * (c₁ false - c₁ true) := lt_of_le_of_ne (by nlinarith) (Ne.symm hb)
+    have hq : c₁ true < c₁ false := by
+      by_contra hcon
+      push Not at hcon
+      nlinarith
+    have ha : μ₁ true = 0 := by nlinarith
+    have heq : first.Eq μ₁ c₁ (fun _ => false) := by
+      rw [eq_iff]
+      intro s'
+      have := hid s'
+      simp only [_root_.id_eq] at this
+      rw [ha] at this ⊢
+      linarith
+    have := ((h _).mp heq) true
+    simp at this
+
+end CorrelatedTensor
+
+end OpenInfluence
+```
+
+
+<!-- CategoricalInfluenceDiagramsProofs/Perfection.lean -->
+
+# Perfect equilibria (ADR 0020, amended)
+
+```lean
+import CategoricalInfluenceDiagramsProofs.Lens
+import Mathlib.Tactic.Linarith
+```
+
+An equilibrium of decision games can rest on choices at information states the equilibrium
+never reaches: a later component's policy there is a best response whatever it is, because
+those states have probability zero, and it can still deter an earlier component. This is the
+equilibrium refinement problem that subgame perfection answers.
+
+**Perfect decision games.** A *perfect* decision game (`Game.perfect`) is in equilibrium in a
+context when its strategy maximises the value from *every* input state, against the context's
+continuation, whatever the prior. It refines the decision game: for a nonnegative prior a
+perfect strategy is a best response (`perfect_eq_decision`). Serial composites of perfect
+games ask the suffix to be perfect against the continuation and the prefix against the
+suffix's value function: backward induction, independent of the prior
+(`seq_perfect_eq_iff`).
+
+**The threat witness** (`Threat`). An earlier decision chooses whether to act, worth `1` if it
+does not; a later one, observing it, chooses whether to cooperate, worth `4` if both act and
+`0` if only the first does. Not acting, with a later policy that would refuse to cooperate,
+is an equilibrium of the decision games worth `1` (`threat_equilibrium`): the refusal is
+never tested. The perfect equilibria are exactly the strategies in which the first acts and
+the second cooperates when it does, worth `4`, the optimum (`threat_perfect_iff`,
+`threat_optimum`).
+
+```lean
+set_option autoImplicit false
+
+noncomputable section
+
+namespace OpenInfluence
+
+open FiniteKernelsProofs.Finite
+
+namespace Game
+
+open RewardKernel
+
+variable {X Y Z : Type} [Fintype X] [Fintype Y] [Fintype Z]
+
+/-- A perfect decision game: in equilibrium when its strategy maximises the value from every
+input state against the continuation, whatever the prior. -/
+def perfect {S : Type} (play : S → RewardKernel X Y) (h : ∀ s, Kernel.Normalised (play s).K) :
+    Game X Y where
+  Strat := S
+  play := play
+  normalised := h
+  Eq _ c s := ∀ x s', (play s').continuation c x ≤ (play s).continuation c x
+
+/-- **Perfection refines equilibrium**: with a nonnegative prior, a perfect strategy is a best
+response. -/
+theorem perfect_eq_decision {S : Type} (play : S → RewardKernel X Y)
+    (h : ∀ s, Kernel.Normalised (play s).K) (μ : X → ℝ) (hμ : ∀ x, 0 ≤ μ x) (c : Y → ℝ)
+    (s : S) (hs : (perfect play h).Eq μ c s) : (decision play h).Eq μ c s := by
+  intro s'
+  rw [eu_eq_continuation, eu_eq_continuation]
+  exact Finset.sum_le_sum fun x _ => mul_le_mul_of_nonneg_left (hs x s') (hμ x)
+
+/-- **Backward induction**: a strategy of two perfect games in series is an equilibrium exactly
+when the suffix is perfect against the continuation and the prefix against the suffix's value
+function, whatever the prior. -/
+theorem seq_perfect_eq_iff {S T : Type} (pf : S → RewardKernel X Y)
+    (hf : ∀ s, Kernel.Normalised (pf s).K) (pg : T → RewardKernel Y Z)
+    (hg : ∀ t, Kernel.Normalised (pg t).K) (μ : X → ℝ) (c : Z → ℝ) (s : S) (t : T) :
+    ((perfect pf hf).seq (perfect pg hg)).Eq μ c (s, t) ↔
+      (∀ x s', (pf s').continuation ((pg t).continuation c) x ≤
+        (pf s).continuation ((pg t).continuation c) x) ∧
+      ∀ y t', (pg t').continuation c y ≤ (pg t).continuation c y :=
+  Iff.rfl
+
+end Game
+```
+
+### The threat witness
+
+```lean
+namespace Threat
+
+open RewardKernel
+
+/-- The first decision: act (`true`) or not, a point mass on the choice. -/
+def first (a : Bool) : RewardKernel Unit Bool :=
+  ⟨fun _ y => if y = a then 1 else 0, fun _ _ => 0⟩
+
+/-- The payoff: `1` if the first does not act, `4` if both act, `0` if only the first does. -/
+def payoff (a b : Bool) : ℝ := if a then (if b then 4 else 0) else 1
+
+/-- The second decision, observing the first: a policy `b` from the first's choice to
+cooperating, paying the payoff. -/
+def second (b : Bool → Bool) : RewardKernel Bool Unit :=
+  ⟨fun _ _ => 1, fun a _ => payoff a (b a)⟩
+
+theorem first_normalised (a : Bool) : Kernel.Normalised (first a).K := by
+  intro x
+  simp [first]
+
+theorem second_normalised (b : Bool → Bool) : Kernel.Normalised (second b).K := by
+  intro x
+  simp [second]
+
+/-- The composite's value. -/
+theorem composite_eu (a : Bool) (b : Bool → Bool) :
+    ((first a).comp (second b)).eu (fun _ => 1) (fun _ => 0) = payoff a (b a) := by
+  cases a <;> simp [eu, first, second, comp, Kernel.comp]
+
+/-- The first decision's value against the second's value function. -/
+theorem first_value (a : Bool) (b : Bool → Bool) :
+    (first a).eu (fun _ => 1) ((second b).continuation (fun _ => 0)) = payoff a (b a) := by
+  simp only [eu, continuation, first, second, Fintype.sum_bool, Fintype.univ_unit,
+    Finset.sum_singleton]
+  cases a <;> simp
+
+/-- The second decision's value against the first's boundary law. -/
+theorem second_value (a : Bool) (b : Bool → Bool) :
+    (second b).eu ((first a).pushforward (fun _ => 1)) (fun _ => 0) = payoff a (b a) := by
+  simp only [eu, pushforward, first, second, Fintype.sum_bool, Fintype.univ_unit,
+    Finset.sum_singleton]
+  cases a <;> simp
+
+/-- The threat: refuse to cooperate if the first acts. -/
+def threat : Bool → Bool := fun _ => false
+
+/-- **An equilibrium sustained by an untested threat.** Not acting, against a second decision
+that would refuse to cooperate, is an equilibrium of the decision games, worth `1`. -/
+theorem threat_equilibrium :
+    ((Game.decision first first_normalised).seq
+        (Game.decision second second_normalised)).Eq (fun _ => 1) (fun _ => 0)
+        (false, threat) ∧
+      ((first false).comp (second threat)).eu (fun _ => 1) (fun _ => 0) = 1 := by
+  refine ⟨⟨fun a' => ?_, fun b' => ?_⟩, by rw [composite_eu]; simp [payoff]⟩
+  · show (first a').eu (fun _ => 1) ((second threat).continuation (fun _ => 0)) ≤
+      (first false).eu (fun _ => 1) ((second threat).continuation (fun _ => 0))
+    rw [first_value, first_value]
+    cases a' <;> simp [payoff, threat]
+  · show (second b').eu ((first false).pushforward (fun _ => 1)) (fun _ => 0) ≤
+      (second threat).eu ((first false).pushforward (fun _ => 1)) (fun _ => 0)
+    rw [second_value, second_value]
+    simp [payoff]
+
+/-- **Perfect equilibria**: the first acts and the second cooperates when it does. -/
+theorem threat_perfect_iff (a : Bool) (b : Bool → Bool) :
+    ((Game.perfect first first_normalised).seq
+        (Game.perfect second second_normalised)).Eq (fun _ => 1) (fun _ => 0) (a, b) ↔
+      a = true ∧ b true = true := by
+  rw [Game.seq_perfect_eq_iff]
+  have hsecond : ∀ (b' : Bool → Bool) (y : Bool),
+      (second b').continuation (fun _ => 0) y = payoff y (b' y) := by
+    intro b' y
+    simp [continuation, second]
+  have hfirst : ∀ (x : Unit) (a' : Bool) (b' : Bool → Bool),
+      (first a').continuation ((second b').continuation (fun _ => 0)) x = payoff a' (b' a') := by
+    intro x a' b'
+    simp only [continuation, first, second, Fintype.sum_bool]
+    cases a' <;> simp
+  simp only [hsecond, hfirst]
+  constructor
+  · rintro ⟨hf, hs⟩
+    have hb : b true = true := by
+      have h4 := hs true (fun _ => true)
+      revert h4
+      cases b true <;> norm_num [payoff]
+    refine ⟨?_, hb⟩
+    have h1 := hf () true
+    rw [hb] at h1
+    revert h1
+    cases a <;> norm_num [payoff]
+  · rintro ⟨rfl, hb⟩
+    refine ⟨fun _ a' => ?_, fun y b' => ?_⟩
+    · rw [hb]
+      cases a' <;> norm_num [payoff, hb]
+    · cases y
+      · norm_num [payoff]
+      · rw [hb]
+        cases b' true <;> norm_num [payoff]
+
+/-- The perfect equilibria attain the optimum, `4`. -/
+theorem threat_optimum :
+    (∀ a b, ((first a).comp (second b)).eu (fun _ => 1) (fun _ => 0) ≤ 4) ∧
+      ((first true).comp (second fun _ => true)).eu (fun _ => 1) (fun _ => 0) = 4 := by
+  refine ⟨fun a b => ?_, by rw [composite_eu]; simp [payoff]⟩
+  rw [composite_eu]
+  cases a <;> cases b _ <;> norm_num [payoff]
+
+end Threat
+
+end OpenInfluence
+```
+
+
 <!-- CategoricalInfluenceDiagramsProofs/Evidence.lean -->
 
 # Evidence across a boundary (ADR 0021)
@@ -2171,8 +2655,9 @@ expectation semiring on each side:
   boundary.
 - For the syntax, a likelihood on the values of the generators, keyed by label as
   strategies are, weights the sum-product interpretation (`interpretE`). Weighting is
-  functorial under serial composition (`interpretE_comp`), and the constant likelihood one
-  gives back `interpret` (`interpretE_one`). Hard evidence is the indicator likelihood.
+  functorial under serial composition (`interpretE_comp`) and tensor (`interpretE_tensor`),
+  and the constant likelihood one gives back `interpret` (`interpretE_one`). Hard evidence
+  is the indicator likelihood.
 
 ```lean
 set_option autoImplicit false
@@ -2425,7 +2910,7 @@ namespace IDInterpretation
 open OpenNet
 
 variable {S : IDSignature} (M : IDInterpretation S) (σ : M.Strategy)
-variable {X Y Z : S.Iface}
+variable {X Y Z X' Y' : S.Iface}
 
 /-- A likelihood on the values of generators, keyed by label as strategies are. Hard
 evidence that a generator takes the value `s` is the indicator of `s`. -/
@@ -2525,6 +3010,88 @@ theorem interpretE_comp (f : IDNet X Y) (g : IDNet Y Z) :
   · exact M.kernelE_comp σ ev f g
   · exact M.rewardTableE_comp σ ev f g
 
+theorem lik_tensor (f : IDNet X Y) (g : IDNet X' Y') (a : (M.interp σ).Internal f.net)
+    (b : (M.interp σ).Internal g.net) :
+    M.lik σ ev (f.tensor g) ((M.interp σ).combine f.net g.net a b) =
+      M.lik σ ev f a * M.lik σ ev g b := by
+  unfold lik
+  erw [Fintype.prod_sum_type]
+  rfl
+
+theorem kernelE_tensor (f : IDNet X Y) (g : IDNet X' Y') (x : (M.interp σ).Boundary X)
+    (x' : (M.interp σ).Boundary X') (y : (M.interp σ).Boundary Y)
+    (y' : (M.interp σ).Boundary Y') :
+    M.kernelE σ ev (f.tensor g) (Interpretation.Assignment.join _ x x')
+        (Interpretation.Assignment.join _ y y') =
+      M.kernelE σ ev f x y * M.kernelE σ ev g x' y' := by
+  unfold kernelE
+  rw [Finset.sum_mul_sum]
+  change (∑ z : (M.interp σ).Internal (f.net.tensor g.net),
+      if Interpretation.Assignment.join _ y y' =
+          (M.interp σ).read (f.net.tensor g.net) (Interpretation.Assignment.join _ x x') z then
+        (M.interp σ).joint (f.net.tensor g.net) (Interpretation.Assignment.join _ x x') z *
+          M.lik σ ev (f.tensor g) z else 0) = _
+  erw [← ((M.interp σ).sumLabelsEquiv f.net.label g.net.label).symm.sum_comp]
+  rw [Fintype.sum_prod_type]
+  apply Finset.sum_congr rfl
+  intro a _
+  apply Finset.sum_congr rfl
+  intro b _
+  have hr := (M.interp σ).read_tensor f.net g.net x x' a b
+  have hj := (M.interp σ).joint_tensor f.net g.net x x' a b
+  have hl := M.lik_tensor σ ev f g a b
+  simp only [Interpretation.combine] at hr hj hl
+  rw [hr, hj, hl]
+  by_cases h₁ : y = (M.interp σ).read f.net x a <;>
+    by_cases h₂ : y' = (M.interp σ).read g.net x' b <;>
+      simp [Interpretation.Assignment.join_injective, h₁, h₂]
+  ring
+
+theorem rewardTableE_tensor (f : IDNet X Y) (g : IDNet X' Y') (x : (M.interp σ).Boundary X)
+    (x' : (M.interp σ).Boundary X') (y : (M.interp σ).Boundary Y)
+    (y' : (M.interp σ).Boundary Y') :
+    M.rewardTableE σ ev (f.tensor g) (Interpretation.Assignment.join _ x x')
+        (Interpretation.Assignment.join _ y y') =
+      M.rewardTableE σ ev f x y * M.kernelE σ ev g x' y' +
+        M.kernelE σ ev f x y * M.rewardTableE σ ev g x' y' := by
+  unfold rewardTableE kernelE
+  rw [Finset.sum_mul_sum, Finset.sum_mul_sum, ← Finset.sum_add_distrib]
+  change (∑ z : (M.interp σ).Internal (f.net.tensor g.net),
+      if Interpretation.Assignment.join _ y y' =
+          (M.interp σ).read (f.net.tensor g.net) (Interpretation.Assignment.join _ x x') z then
+        (M.interp σ).joint (f.net.tensor g.net) (Interpretation.Assignment.join _ x x') z *
+          M.lik σ ev (f.tensor g) z *
+            M.reward σ (f.tensor g) (Interpretation.Assignment.join _ x x') z else 0) = _
+  erw [← ((M.interp σ).sumLabelsEquiv f.net.label g.net.label).symm.sum_comp]
+  rw [Fintype.sum_prod_type]
+  apply Finset.sum_congr rfl
+  intro a _
+  rw [← Finset.sum_add_distrib]
+  apply Finset.sum_congr rfl
+  intro b _
+  have hr := (M.interp σ).read_tensor f.net g.net x x' a b
+  have hj := (M.interp σ).joint_tensor f.net g.net x x' a b
+  have hl := M.lik_tensor σ ev f g a b
+  have hw := M.reward_tensor σ f g x x' a b
+  simp only [Interpretation.combine] at hr hj hl hw
+  rw [hr, hj, hl, hw]
+  by_cases h₁ : y = (M.interp σ).read f.net x a <;>
+    by_cases h₂ : y' = (M.interp σ).read g.net x' b <;>
+      simp [Interpretation.Assignment.join_injective, h₁, h₂]
+  ring
+
+/-- **Evidence composes in parallel**: read through the canonical bijections between
+assignments of a disjoint-union interface and pairs of assignments, the evidence-weighted
+interpretation of a tensor is the tensor of the evidence-weighted interpretations. -/
+theorem interpretE_tensor (f : IDNet X Y) (g : IDNet X' Y') :
+    (M.interpretE σ ev (f.tensor g)).reindex (M.join σ X X') (M.join σ Y Y') =
+      (M.interpretE σ ev f).tensor (M.interpretE σ ev g) := by
+  ext1
+  · funext p q
+    exact M.kernelE_tensor σ ev f g p.1 p.2 q.1 q.2
+  · funext p q
+    exact M.rewardTableE_tensor σ ev f g p.1 p.2 q.1 q.2
+
 /-- With the likelihood one everywhere, there is no evidence. -/
 theorem interpretE_one (f : IDNet X Y) :
     M.interpretE σ (fun _ _ => 1) f = M.interpret σ f := by
@@ -2533,6 +3100,557 @@ theorem interpretE_one (f : IDNet X Y) :
   · simp [interpretE, rewardTableE, interpret, rewardTable, lik]
 
 end IDInterpretation
+
+end OpenInfluence
+```
+
+
+<!-- CategoricalInfluenceDiagramsProofs/Behaviour.lean -->
+
+# Behavioural strategies and the value of randomising (ADR 0022)
+
+```lean
+import CategoricalInfluenceDiagramsProofs.Evidence
+```
+
+ADR 0018 kept randomised policies out of the first release "until a theorem covers them".
+This module supplies the theorems.
+
+**Behavioural strategies.** A behavioural strategy (`Behaviour`) gives every decision label a
+distribution over its result for each list of values on its information ports, normalised on
+correctly typed rows. Decisions become generators with those tables (`interpB`), and the
+semantics of an open influence diagram is again a reward kernel (`interpretB`), stochastic,
+functorial under serial composition (`interpretB_comp`), identities (`interpretB_identity`)
+and tensor (`interpretB_tensor`), and the contextual identity holds (`contextual_identityB`).
+A deterministic strategy is the behavioural strategy of point masses, with the same
+interpretation (`interpB_pointMass`, `interpretB_pointMass`).
+
+**Mixtures.** A mixture of reward kernels (`mix`) composes affinely on either side
+(`mix_comp`, `comp_mix`), its expected utility is the mixture of the expected utilities
+(`eu_mix`), so it never exceeds the best of them (`eu_mix_le`), and its conditional value
+never exceeds the best conditional value among the components of positive mass
+(`conditionalValue_mix_le`, the mediant inequality). Randomising over whole strategies of a
+component therefore never helps, with or without evidence.
+
+**Shared policies.** Decisions that share a label share one policy. Then randomising can
+help: the absent-minded driver (`AbsentMinded`), two decisions with one policy, continue
+with probability `p` at both, pays `4p - 3p²`, which is `4/3` at `p = 2/3` and at most `1`
+for either deterministic policy (`randomising_helps`). With a policy each, the same payoffs
+`p (4 (1 - q) + q)` are maximised by a deterministic pair (`independent_deterministic_optimal`).
+
+```lean
+set_option autoImplicit false
+
+noncomputable section
+
+namespace OpenInfluence
+
+open CategoryTheory FiniteKernelsProofs.Finite OpenNet
+
+namespace IDInterpretation
+
+variable {S : IDSignature} (M : IDInterpretation S)
+
+/-- A behavioural strategy: for every decision label a table of probabilities of its result
+given the values on its information ports, nonnegative and normalised on correctly typed
+rows. -/
+structure Behaviour where
+  /-- `policy l h p s`: the probability of the result `s` given the information values `p`. -/
+  policy : (l : S.Label) → S.isDecision l = true → List (Sigma M.states) → Sigma M.states → ℝ
+  /-- Probabilities are nonnegative. -/
+  nonneg : ∀ l h p s, 0 ≤ policy l h p s
+  /-- Probabilities sum to one on every correctly typed row. -/
+  normalized : ∀ l h p, p.map Sigma.fst = S.inputs l →
+    @Finset.sum (M.states (S.result l)) ℝ _ (@Finset.univ _ (M.finite _))
+      (fun s => policy l h p ⟨S.result l, s⟩) = 1
+
+/-- The `OpenNet` interpretation for a behavioural strategy: decisions draw from their
+policies, chance mechanisms keep their tables. -/
+def interpB (β : M.Behaviour) : OpenNet.Interpretation S.toSignature where
+  states := M.states
+  finite := M.finite
+  weight l p s :=
+    if h : S.isDecision l = true then β.policy l h p s else M.chance l p s
+  nonneg l p s := by
+    by_cases h : S.isDecision l = true
+    · simp only [h, dite_true]
+      exact β.nonneg l h p s
+    · simp only [h]
+      exact M.chance_nonneg l p s (by simpa using h)
+  normalized l p hp := by
+    by_cases h : S.isDecision l = true
+    · simp only [h, dite_true]
+      exact β.normalized l h p hp
+    · simp only [h]
+      exact M.chance_normalized l p (by simpa using h) hp
+
+open Classical in
+/-- A deterministic strategy as a behavioural one: the point masses of its policies. -/
+def pointMass (σ : M.Strategy) : M.Behaviour where
+  policy l h p s := if s = ⟨S.result l, σ l h p⟩ then 1 else 0
+  nonneg l h p s := by split_ifs <;> norm_num
+  normalized l h p _ := by
+    simp only [Sigma.mk.injEq, heq_eq_eq, true_and]
+    simp
+
+/-- The point masses of a deterministic strategy interpret decisions as `interp` does. -/
+theorem interpB_pointMass (σ : M.Strategy) : M.interpB (M.pointMass σ) = M.interp σ := rfl
+
+variable (β : M.Behaviour)
+variable {X Y Z X' Y' : S.Iface}
+
+/-- The total utility of the diagram's utility generators, read on their scopes, at the
+input assignment `x` and the internal assignment `z`. -/
+def rewardB (f : IDNet X Y) (x : (M.interpB β).Boundary X) (z : (M.interpB β).Internal f.net) :
+    ℝ :=
+  ∑ u, M.utility (f.ulabel u) ((f.uparents u).map ((M.interpB β).valuation f.net x z).value)
+
+/-- The reward table: the probability-weighted total utility of the internal assignments
+that produce each output. -/
+def rewardTableB (f : IDNet X Y) :
+    Kernel ((M.interpB β).Boundary X) ((M.interpB β).Boundary Y) :=
+  fun x y => ∑ z, if y = (M.interpB β).read f.net x z then
+    (M.interpB β).joint f.net x z * M.rewardB β f x z else 0
+
+/-- The semantics of an open influence diagram under a behavioural strategy: the
+sum-product kernel of its net and its reward table. -/
+def interpretB (f : IDNet X Y) :
+    RewardKernel ((M.interpB β).Boundary X) ((M.interpB β).Boundary Y) :=
+  ⟨(M.interpB β).kernel f.net, M.rewardTableB β f⟩
+
+theorem interpretB_stochastic (f : IDNet X Y) : (M.interpretB β f).Stochastic :=
+  (M.interpB β).kernel_stochastic f.net
+```
+
+### Rewards of composites
+
+```lean
+theorem rewardB_comp (f : IDNet X Y) (g : IDNet Y Z) (x : (M.interpB β).Boundary X)
+    (a : (M.interpB β).Internal f.net) (b : (M.interpB β).Internal g.net) :
+    M.rewardB β (f.comp g) x ((M.interpB β).combine f.net g.net a b) =
+      M.rewardB β f x a + M.rewardB β g ((M.interpB β).read f.net x a) b := by
+  unfold rewardB
+  erw [Fintype.sum_sum_type]
+  congr 1
+  · apply Finset.sum_congr rfl
+    intro u _
+    change M.utility (f.ulabel u)
+      (((f.uparents u).map (Net.left f.net g.net)).map _) = _
+    rw [List.map_map]
+    congr 1
+    exact congrArg (fun k => (f.uparents u).map k)
+      (funext ((M.interpB β).valuation_comp_left f.net g.net x a b))
+  · apply Finset.sum_congr rfl
+    intro u _
+    change M.utility (g.ulabel u)
+      (((g.uparents u).map (Net.right f.net g.net)).map _) = _
+    rw [List.map_map]
+    congr 1
+    exact congrArg (fun k => (g.uparents u).map k)
+      (funext ((M.interpB β).valuation_comp_right f.net g.net x a b))
+
+theorem rewardB_tensor (f : IDNet X Y) (g : IDNet X' Y') (x : (M.interpB β).Boundary X)
+    (x' : (M.interpB β).Boundary X') (a : (M.interpB β).Internal f.net)
+    (b : (M.interpB β).Internal g.net) :
+    M.rewardB β (f.tensor g) (Interpretation.Assignment.join _ x x')
+        ((M.interpB β).combine f.net g.net a b) =
+      M.rewardB β f x a + M.rewardB β g x' b := by
+  unfold rewardB
+  erw [Fintype.sum_sum_type]
+  congr 1
+  · apply Finset.sum_congr rfl
+    intro u _
+    change M.utility (f.ulabel u)
+      (((f.uparents u).map (Net.tinl f.net g.net)).map _) = _
+    rw [List.map_map]
+    congr 1
+    exact congrArg (fun k => (f.uparents u).map k)
+      (funext ((M.interpB β).valuation_tensor_left f.net g.net x x' a b))
+  · apply Finset.sum_congr rfl
+    intro u _
+    change M.utility (g.ulabel u)
+      (((g.uparents u).map (Net.tinr f.net g.net)).map _) = _
+    rw [List.map_map]
+    congr 1
+    exact congrArg (fun k => (g.uparents u).map k)
+      (funext ((M.interpB β).valuation_tensor_right f.net g.net x x' a b))
+```
+
+### Functoriality under serial composition
+
+```lean
+/-- Summing a product of two output-fibre sums over the middle boundary substitutes the
+first component's output into the second. -/
+theorem sum_fibre_mulB {f : Net X Y} {g : Net Y Z} (x : (M.interpB β).Boundary X)
+    (w : (M.interpB β).Boundary Z) (F : (M.interpB β).Internal f → ℝ)
+    (G : (M.interpB β).Boundary Y → (M.interpB β).Internal g → ℝ) :
+    (∑ y, (∑ a, if y = (M.interpB β).read f x a then F a else 0) *
+        (∑ b, if w = (M.interpB β).read g y b then G y b else 0)) =
+      ∑ a, ∑ b, if w = (M.interpB β).read g ((M.interpB β).read f x a) b then
+        F a * G ((M.interpB β).read f x a) b else 0 := by
+  simp only [Finset.sum_mul]
+  rw [Finset.sum_comm]
+  apply Finset.sum_congr rfl
+  intro a _
+  rw [Finset.sum_eq_single ((M.interpB β).read f x a)]
+  · simp only [if_true, Finset.mul_sum, mul_ite, mul_zero]
+  · intro y _ hy
+    simp [hy]
+  · simp
+
+theorem kernel_eq_sumB (f : Net X Y) (x : (M.interpB β).Boundary X)
+    (y : (M.interpB β).Boundary Y) :
+    (M.interpB β).kernel f x y =
+      ∑ z, if y = (M.interpB β).read f x z then (M.interpB β).joint f x z else 0 := by
+  unfold Interpretation.kernel
+  rfl
+
+theorem rewardTableB_comp (f : IDNet X Y) (g : IDNet Y Z) :
+    M.rewardTableB β (f.comp g) =
+      Kernel.comp (M.rewardTableB β f) ((M.interpB β).kernel g.net) +
+        Kernel.comp ((M.interpB β).kernel f.net) (M.rewardTableB β g) := by
+  funext x w
+  simp only [Pi.add_apply, Kernel.comp, kernel_eq_sumB]
+  unfold rewardTableB
+  rw [M.sum_fibre_mulB β x w (fun a => (M.interpB β).joint f.net x a * M.rewardB β f x a)
+      (fun y b => (M.interpB β).joint g.net y b),
+    M.sum_fibre_mulB β x w (fun a => (M.interpB β).joint f.net x a)
+      (fun y b => (M.interpB β).joint g.net y b * M.rewardB β g y b)]
+  rw [← Finset.sum_add_distrib]
+  change (∑ z : (M.interpB β).Internal (f.net.comp g.net),
+      if w = (M.interpB β).read (f.net.comp g.net) x z then
+        (M.interpB β).joint (f.net.comp g.net) x z * M.rewardB β (f.comp g) x z else 0) = _
+  erw [← ((M.interpB β).sumLabelsEquiv f.net.label g.net.label).symm.sum_comp]
+  rw [Fintype.sum_prod_type]
+  apply Finset.sum_congr rfl
+  intro a _
+  rw [← Finset.sum_add_distrib]
+  apply Finset.sum_congr rfl
+  intro b _
+  have hr := (M.interpB β).read_comp f.net g.net x a b
+  have hj := (M.interpB β).joint_comp f.net g.net x a b
+  have hw := M.rewardB_comp β f g x a b
+  simp only [Interpretation.combine] at hr hj hw
+  rw [hr, hj, hw]
+  split_ifs <;> ring
+
+/-- **Functoriality under serial composition**: the interpretation of a composite is the
+composite, in the expectation-semiring kernel category, of the interpretations. -/
+theorem interpretB_comp (f : IDNet X Y) (g : IDNet Y Z) :
+    M.interpretB β (f.comp g) = (M.interpretB β f).comp (M.interpretB β g) := by
+  ext1
+  · exact (M.interpB β).kernel_comp f.net g.net
+  · exact M.rewardTableB_comp β f g
+
+theorem interpretB_identity (X : S.Iface) :
+    M.interpretB β (IDNet.identity X) = RewardKernel.id ((M.interpB β).Boundary X) := by
+  ext1
+  · change (M.interpB β).kernel (Net.wire id (fun _ => rfl)) = Kernel.idK _
+    rw [(M.interpB β).kernel_wire]
+    apply Kernel.ofFun_congr
+    intro x
+    rfl
+  · funext x y
+    have hr : ∀ z, M.rewardB β (IDNet.identity X) x z = 0 :=
+      fun z => Finset.sum_eq_zero (fun u _ => (u : Empty).elim)
+    change M.rewardTableB β (IDNet.identity X) x y = 0
+    unfold rewardTableB
+    simp [hr]
+```
+
+### Functoriality under tensor
+
+```lean
+/-- The canonical bijection between pairs of boundary assignments and assignments of the
+disjoint-union interface. -/
+def joinB (X X' : S.Iface) :
+    (M.interpB β).Boundary X × (M.interpB β).Boundary X' ≃ (M.interpB β).Boundary (X.sum X') :=
+  (Interpretation.Assignment.sumEquiv (M.interpB β) X.type X'.type).symm
+
+@[simp] theorem joinB_apply (X X' : S.Iface) (p : (M.interpB β).Boundary X ×
+    (M.interpB β).Boundary X') :
+    M.joinB β X X' p = Interpretation.Assignment.join _ p.1 p.2 := rfl
+
+theorem rewardTableB_tensor (f : IDNet X Y) (g : IDNet X' Y') (x : (M.interpB β).Boundary X)
+    (x' : (M.interpB β).Boundary X') (y : (M.interpB β).Boundary Y)
+    (y' : (M.interpB β).Boundary Y') :
+    M.rewardTableB β (f.tensor g) (Interpretation.Assignment.join _ x x')
+        (Interpretation.Assignment.join _ y y') =
+      M.rewardTableB β f x y * (M.interpB β).kernel g.net x' y' +
+        (M.interpB β).kernel f.net x y * M.rewardTableB β g x' y' := by
+  simp only [kernel_eq_sumB]
+  unfold rewardTableB
+  rw [Finset.sum_mul_sum, Finset.sum_mul_sum, ← Finset.sum_add_distrib]
+  change (∑ z : (M.interpB β).Internal (f.net.tensor g.net),
+      if Interpretation.Assignment.join _ y y' =
+          (M.interpB β).read (f.net.tensor g.net) (Interpretation.Assignment.join _ x x') z then
+        (M.interpB β).joint (f.net.tensor g.net) (Interpretation.Assignment.join _ x x') z *
+          M.rewardB β (f.tensor g) (Interpretation.Assignment.join _ x x') z else 0) = _
+  erw [← ((M.interpB β).sumLabelsEquiv f.net.label g.net.label).symm.sum_comp]
+  rw [Fintype.sum_prod_type]
+  apply Finset.sum_congr rfl
+  intro a _
+  rw [← Finset.sum_add_distrib]
+  apply Finset.sum_congr rfl
+  intro b _
+  have hr := (M.interpB β).read_tensor f.net g.net x x' a b
+  have hj := (M.interpB β).joint_tensor f.net g.net x x' a b
+  have hw := M.rewardB_tensor β f g x x' a b
+  simp only [Interpretation.combine] at hr hj hw
+  rw [hr, hj, hw]
+  by_cases h₁ : y = (M.interpB β).read f.net x a <;>
+    by_cases h₂ : y' = (M.interpB β).read g.net x' b <;>
+      simp [Interpretation.Assignment.join_injective, h₁, h₂]
+  ring
+
+theorem kernel_tensor_joinB (f : IDNet X Y) (g : IDNet X' Y') (x : (M.interpB β).Boundary X)
+    (x' : (M.interpB β).Boundary X') (y : (M.interpB β).Boundary Y)
+    (y' : (M.interpB β).Boundary Y') :
+    (M.interpB β).kernel (f.tensor g).net (Interpretation.Assignment.join _ x x')
+        (Interpretation.Assignment.join _ y y') =
+      (M.interpB β).kernel f.net x y * (M.interpB β).kernel g.net x' y' :=
+  (M.interpB β).kernel_tensor f.net g.net x x' y y'
+
+
+/-- **Functoriality under tensor** for a behavioural strategy. -/
+theorem interpretB_tensor (f : IDNet X Y) (g : IDNet X' Y') :
+    (M.interpretB β (f.tensor g)).reindex (M.joinB β X X') (M.joinB β Y Y') =
+      (M.interpretB β f).tensor (M.interpretB β g) := by
+  ext1
+  · funext p q
+    exact M.kernel_tensor_joinB β f g p.1 p.2 q.1 q.2
+  · funext p q
+    exact M.rewardTableB_tensor β f g p.1 p.2 q.1 q.2
+```
+
+### The contextual identity for interpreted diagrams
+
+```lean
+/-- **Contextual identity** for open influence diagrams under a behavioural strategy: for every
+boundary prior `μ` and terminal continuation `c`,
+`EU_{f;g}(μ, c) = EU_f(μ, c_g) = L_f + EU_g(ν_f, c)`, where `c_g` is the suffix's value
+function, `ν_f` the boundary law induced by the prefix and `L_f` the prefix's reward. -/
+theorem contextual_identityB (f : IDNet X Y) (g : IDNet Y Z)
+    (μ : (M.interpB β).Boundary X → ℝ) (c : (M.interpB β).Boundary Z → ℝ) :
+    (M.interpretB β (f.comp g)).eu μ c =
+        (M.interpretB β f).eu μ ((M.interpretB β g).continuation c) ∧
+      (M.interpretB β f).eu μ ((M.interpretB β g).continuation c) =
+        (M.interpretB β f).prefixReward μ +
+          (M.interpretB β g).eu ((M.interpretB β f).pushforward μ) c := by
+  rw [M.interpretB_comp β f g]
+  exact RewardKernel.contextual_identity _ _ (M.interpretB_stochastic β g).2 μ c
+
+/-- A deterministic strategy has the same semantics as the behavioural strategy of its point
+masses. -/
+theorem interpretB_pointMass (σ : M.Strategy) (f : IDNet X Y) :
+    M.interpretB (M.pointMass σ) f = M.interpret σ f := rfl
+
+end IDInterpretation
+```
+
+### Mixtures of reward kernels
+
+```lean
+namespace RewardKernel
+
+variable {X Y Z ι : Type} [Fintype X] [Fintype Y] [Fintype Z] [Fintype ι]
+
+/-- The mixture `Σ_i q i · f i` of a finite family of reward kernels. -/
+def mix (q : ι → ℝ) (f : ι → RewardKernel X Y) : RewardKernel X Y :=
+  ⟨fun x y => ∑ i, q i * (f i).K x y, fun x y => ∑ i, q i * (f i).W x y⟩
+
+omit [Fintype X] [Fintype Z] in
+/-- Composition after a mixture is the mixture of the composites. -/
+theorem mix_comp (q : ι → ℝ) (f : ι → RewardKernel X Y) (g : RewardKernel Y Z) :
+    (mix q f).comp g = mix q (fun i => (f i).comp g) := by
+  ext x z
+  · simp only [mix, comp_K, Kernel.comp_apply, Finset.sum_mul, Finset.mul_sum]
+    rw [Finset.sum_comm]
+    exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
+  · simp only [mix, comp_W, comp_K, Kernel.comp_apply, Pi.add_apply, Finset.sum_mul,
+      Finset.mul_sum, mul_add, Finset.sum_add_distrib]
+    rw [Finset.sum_comm (f := fun y i => q i * (f i).W x y * g.K y z),
+      Finset.sum_comm (f := fun y i => q i * (f i).K x y * g.W y z)]
+    simp only [mul_assoc]
+
+omit [Fintype X] [Fintype Z] in
+/-- Composition before a mixture is the mixture of the composites. -/
+theorem comp_mix [Fintype X] (f : RewardKernel X Y) (q : ι → ℝ) (g : ι → RewardKernel Y Z) :
+    f.comp (mix q g) = mix q (fun i => f.comp (g i)) := by
+  ext x z
+  · simp only [mix, comp_K, Kernel.comp_apply, Finset.mul_sum]
+    rw [Finset.sum_comm]
+    exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
+  · simp only [mix, comp_W, comp_K, Kernel.comp_apply, Pi.add_apply, Finset.mul_sum,
+      mul_add, Finset.sum_add_distrib]
+    rw [Finset.sum_comm (f := fun y i => f.W x y * (q i * (g i).K y z)),
+      Finset.sum_comm (f := fun y i => f.K x y * (q i * (g i).W y z))]
+    congr 1 <;> exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
+
+omit [Fintype Z] in
+/-- The expected utility of a mixture is the mixture of the expected utilities. -/
+theorem eu_mix (q : ι → ℝ) (f : ι → RewardKernel X Y) (μ : X → ℝ) (c : Y → ℝ) :
+    (mix q f).eu μ c = ∑ i, q i * (f i).eu μ c := by
+  have h1 : ∀ x y, (∑ i, q i * (f i).W x y) + (∑ i, q i * (f i).K x y) * c y =
+      ∑ i, q i * ((f i).W x y + (f i).K x y * c y) := by
+    intro x y
+    rw [Finset.sum_mul, ← Finset.sum_add_distrib]
+    exact Finset.sum_congr rfl fun _ _ => by ring
+  calc (mix q f).eu μ c
+      = ∑ x, ∑ y, ∑ i, q i * (μ x * ((f i).W x y + (f i).K x y * c y)) := by
+        simp only [eu, mix, h1, Finset.mul_sum]
+        exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ =>
+          Finset.sum_congr rfl fun _ _ => by ring
+    _ = ∑ x, ∑ i, ∑ y, q i * (μ x * ((f i).W x y + (f i).K x y * c y)) :=
+        Finset.sum_congr rfl fun _ _ => Finset.sum_comm
+    _ = ∑ i, ∑ x, ∑ y, q i * (μ x * ((f i).W x y + (f i).K x y * c y)) := Finset.sum_comm
+    _ = ∑ i, q i * (f i).eu μ c := by
+        simp only [eu, Finset.mul_sum]
+
+omit [Fintype Z] in
+/-- **Randomising over whole strategies does not help**: the expected utility of a mixture
+with nonnegative weights summing to one is at most the best expected utility among its
+components. -/
+theorem eu_mix_le [Nonempty ι] (q : ι → ℝ) (hq0 : ∀ i, 0 ≤ q i) (hq : ∑ i, q i = 1)
+    (f : ι → RewardKernel X Y) (μ : X → ℝ) (c : Y → ℝ) :
+    ∃ i, (mix q f).eu μ c ≤ (f i).eu μ c := by
+  classical
+  obtain ⟨i, _, hi⟩ := Finset.exists_max_image Finset.univ (fun i => (f i).eu μ c)
+    Finset.univ_nonempty
+  refine ⟨i, ?_⟩
+  rw [eu_mix q]
+  calc ∑ j, q j * (f j).eu μ c ≤ ∑ j, q j * (f i).eu μ c :=
+        Finset.sum_le_sum fun j hj => mul_le_mul_of_nonneg_left (hi j hj) (hq0 j)
+    _ = (f i).eu μ c := by rw [← Finset.sum_mul, hq, one_mul]
+
+/-- **The mediant inequality**: a ratio of nonnegatively weighted sums, with positive total
+denominator, is at most the best ratio among the terms of positive denominator, provided a
+term of zero denominator has zero numerator. -/
+theorem mediant_le (w N D : ι → ℝ) (hw : ∀ i, 0 ≤ w i) (hD : ∀ i, 0 ≤ D i)
+    (hND : ∀ i, D i = 0 → N i = 0) (hpos : 0 < ∑ i, w i * D i) :
+    ∃ i, 0 < D i ∧ (∑ j, w j * N j) / (∑ j, w j * D j) ≤ N i / D i := by
+  classical
+  by_contra hcon
+  push Not at hcon
+  set T := (∑ j, w j * N j) / (∑ j, w j * D j) with hTdef
+  have hT : T * (∑ j, w j * D j) = ∑ j, w j * N j := div_mul_cancel₀ _ hpos.ne'
+  have hle : ∀ j, w j * N j ≤ T * (w j * D j) := by
+    intro j
+    rcases (hD j).lt_or_eq with h | h
+    · have h' := hcon j h
+      rw [div_lt_iff₀ h] at h'
+      nlinarith [hw j]
+    · rw [hND j h.symm, ← h]
+      simp
+  obtain ⟨j, hj⟩ : ∃ j, 0 < w j * D j := by
+    by_contra hno
+    push Not at hno
+    exact absurd hpos (not_lt.mpr (Finset.sum_nonpos fun j _ => hno j))
+  have hDj : 0 < D j := by
+    rcases (hD j).lt_or_eq with h | h
+    · exact h
+    · rw [← h, mul_zero] at hj
+      exact absurd hj (lt_irrefl 0)
+  have hwj : 0 < w j := by
+    rcases (hw j).lt_or_eq with h | h
+    · exact h
+    · rw [← h, zero_mul] at hj
+      exact absurd hj (lt_irrefl 0)
+  have hstrict : w j * N j < T * (w j * D j) := by
+    have h' := hcon j hDj
+    rw [div_lt_iff₀ hDj] at h'
+    nlinarith
+  have hsum : ∑ j, w j * N j < T * ∑ j, w j * D j := by
+    rw [Finset.mul_sum]
+    exact Finset.sum_lt_sum (fun j _ => hle j) ⟨j, Finset.mem_univ _, hstrict⟩
+  linarith
+
+omit [Fintype X] [Fintype Z] in
+theorem pull_mix (q : ι → ℝ) (f : ι → RewardKernel X Y) (e : Effect Y) (x : X) :
+    ((mix q f).pull e).m x = ∑ i, q i * ((f i).pull e).m x ∧
+      ((mix q f).pull e).c x = ∑ i, q i * ((f i).pull e).c x := by
+  constructor
+  · simp only [pull, mix, Finset.sum_mul, Finset.mul_sum]
+    rw [Finset.sum_comm]
+    exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
+  · simp only [pull, mix, Finset.sum_mul, Finset.mul_sum, ← Finset.sum_add_distrib]
+    rw [Finset.sum_comm]
+    exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
+
+omit [Fintype Z] in
+/-- The evidence mass and the evidence-weighted value of a mixture are the mixtures. -/
+theorem mass_value_mix (q : ι → ℝ) (f : ι → RewardKernel X Y) (s : State X) (e : Effect Y) :
+    mass s ((mix q f).pull e) = ∑ i, q i * mass s ((f i).pull e) ∧
+      value s ((mix q f).pull e) = ∑ i, q i * value s ((f i).pull e) := by
+  constructor
+  · simp only [mass, (pull_mix q f e _).1, Finset.mul_sum]
+    rw [Finset.sum_comm]
+    exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
+  · simp only [value, (pull_mix q f e _).1, (pull_mix q f e _).2, Finset.mul_sum,
+      ← Finset.sum_add_distrib]
+    rw [Finset.sum_comm]
+    exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
+
+omit [Fintype Z] in
+/-- **Randomising does not help given evidence either**: the conditional value of a mixture
+is at most the conditional value of one of its components of positive evidence mass, when
+masses are nonnegative and a component of zero mass has zero evidence-weighted value. -/
+theorem conditionalValue_mix_le (q : ι → ℝ) (hq0 : ∀ i, 0 ≤ q i)
+    (f : ι → RewardKernel X Y) (s : State X) (e : Effect Y)
+    (hmass : ∀ i, 0 ≤ mass s ((f i).pull e))
+    (hzero : ∀ i, mass s ((f i).pull e) = 0 → value s ((f i).pull e) = 0)
+    (hpos : 0 < mass s ((mix q f).pull e)) :
+    ∃ i, 0 < mass s ((f i).pull e) ∧
+      conditionalValue s ((mix q f).pull e) ≤ conditionalValue s ((f i).pull e) := by
+  rw [(mass_value_mix q f s e).1] at hpos
+  unfold conditionalValue
+  rw [(mass_value_mix q f s e).1, (mass_value_mix q f s e).2]
+  exact mediant_le q _ _ hq0 hmass hzero hpos
+
+end RewardKernel
+```
+
+### Shared policies: the absent-minded driver
+
+```lean
+namespace AbsentMinded
+
+open RewardKernel
+
+/-- The first junction: continue with probability `p`; exiting here pays nothing. -/
+def first (p : ℝ) : RewardKernel Unit Bool :=
+  ⟨fun _ b => if b then p else 1 - p, fun _ _ => 0⟩
+
+/-- The second junction, reached only by continuing: continue with probability `q` (paying
+`1`) or exit (paying `4`). -/
+def second (q : ℝ) : RewardKernel Bool Unit :=
+  ⟨fun _ _ => 1, fun b _ => if b then 4 * (1 - q) + q else 0⟩
+
+/-- The value of the drive with continuation probabilities `p` and `q`. -/
+theorem drive_eu (p q : ℝ) :
+    ((first p).comp (second q)).eu (fun _ => 1) (fun _ => 0) = p * (4 * (1 - q) + q) := by
+  simp [eu, first, second, comp, Kernel.comp]
+
+/-- **Randomising helps when two decisions share a policy.** Continuing with probability
+`2/3` at both junctions is worth `4/3`; either deterministic policy is worth at most `1`. -/
+theorem randomising_helps :
+    ((first (2 / 3)).comp (second (2 / 3))).eu (fun _ => 1) (fun _ => 0) = 4 / 3 ∧
+      ∀ p ∈ ({0, 1} : Set ℝ), ((first p).comp (second p)).eu (fun _ => 1) (fun _ => 0) ≤ 1 := by
+  refine ⟨by rw [drive_eu]; norm_num, fun p hp => ?_⟩
+  rw [drive_eu]
+  rcases hp with rfl | rfl <;> norm_num
+
+/-- **With a policy each, a deterministic pair is optimal**: continuing at the first junction
+and exiting at the second is worth `4`, and no pair of probabilities does better. -/
+theorem independent_deterministic_optimal :
+    ((first 1).comp (second 0)).eu (fun _ => 1) (fun _ => 0) = 4 ∧
+      ∀ p q : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ q → q ≤ 1 →
+        ((first p).comp (second q)).eu (fun _ => 1) (fun _ => 0) ≤ 4 := by
+  refine ⟨by rw [drive_eu]; norm_num, fun p q hp0 hp1 hq0 hq1 => ?_⟩
+  rw [drive_eu]
+  nlinarith
+
+end AbsentMinded
 
 end OpenInfluence
 ```
@@ -3470,12 +4588,269 @@ end OpenInfluence.RewardCertificate
 ```
 
 
+<!-- CategoricalInfluenceDiagramsProofs/Certificate/Fast.lean -->
+
+# Reward certificates: a faster exact check
+
+```lean
+import CategoricalInfluenceDiagramsProofs.Certificate.Exact
+```
+
+`exactK x y` and `exactW x y` (`Exact.lean`) each sum over every generator coordinate `z`, so
+checking all recorded cells costs `|X| · |Y| · |Z|` weight evaluations, for the input, output
+and generator coordinates. But the output coordinate is a function of `(x, z)`: at most one
+`y` is read. This module accumulates, for each input coordinate `x`, the whole row of `K` and
+`W` in one pass over `z` (`accRow`), into an array indexed by the flat index of the output
+coordinate (`outIndex`), so all cells cost `|X| · |Z|` evaluations.
+
+* `readOut? x z` is the output coordinate read at `(x, z)`, or `none` when some output row's
+  value is out of range; `Reads x z y` holds exactly when it is `some y` (`reads_iff`).
+* `accRow_getD`: the cell of `accRow x` at `outIndex y` is `(exactK x y, exactW x y)`. The
+  accumulation is a `Multiset.foldl` over the generator coordinates, whose step commutes, so
+  no enumeration order is assumed.
+* `kErrorFast`, `wErrorFast` take the largest error row by row, and are within `τ` exactly
+  when `kError`, `wError` are (`kErrorFast_le_iff`, `wErrorFast_le_iff`). The checker uses
+  them (`Check.lean`), so acceptance, and every soundness theorem, is unchanged; they are
+  in fact equal to `kError`, `wError` (`kErrorFast_eq`, `wErrorFast_eq`), and the command line
+  reports them.
+
+```lean
+set_option autoImplicit false
+
+namespace OpenInfluence.RewardCertificate
+
+open OpenNet.RawCertificate
+open InfluenceDiagramsProofs.DVECertificate (Value.toRat)
+```
+
+## Accumulating into an array
+
+```lean
+/-- Add `w` to cell `k` of `a`, if there is one. -/
+def addAt (a : Array (ℚ × ℚ)) (k : Option ℕ) (w : ℚ × ℚ) : Array (ℚ × ℚ) :=
+  match k with
+  | some i => a.modify i (· + w)
+  | none => a
+
+theorem size_addAt (a : Array (ℚ × ℚ)) (k : Option ℕ) (w : ℚ × ℚ) :
+    (addAt a k w).size = a.size := by
+  cases k <;> simp [addAt]
+
+theorem getD_addAt (a : Array (ℚ × ℚ)) (k : Option ℕ) (w : ℚ × ℚ) (j : ℕ) (hj : j < a.size) :
+    (addAt a k w).getD j 0 = a.getD j 0 + if k = some j then w else 0 := by
+  cases k with
+  | none => simp [addAt]
+  | some i =>
+    simp only [addAt, Array.getD_eq_getD_getElem?, Array.getElem?_modify, Option.some.injEq]
+    by_cases h : i = j
+    · subst h
+      simp [Array.getElem?_eq_getElem hj]
+    · simp [h]
+
+theorem addAt_comm (a : Array (ℚ × ℚ)) (k k' : Option ℕ) (w w' : ℚ × ℚ) :
+    addAt (addAt a k w) k' w' = addAt (addAt a k' w') k w := by
+  apply Array.ext
+  · simp [size_addAt]
+  · intro j h1 h2
+    have hj : j < a.size := by simpa [size_addAt] using h1
+    have e1 := getD_addAt (addAt a k w) k' w' j (by simpa [size_addAt] using hj)
+    have e2 := getD_addAt (addAt a k' w') k w j (by simpa [size_addAt] using hj)
+    rw [getD_addAt a k w j hj] at e1
+    rw [getD_addAt a k' w' j hj] at e2
+    simp only [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem h1,
+      Array.getElem?_eq_getElem h2, Option.getD_some] at e1 e2
+    rw [e1, e2]
+    abel
+
+/-- One accumulation step: add `w z` into cell `key z`. -/
+def accStep {α : Type} (key : α → Option ℕ) (w : α → ℚ × ℚ) (b : Array (ℚ × ℚ)) (z : α) :
+    Array (ℚ × ℚ) :=
+  addAt b (key z) (w z)
+
+instance {α : Type} (key : α → Option ℕ) (w : α → ℚ × ℚ) : RightCommutative (accStep key w) :=
+  ⟨fun b z z' => addAt_comm b (key z) (key z') (w z) (w z')⟩
+
+/-- Accumulate `w z` into cell `key z` over a multiset of `z`; the steps commute, so no order
+of the multiset is assumed. -/
+def accumulate {α : Type} (key : α → Option ℕ) (w : α → ℚ × ℚ) (a : Array (ℚ × ℚ))
+    (s : Multiset α) : Array (ℚ × ℚ) :=
+  s.foldl (accStep key w) a
+
+theorem size_accumulate {α : Type} (key : α → Option ℕ) (w : α → ℚ × ℚ) (s : Multiset α) :
+    ∀ a : Array (ℚ × ℚ), (accumulate key w a s).size = a.size := by
+  induction s using Multiset.induction_on with
+  | empty => intro a; simp [accumulate]
+  | cons z s ih =>
+    intro a
+    simp only [accumulate, Multiset.foldl_cons] at ih ⊢
+    rw [ih, accStep, size_addAt]
+
+theorem getD_accumulate {α : Type} (key : α → Option ℕ) (w : α → ℚ × ℚ) (s : Multiset α)
+    (j : ℕ) : ∀ a : Array (ℚ × ℚ), j < a.size →
+    (accumulate key w a s).getD j 0 =
+      a.getD j 0 + (s.map fun z => if key z = some j then w z else 0).sum := by
+  induction s using Multiset.induction_on with
+  | empty => intro a _; simp [accumulate]
+  | cons z s ih =>
+    intro a hj
+    simp only [accumulate, Multiset.foldl_cons, Multiset.map_cons, Multiset.sum_cons] at ih ⊢
+    rw [ih _ (by rwa [accStep, size_addAt]), accStep, getD_addAt a (key z) (w z) j hj]
+    abel
+
+namespace Certificate
+
+variable (c : Certificate)
+```
+
+## The output coordinate read at `(x, z)`
+
+```lean
+/-- The output coordinate read at `(x, z)`, if every output row's value is in range. -/
+def readOut? (x : c.InCoord) (z : c.GenCoord) : Option c.OutCoord :=
+  if h : ∀ j : Fin c.network.outputs.length,
+      c.value x z (c.network.output j) < dimension c.network.outputs[j].attrs then
+    some fun j => ⟨c.value x z (c.network.output j), h j⟩
+  else none
+
+theorem reads_iff (x : c.InCoord) (z : c.GenCoord) (y : c.OutCoord) :
+    c.Reads x z y ↔ c.readOut? x z = some y := by
+  unfold Reads readOut?
+  constructor
+  · intro h
+    have hr : ∀ j : Fin c.network.outputs.length,
+        c.value x z (c.network.output j) < dimension c.network.outputs[j].attrs :=
+      fun j => h j ▸ (y j).isLt
+    rw [dif_pos hr]
+    exact congrArg some (funext fun j => Fin.ext (h j).symm)
+  · intro h j
+    by_cases hr : ∀ j : Fin c.network.outputs.length,
+        c.value x z (c.network.output j) < dimension c.network.outputs[j].attrs
+    · rw [dif_pos hr] at h
+      rw [← Option.some.inj h]
+    · rw [dif_neg hr] at h
+      exact absurd h (by simp)
+
+/-- The flat index of an output coordinate (last row fastest). -/
+def outIndex (y : c.OutCoord) : ℕ :=
+  flatIndex (List.ofFn fun j => (dimension c.network.outputs[j].attrs, (y j).val))
+
+/-- The number of output coordinates. -/
+def outCount : ℕ := (c.network.outputs.map fun r => dimension r.attrs).prod
+
+theorem outAxes_fst (y : c.OutCoord) :
+    (List.ofFn fun j => (dimension c.network.outputs[j].attrs, (y j).val)).map Prod.fst =
+      c.network.outputs.map fun r => dimension r.attrs :=
+  List.ext_get (by simp) (fun k h1 h2 => by simp)
+
+theorem outIndex_lt (y : c.OutCoord) : c.outIndex y < c.outCount := by
+  unfold outIndex outCount
+  rw [← c.outAxes_fst y]
+  refine flatIndex_lt _ fun p hp => ?_
+  obtain ⟨k, rfl⟩ := List.mem_ofFn.1 hp
+  exact Fin.isLt _
+
+theorem outIndex_injective {y y' : c.OutCoord} (h : c.outIndex y = c.outIndex y') : y = y' := by
+  have he := flatIndex_injective _ _ ((c.outAxes_fst y).trans (c.outAxes_fst y').symm)
+    (fun p hp => by obtain ⟨k, rfl⟩ := List.mem_ofFn.1 hp; exact Fin.isLt _)
+    (fun p hp => by obtain ⟨k, rfl⟩ := List.mem_ofFn.1 hp; exact Fin.isLt _) h
+  funext j
+  have := congrArg (fun l => l[j.val]?) he
+  exact Fin.ext (by simpa using this)
+```
+
+## A row of `K` and `W` in one pass
+
+```lean
+/-- The row of `(K, W)` at the input coordinate `x`, accumulated in one pass over the
+generator coordinates. -/
+def accRow (x : c.InCoord) : Array (ℚ × ℚ) :=
+  accumulate (fun z => (c.readOut? x z).map c.outIndex)
+    (fun z => (c.joint x z, c.joint x z * c.reward x z)) (Array.replicate c.outCount 0)
+    (Finset.univ : Finset c.GenCoord).val
+
+theorem key_eq_iff (x : c.InCoord) (z : c.GenCoord) (y : c.OutCoord) :
+    (c.readOut? x z).map c.outIndex = some (c.outIndex y) ↔ c.Reads x z y := by
+  rw [c.reads_iff]
+  constructor
+  · intro h
+    obtain ⟨y', hy', he⟩ := Option.map_eq_some_iff.1 h
+    rw [hy', c.outIndex_injective he]
+  · intro h
+    rw [h]
+    rfl
+
+/-- **One pass gives the row**: the cell of `accRow x` at `outIndex y` is
+`(exactK x y, exactW x y)`. -/
+theorem accRow_getD (x : c.InCoord) (y : c.OutCoord) :
+    (c.accRow x).getD (c.outIndex y) 0 = (c.exactK x y, c.exactW x y) := by
+  unfold accRow
+  rw [getD_accumulate _ _ _ _ _ (by simpa using c.outIndex_lt y)]
+  have h0 : (Array.replicate c.outCount (0 : ℚ × ℚ)).getD (c.outIndex y) 0 = 0 := by
+    simp [Array.getD_eq_getD_getElem?, c.outIndex_lt y]
+  rw [h0, zero_add]
+  change (Multiset.map _ Finset.univ.val).sum = _
+  rw [← Finset.sum_eq_multiset_sum]
+  simp only [c.key_eq_iff]
+  ext
+  · simp only [Prod.fst_sum, apply_ite Prod.fst, Prod.fst_zero, exactK]
+  · simp only [Prod.snd_sum, apply_ite Prod.snd, Prod.snd_zero, exactW]
+```
+
+## The errors, row by row
+
+```lean
+/-- The largest error of the recorded `K`, computed row by row. -/
+def kErrorFast : ℚ :=
+  (Finset.univ : Finset c.InCoord).fold max 0 fun x =>
+    let row := c.accRow x
+    (Finset.univ : Finset c.OutCoord).fold max 0 fun y =>
+      |cellQ c.result.K (c.resultIndex x y) - (row.getD (c.outIndex y) 0).1|
+
+/-- The largest error of the recorded `W`, computed row by row. -/
+def wErrorFast : ℚ :=
+  (Finset.univ : Finset c.InCoord).fold max 0 fun x =>
+    let row := c.accRow x
+    (Finset.univ : Finset c.OutCoord).fold max 0 fun y =>
+      |cellQ c.result.W (c.resultIndex x y) - (row.getD (c.outIndex y) 0).2|
+
+theorem kErrorFast_le_iff (τ : ℚ) : c.kErrorFast ≤ τ ↔ c.kError ≤ τ := by
+  unfold kErrorFast kError
+  simp only [Finset.fold_max_le, Finset.mem_univ, true_implies, c.accRow_getD, Prod.forall]
+  constructor
+  · rintro ⟨h0, h⟩
+    exact ⟨h0, fun x y => (h x).2 y⟩
+  · rintro ⟨h0, h⟩
+    exact ⟨h0, fun x => ⟨h0, fun y => h x y⟩⟩
+
+theorem wErrorFast_le_iff (τ : ℚ) : c.wErrorFast ≤ τ ↔ c.wError ≤ τ := by
+  unfold wErrorFast wError
+  simp only [Finset.fold_max_le, Finset.mem_univ, true_implies, c.accRow_getD, Prod.forall]
+  constructor
+  · rintro ⟨h0, h⟩
+    exact ⟨h0, fun x y => (h x).2 y⟩
+  · rintro ⟨h0, h⟩
+    exact ⟨h0, fun x => ⟨h0, fun y => h x y⟩⟩
+
+/-- The fast error of `K` is the error of `K`. -/
+theorem kErrorFast_eq : c.kErrorFast = c.kError :=
+  le_antisymm ((c.kErrorFast_le_iff _).2 le_rfl) ((c.kErrorFast_le_iff _).1 le_rfl)
+
+/-- The fast error of `W` is the error of `W`. -/
+theorem wErrorFast_eq : c.wErrorFast = c.wError :=
+  le_antisymm ((c.wErrorFast_le_iff _).2 le_rfl) ((c.wErrorFast_le_iff _).1 le_rfl)
+
+end Certificate
+
+end OpenInfluence.RewardCertificate
+```
+
+
 <!-- CategoricalInfluenceDiagramsProofs/Certificate/Check.lean -->
 
 # Reward certificates: the checker
 
 ```lean
-import CategoricalInfluenceDiagramsProofs.Certificate.Exact
+import CategoricalInfluenceDiagramsProofs.Certificate.Fast
 ```
 
 `check τ c` decides whether the decoded certificate `c` is accepted with tolerance `τ`. It
@@ -3513,7 +4888,9 @@ properties:
     rows are not exactly normalised fails here: it is outside the exact semantics, and only
     the largest deviation (`rowDeviation`) is reported;
 15. **result K**, 16. **result W**: every recorded cell is within `τ` of `exactK`, `exactW`
-    (`kError ≤ τ`, `wError ≤ τ`).
+    (`kError ≤ τ`, `wError ≤ τ`). The checker decides them by `kErrorFast` and `wErrorFast`
+    (`Fast.lean`), which accumulate each row of `K` and `W` in one pass over the generator
+    coordinates and are within `τ` exactly when `kError` and `wError` are.
 
 Stages 3, 5 to 9 and 13 check the format's conventions; the soundness theorems use stages
 1, 2, 4, 11, 12, 14, 15 and 16. Not checked: that the chance mechanisms precede the
@@ -3665,9 +5042,9 @@ def stages : List (String × (Unit → Bool)) :=
     ("exact row sums (a chance row does not sum to exactly 1: outside exact semantics)",
       fun _ => decide c.RowsExact),
     ("result K (a recorded K cell is not within the tolerance of the exact value)",
-      fun _ => decide (c.kError ≤ τ)),
+      fun _ => decide (c.kErrorFast ≤ τ)),
     ("result W (a recorded W cell is not within the tolerance of the exact value)",
-      fun _ => decide (c.wError ≤ τ))]
+      fun _ => decide (c.wErrorFast ≤ τ))]
 
 /-- **The checker**: every stage passes. -/
 def check : Bool := (c.stages τ).all fun s => s.2 ()
@@ -3701,7 +5078,8 @@ structure Accepted : Prop where
 
 theorem check_iff_accepted : c.check τ = true ↔ c.Accepted τ := by
   unfold check stages
-  simp only [List.all_cons, List.all_nil, Bool.and_true, Bool.and_eq_true, decide_eq_true_eq]
+  simp only [List.all_cons, List.all_nil, Bool.and_true, Bool.and_eq_true, decide_eq_true_eq,
+    kErrorFast_le_iff, wErrorFast_le_iff]
   constructor
   · rintro ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16⟩
     exact ⟨c.network.check_sound h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14,

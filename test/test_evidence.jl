@@ -196,7 +196,13 @@ end
                 sol = contextual_optimize(M, ks3, us3; prior=s, continuation=e,
                                           evidence=evidence_on(M, ev))
                 @test sol.expected_utility ≈ maximum(values)
-                @test sol.diagnostics.method === :conditional
+                @test sol.diagnostics.method === :conditional_value_table
+                brute = contextual_optimize(M, ks3, us3; prior=s, continuation=e,
+                                            evidence=evidence_on(M, ev), brute_force=true)
+                @test brute.diagnostics.method === :conditional
+                @test brute.expected_utility ≈ sol.expected_utility
+                @test conditional_value(M, ks3, us3, sol.strategy; prior=s, continuation=e,
+                                        evidence=evidence_on(M, ev)) ≈ sol.expected_utility
             end
             # The optimum of the closed composite given the evidence, against the search on
             # the model.
@@ -301,6 +307,9 @@ end
         ksr = tables(0.0)
         @test evidence_mass(rare, ksr, usr, Strategy(); evidence=:Echo => :e) == 0
         @test conditional_value(rare, ksr, usr, Strategy(); evidence=:Echo => :e) == 1.0
+        # The value-table search sees the underflowed product and scores exactly.
+        rsol = contextual_optimize(rare, ksr, usr; evidence=:Echo => :e)
+        @test rsol.expected_utility == 1.0 && rsol.diagnostics.exact_fallback
         # The reward-kernel form has only the underflowed tables, exactly zero.
         @test_throws ImpossibleEvidenceError conditional_value(interpret(rare, ksr, usr,
                                                                          Strategy();
@@ -319,6 +328,61 @@ end
         exact = big(1e-200)^2 / (big(1e-200)^2 + big(1e-300))
         @test conditional_value(rare, ksm, usr, Strategy(); evidence=:Echo => :e) ≈
               Float64(exact)
+    end
+
+    @testset "likelihood evidence is virtual evidence" begin
+        λ = [0.2, 0.9]
+        # A relay that passes the boundary through and observes a report of the weather.
+        relay = Open(influence_diagram(:Weather => weather, :Forecast => forecast,
+                                       :Report => [:wet, :dry];
+                                       mechanisms=[:Report => :Weather], closed=false);
+                     inputs=[:Weather, :Forecast], outputs=[:Weather, :Forecast],
+                     observed=[:Forecast])
+        ks2 = merge(ks,
+                    Dict(:Report => FiniteKernel(FiniteSpace(:Weather, weather),
+                                                 FiniteSpace(:Report, [:wet, :dry]),
+                                                 [λ[1] λ[2]; 1-λ[1] 1-λ[2]])))
+        virtual = compose(compose(A, relay), B)
+        for σ in all_deterministic_strategies(apex(B))
+            @test conditional_value(whole, ks, us, σ; evidence=:Weather => λ) ≈
+                  conditional_value(virtual, ks2, us, σ; evidence=:Report => :wet)
+            @test evidence_mass(whole, ks, us, σ; evidence=:Weather => λ) ≈
+                  evidence_mass(virtual, ks2, us, σ; evidence=:Report => :wet)
+            # An indicator likelihood is hard evidence, exactly.
+            @test interpret(whole, ks, us, σ; evidence=:Forecast => [0.0, 0.0, 1.0]) ==
+                  interpret(whole, ks, us, σ; evidence=:Forecast => :rainy)
+            # Mixed hard and likelihood evidence, and the likelihood on an input.
+            r = interpret(B, ks, us, σ; evidence=[:Weather => λ, :Forecast => :cloudy])
+            plain = interpret(B, ks, us, σ)
+            w = [λ[i] * (f === :cloudy) for i in 1:2, f in forecast]
+            @test vec(kernel(r).table) ≈ vec(kernel(plain).table) .* vec(w)
+        end
+        best = contextual_optimize(whole, ks, us; evidence=:Weather => λ)
+        @test best.expected_utility ≈
+              optimize(virtual, ks2, us; evidence=:Report => :wet,
+                       backend=ExhaustivePolicySearch()).expected_utility
+        @test_throws ArgumentError optimize(whole, ks, us; evidence=:Weather => λ)
+        # The model form joins the model's hard evidence with a likelihood.
+        σ = Strategy(:Umbrella => ConstantPolicy(:take))
+        mo = observe(m, :Forecast => :cloudy)
+        @test conditional_value(Open(syntax(m)), mo, σ; evidence=:Weather => λ) ≈
+              conditional_value(whole, ks, us, σ;
+                                evidence=[:Forecast => :cloudy, :Weather => λ])
+        # An all-zero likelihood is impossible evidence; the error records the hard part.
+        err = try
+            conditional_value(whole, ks, us, σ; evidence=[:Weather => [0.0, 0.0],
+                                                          :Forecast => :sunny])
+        catch e
+            e
+        end
+        @test err isa ImpossibleEvidenceError && err.evidence == Dict(:Forecast => :sunny)
+        @test_throws ArgumentError interpret(B, ks, us, σ; evidence=:Weather => [0.5])
+        @test_throws ArgumentError interpret(B, ks, us, σ; evidence=:Weather => [0.5, 1.5])
+        @test_throws ArgumentError interpret(B, ks, us, σ; evidence=:Weather => [-0.1, 0.5])
+        @test_throws ArgumentError interpret(B, ks, us, σ;
+                                             evidence=[:Weather => λ, :Weather => :rainy])
+        @test_throws EvidenceOnActionError interpret(B, ks, us, σ;
+                                                     evidence=:Umbrella => [1.0, 0.5])
     end
 
     @testset "errors" begin

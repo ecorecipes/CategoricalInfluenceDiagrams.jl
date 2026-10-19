@@ -1,4 +1,4 @@
-import CategoricalInfluenceDiagramsProofs.Certificate.Exact
+import CategoricalInfluenceDiagramsProofs.Certificate.Fast
 
 /-!
 # Reward certificates: the checker
@@ -38,7 +38,9 @@ properties:
     rows are not exactly normalised fails here: it is outside the exact semantics, and only
     the largest deviation (`rowDeviation`) is reported;
 15. **result K**, 16. **result W**: every recorded cell is within `τ` of `exactK`, `exactW`
-    (`kError ≤ τ`, `wError ≤ τ`).
+    (`kError ≤ τ`, `wError ≤ τ`). The checker decides them by `kErrorFast` and `wErrorFast`
+    (`Fast.lean`), which accumulate each row of `K` and `W` in one pass over the generator
+    coordinates and are within `τ` exactly when `kError` and `wError` are.
 
 Stages 3, 5 to 9 and 13 check the format's conventions; the soundness theorems use stages
 1, 2, 4, 11, 12, 14, 15 and 16. Not checked: that the chance mechanisms precede the
@@ -190,9 +192,9 @@ def stages : List (String × (Unit → Bool)) :=
     ("exact row sums (a chance row does not sum to exactly 1: outside exact semantics)",
       fun _ => decide c.RowsExact),
     ("result K (a recorded K cell is not within the tolerance of the exact value)",
-      fun _ => decide (c.kError ≤ τ)),
+      fun _ => decide (c.kErrorFast ≤ τ)),
     ("result W (a recorded W cell is not within the tolerance of the exact value)",
-      fun _ => decide (c.wError ≤ τ))]
+      fun _ => decide (c.wErrorFast ≤ τ))]
 
 /-- **The checker**: every stage passes. -/
 def check : Bool := (c.stages τ).all fun s => s.2 ()
@@ -226,7 +228,8 @@ structure Accepted : Prop where
 
 theorem check_iff_accepted : c.check τ = true ↔ c.Accepted τ := by
   unfold check stages
-  simp only [List.all_cons, List.all_nil, Bool.and_true, Bool.and_eq_true, decide_eq_true_eq]
+  simp only [List.all_cons, List.all_nil, Bool.and_true, Bool.and_eq_true, decide_eq_true_eq,
+    kErrorFast_le_iff, wErrorFast_le_iff]
   constructor
   · rintro ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16⟩
     exact ⟨c.network.check_sound h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14,

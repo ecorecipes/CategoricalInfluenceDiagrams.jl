@@ -233,8 +233,9 @@ end
     return @inbounds f.table[idx]
 end
 
-# The policy factors of `id` under `σ`: for each decision, the one-hot kernel of its policy
-# on (action, information...) at the positions `pos`.
+# The policy factors of `id` under `σ`: for each decision, the kernel of its policy (one-hot
+# for a deterministic policy, a behavioural table for a stochastic one, ADR 0022) on
+# (action, information...) at the positions `pos`.
 function _policy_factors(id::AbstractInfluenceDiagram, σ::Strategy,
                          pos::AbstractDict{Int,Int})
     missing = missing_policies(σ, id)
@@ -243,8 +244,6 @@ function _policy_factors(id::AbstractInfluenceDiagram, σ::Strategy,
     for d in parts(id, :Decision)
         name = decision_name(id, d)
         p = σ[name]
-        p isa Union{DeterministicPolicy,ConstantPolicy} ||
-            throw(ArgumentError("interpret: the policy of decision :$name is a $(nameof(typeof(p))); the first release interprets deterministic policies only (ADR 0018, decision 4)"))
         info = decision_information(id, d)
         a = decision_variable(id, d)
         info_axes = FiniteAxis[axis(id, v) for v in info]
@@ -278,37 +277,77 @@ end
 # Evidence (ADR 0021)
 #####################
 
-# The evidence `ev` on the apex of `o` as a dictionary from variable name to state: `nothing`,
-# a pair, a vector of pairs or a dictionary. Every name must be an apex variable
-# (`UnknownVariableError`), every state one of its states (`UnknownStateError`), and no
-# evidence may be on a decision's action (`EvidenceOnActionError`: an action is chosen, not
-# observed). A name shared by several apex variables (a diagram tensored with itself)
-# observes all of them.
-function _evidence(o::OpenInfluenceDiagram, ev)
-    ev === nothing && return Dict{Symbol,Symbol}()
+# Checked evidence: variable name => observed state (hard evidence) or likelihood vector
+# over the variable's states (soft evidence).
+const _Evidence = Dict{Symbol,Union{Symbol,Vector{Float64}}}
+
+# The hard part of the evidence, as the error types of ADR 0012 and ADR 0014 record it.
+_hard(ev::AbstractDict) = Dict{Symbol,Symbol}(x => s for (x, s) in ev if s isa Symbol)
+
+# The evidence entries `ev` (`nothing`, a pair, a vector of pairs or a dictionary) as pairs,
+# each a variable name with a state or a likelihood vector.
+function _evidence_pairs(ev)
+    ev === nothing && return Pair{Symbol,Any}[]
     ev isa Union{Pair,AbstractVector,AbstractDict} ||
-        throw(ArgumentError("evidence must be a pair, a vector of pairs or a dictionary of variable name => state, not a $(typeof(ev))"))
-    pairs_ = ev isa Pair ? [ev] : collect(ev)
-    all(p -> p isa Pair{Symbol,Symbol}, pairs_) ||
-        throw(ArgumentError("evidence must map variable names (Symbols) to states (Symbols)"))
-    d = Dict{Symbol,Symbol}()
+        throw(ArgumentError("evidence must be a pair, a vector of pairs or a dictionary of variable name => state or likelihood vector, not a $(typeof(ev))"))
+    pairs_ = ev isa Pair ? Any[ev] : collect(Any, ev)
+    for p in pairs_
+        p isa Pair && p.first isa Symbol &&
+            (p.second isa Symbol || p.second isa AbstractVector{<:Real}) ||
+            throw(ArgumentError("evidence must map variable names (Symbols) to states (Symbols) or likelihood vectors, not $(repr(p))"))
+    end
+    return Pair{Symbol,Any}[p.first => (p.second isa Symbol ? p.second :
+                                         convert(Vector{Float64}, collect(p.second)))
+                            for p in pairs_]
+end
+
+# Add the evidence pairs `pairs_` to `d`, two entries for one name being an `ArgumentError`
+# unless they are equal; `what` names the source in the message.
+function _join_evidence!(d::_Evidence, pairs_, what::AbstractString="the evidence")
     for (x, s) in pairs_
-        haskey(d, x) && d[x] !== s &&
-            throw(ArgumentError("the evidence gives :$x two states, :$(d[x]) and :$s"))
+        haskey(d, x) && d[x] != s &&
+            throw(ArgumentError("$what gives :$x two different observations, $(repr(d[x])) and $(repr(s))"))
         d[x] = s
     end
+    return d
+end
+
+# The evidence `ev` on the apex of `o`, checked: every name an apex variable
+# (`UnknownVariableError`); a state one of its states (`UnknownStateError`); a likelihood
+# vector one finite entry in [0, 1] per state (`ArgumentError`), the probability of the
+# observation given each state; no evidence on a decision's action
+# (`EvidenceOnActionError`: an action is chosen, not observed). A name shared by several apex
+# variables (a diagram tensored with itself) observes all of them.
+function _evidence(o::OpenInfluenceDiagram, ev)
+    d = _join_evidence!(_Evidence(), _evidence_pairs(ev))
     id = apex(o)
     for x in sort!(collect(keys(d)))
         vs = [v for v in parts(id, :Variable) if variable_name(id, v) === x]
         isempty(vs) && throw(UnknownVariableError(x))
         for v in vs
-            d[x] in axis(id, v).labels || throw(UnknownStateError(x, d[x]))
+            labels = axis(id, v).labels
+            s = d[x]
+            if s isa Symbol
+                s in labels || throw(UnknownStateError(x, s))
+            else
+                length(s) == length(labels) ||
+                    throw(ArgumentError("the likelihood evidence on :$x has $(length(s)) entries but :$x has $(length(labels)) states"))
+                all(l -> isfinite(l) && 0 <= l <= 1, s) ||
+                    throw(ArgumentError("the likelihood evidence on :$x must have finite entries in [0, 1], the probability of the observation given each state"))
+            end
             dec = InfluenceDiagrams.decision_of(id, v)
             dec === nothing ||
-                throw(EvidenceOnActionError(x, decision_name(id, dec), d[x]))
+                throw(EvidenceOnActionError(x, decision_name(id, dec),
+                                            s isa Symbol ? s : :likelihood))
         end
     end
     return d
+end
+
+# The evidence factor of variable `v` of `id` observed as `s`: an indicator or a likelihood.
+function _evidence_table(id::AbstractInfluenceDiagram, v::Integer, s)
+    s isa Symbol && return Float64[l === s for l in axis(id, v).labels]
+    return s
 end
 
 # The tables of `⟦o⟧_σ` under the evidence `ev` (checked by `_evidence`), in the arithmetic
@@ -321,7 +360,7 @@ end
 # whether the binary64 run computed a product of nonzero operands below `floatmin` (ADR
 # 0014's shared trust rule: such a run decides nothing about the evidence mass).
 function _interpret_tables(o::OpenInfluenceDiagram, kernels::AbstractDict,
-                           utilities::AbstractDict, σ::Strategy, ev::Dict{Symbol,Symbol},
+                           utilities::AbstractDict, σ::Strategy, ev::AbstractDict,
                            conv; max_states::Integer=DEFAULT_MAX_STATES,
                            atol::Real=DEFAULT_ATOL)
     id = apex(o)
@@ -338,7 +377,7 @@ function _interpret_tables(o::OpenInfluenceDiagram, kernels::AbstractDict,
     for v in ids
         s = get(ev, variable_name(id, v), nothing)
         s === nothing && continue
-        push!(factors, _Factor(Float64[l === s for l in axis(id, v).labels], Int[pos[v]]))
+        push!(factors, _Factor(_evidence_table(id, v, s), Int[pos[v]]))
     end
     us = _utility_factors(id, utilities, pos)
     X = FiniteSpace(FiniteAxis[axis(id, v) for v in in_ids])
@@ -403,10 +442,14 @@ inputs, no outputs) the result is the `1 × 1` reward kernel with `K = 1` and `W
 expected utility that `InfluenceDiagrams`' `expected_utility` computes on the instantiated
 diagram.
 
-`evidence` (ADR 0021) is hard evidence on apex variables: a pair `:X => :x`, a vector of
-pairs or a dictionary. Each observed variable contributes the indicator of its observed
-state, inputs and outputs included, so `K(y | x)` becomes the probability of reaching `y`
-*and* seeing the evidence, and `W` the reward earned on those paths. `K` is then
+`evidence` (ADR 0021) is evidence on apex variables: a pair, a vector of pairs or a
+dictionary, each pair a variable name with either an observed state, `:X => :x` (hard
+evidence), or a likelihood vector, `:X => [λ₁, λ₂, …]` (soft or virtual evidence), one entry
+in `[0, 1]` per state of `X`, the probability of the observation given each state. Each
+observed variable contributes the indicator of its observed state or its likelihood, inputs
+and outputs included, so `K(y | x)` becomes the probability of reaching `y` *and* seeing
+the evidence, and `W` the reward earned on those paths. An indicator likelihood is hard
+evidence. `K` is then
 substochastic: it is built unchecked, and its column sums are the probability of the
 evidence given each input state. Nothing is normalised, since the evidence mass must cross
 the boundary to the rest of the problem (normalising each component on its own evidence
@@ -417,7 +460,10 @@ and `e_B` are the parts of `e` on each apex; evidence on a variable of the share
 may be given to either or both, since an indicator is idempotent. An unknown variable
 raises `UnknownVariableError`, an unknown state `UnknownStateError`, evidence on a
 decision's action `EvidenceOnActionError` (an action is chosen, not observed), and two
-states for one variable `ArgumentError`.
+different observations of one variable, or a likelihood of the wrong length or with an
+entry outside `[0, 1]`, `ArgumentError`. The evidence errors of ADR 0014
+(`ImpossibleEvidenceError`, `IndeterminatePosteriorError`) record the hard evidence only,
+since their field holds states.
 
 The tables come from the apex's references, as `instantiate` reads them:
 
@@ -432,7 +478,9 @@ The tables come from the apex's references, as `instantiate` reads them:
   (a variable given different states by the two raises `ArgumentError`).
 
 `σ` needs a `DeterministicPolicy` or `ConstantPolicy` for every decision name of the apex
-(`IncompleteStrategyError`; a `StochasticPolicy` raises `ArgumentError`), checked against
+(`IncompleteStrategyError`), which may be a `DeterministicPolicy`, a `ConstantPolicy` or a
+`StochasticPolicy` (a behavioural policy, ADR 0022: a decision then draws its action from
+the policy's table given its information, independently at every use), checked against
 the decision's information and action axes (`PolicySignatureError`); policies for other
 decisions are ignored, as `instantiate` ignores them, and decisions that share a name share
 their policy. A decision that reads an observed input reads that input's state directly:
@@ -460,16 +508,8 @@ end
 
 # The kernels, utilities and evidence of a model, its own evidence joined with `extra`.
 function _model_tables(m::InfluenceDiagramModel, extra=nothing)
-    ev = Dict{Symbol,Symbol}(BayesianNetworks.evidence(m))
-    if extra !== nothing
-        extra isa Union{Pair,AbstractVector,AbstractDict} ||
-            throw(ArgumentError("evidence must be a pair, a vector of pairs or a dictionary of variable name => state, not a $(typeof(extra))"))
-        for (x, s) in (extra isa Pair ? [extra] : collect(extra))
-            haskey(ev, x) && ev[x] !== s &&
-                throw(ArgumentError("the model observes :$x in state :$(ev[x]), but the evidence keyword gives :$s"))
-            ev[x] = s
-        end
-    end
+    ev = _Evidence(x => s for (x, s) in BayesianNetworks.evidence(m))
+    _join_evidence!(ev, _evidence_pairs(extra), "the model's evidence and the keyword")
     return kernels(m), bound_utilities(m), ev
 end
 

@@ -69,4 +69,20 @@ induce repairs that example, though not every example.
 
 Limited-memory chains, where the later decisions do not remember the earlier ones, are
 composed with `no_forgetting = false`, a keyword all four functions accept and pass to
-[`compose`](@ref). Behavioural strategies and the tensor of games are outside ADR 0020.
+[`compose`](@ref). Behavioural strategies are covered by ADR 0022: a chain may start from
+one, and best responses are deterministic. The tensor of games is proved in Lean (exact for
+product priors, not expressible through one factor's context for correlated ones); the
+Julia chain functions are serial.
+
+## Perfect equilibria
+
+An equilibrium can rest on a choice at a state it never reaches. A later component's policy
+there is a best response whatever it is, because the state has probability zero, and it can
+still deter an earlier component. `regrets(...; perfect = true)` and
+`is_equilibrium(...; perfect = true)` ask more: every component optimal from every one of its
+input states, against its continuation. This is subgame perfection, found by backward
+induction. The Lean module `Perfection` proves that perfection refines equilibrium, and gives
+the threat witness: not acting against an untested refusal is an equilibrium worth 1, while
+the perfect equilibria act and cooperate, worth the optimum 4. Perfection is meaningful when
+a component's decisions observe its inputs.
+

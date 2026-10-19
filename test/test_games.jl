@@ -144,6 +144,41 @@ end
         @test checked_optimum > 0
     end
 
+    @testset "perfect equilibria: the Lean threat witness" begin
+        ax(x) = FiniteAxis(x, LEAN_BOOL)
+        first = Open(influence_diagram(:Act => LEAN_BOOL; decisions=[:Act => Symbol[]],
+                                       closed=false); outputs=[:Act], observed=[:Act])
+        second = Open(influence_diagram(:Act => LEAN_BOOL, :Cooperate => LEAN_BOOL;
+                                        decisions=[:Cooperate => (:Act,)],
+                                        utilities=[:Payoff => (:Act, :Cooperate)],
+                                        closed=false); inputs=[:Act], observed=[:Act])
+        chain = [first, second]
+        ks = Dict{Symbol,FiniteKernel}()
+        us = Dict{Symbol,AbstractUtility}(:Payoff => TabularUtility([ax(:Act), ax(:Cooperate)],
+                                                                    [1 1; 0 4]))
+        respond(t) = Strategy(:Cooperate => DeterministicPolicy(:Cooperate, [ax(:Act)],
+                                                                ax(:Cooperate), t))
+        # Not acting, against a refusal that is never tested, is an equilibrium worth 1.
+        threat = merge_strategies(constant(:Act, :no), respond([:no, :no]))
+        @test is_equilibrium(chain, ks, us, threat)
+        @test contextual_value(compose(chain...), ks, us, threat) ≈ 1
+        # It is not perfect: from the unreached state the second component gains 4.
+        @test regrets(chain, ks, us, threat; perfect=true) ≈ [0.0, 4.0]
+        @test !is_equilibrium(chain, ks, us, threat; perfect=true)
+        # The perfect equilibria act and cooperate, worth the optimum 4.
+        for t in ([:no, :yes], [:yes, :yes])
+            σ = merge_strategies(constant(:Act, :yes), respond(t))
+            @test is_equilibrium(chain, ks, us, σ; perfect=true)
+            @test is_equilibrium(chain, ks, us, σ)
+            @test contextual_value(compose(chain...), ks, us, σ) ≈ 4
+        end
+        @test !is_equilibrium(chain, ks, us,
+                              merge_strategies(constant(:Act, :no), respond([:no, :yes]));
+                              perfect=true)
+        @test_throws ArgumentError regrets(chain, ks, us, threat; perfect=true,
+                                           evidence=:Act => :no)
+    end
+
     @testset "errors" begin
         chain = [lean_early(), lean_late()]
         ks, us = lean_tables()

@@ -188,6 +188,43 @@ assert_no_sorry OpenInfluence.Coordination.coordination_equilibrium_not_optimal
 assert_no_sorry OpenInfluence.Obstruction.early_normalised
 assert_no_sorry OpenInfluence.Obstruction.game
 assert_no_sorry OpenInfluence.Obstruction.obstruction_eq_iff
+assert_no_sorry OpenInfluence.Game.marg₁
+assert_no_sorry OpenInfluence.Game.marg₂
+assert_no_sorry OpenInfluence.Game.leftCont
+assert_no_sorry OpenInfluence.Game.rightCont
+assert_no_sorry OpenInfluence.Game.tensor
+assert_no_sorry OpenInfluence.Game.prodPrior
+assert_no_sorry OpenInfluence.Game.marg₁_prod
+assert_no_sorry OpenInfluence.Game.marg₂_prod
+assert_no_sorry OpenInfluence.Game.sum_comm4
+assert_no_sorry OpenInfluence.Game.tensor_eu_sum
+assert_no_sorry OpenInfluence.Game.tensor_eu_left
+assert_no_sorry OpenInfluence.Game.tensor_eu_right
+assert_no_sorry OpenInfluence.Game.tensor_decision_eq_iff
+assert_no_sorry OpenInfluence.CorrelatedTensor.copyPlay
+assert_no_sorry OpenInfluence.CorrelatedTensor.copyPlay_normalised
+assert_no_sorry OpenInfluence.CorrelatedTensor.first
+assert_no_sorry OpenInfluence.CorrelatedTensor.prior
+assert_no_sorry OpenInfluence.CorrelatedTensor.payoff
+assert_no_sorry OpenInfluence.CorrelatedTensor.joint_eu
+assert_no_sorry OpenInfluence.CorrelatedTensor.correlated_best_responses
+assert_no_sorry OpenInfluence.CorrelatedTensor.first_eu
+assert_no_sorry OpenInfluence.CorrelatedTensor.correlated_no_factor_context
+assert_no_sorry OpenInfluence.Game.perfect
+assert_no_sorry OpenInfluence.Game.perfect_eq_decision
+assert_no_sorry OpenInfluence.Game.seq_perfect_eq_iff
+assert_no_sorry OpenInfluence.Threat.first
+assert_no_sorry OpenInfluence.Threat.payoff
+assert_no_sorry OpenInfluence.Threat.second
+assert_no_sorry OpenInfluence.Threat.first_normalised
+assert_no_sorry OpenInfluence.Threat.second_normalised
+assert_no_sorry OpenInfluence.Threat.composite_eu
+assert_no_sorry OpenInfluence.Threat.first_value
+assert_no_sorry OpenInfluence.Threat.second_value
+assert_no_sorry OpenInfluence.Threat.threat
+assert_no_sorry OpenInfluence.Threat.threat_equilibrium
+assert_no_sorry OpenInfluence.Threat.threat_perfect_iff
+assert_no_sorry OpenInfluence.Threat.threat_optimum
 assert_no_sorry OpenInfluence.RewardKernel.Effect
 assert_no_sorry OpenInfluence.RewardKernel.State
 assert_no_sorry OpenInfluence.RewardKernel.Effect.ofValue
@@ -229,7 +266,47 @@ assert_no_sorry OpenInfluence.IDInterpretation.lik_comp
 assert_no_sorry OpenInfluence.IDInterpretation.kernelE_comp
 assert_no_sorry OpenInfluence.IDInterpretation.rewardTableE_comp
 assert_no_sorry OpenInfluence.IDInterpretation.interpretE_comp
+assert_no_sorry OpenInfluence.IDInterpretation.lik_tensor
+assert_no_sorry OpenInfluence.IDInterpretation.kernelE_tensor
+assert_no_sorry OpenInfluence.IDInterpretation.rewardTableE_tensor
+assert_no_sorry OpenInfluence.IDInterpretation.interpretE_tensor
 assert_no_sorry OpenInfluence.IDInterpretation.interpretE_one
+assert_no_sorry OpenInfluence.IDInterpretation.Behaviour
+assert_no_sorry OpenInfluence.IDInterpretation.interpB
+assert_no_sorry OpenInfluence.IDInterpretation.pointMass
+assert_no_sorry OpenInfluence.IDInterpretation.interpB_pointMass
+assert_no_sorry OpenInfluence.IDInterpretation.rewardB
+assert_no_sorry OpenInfluence.IDInterpretation.rewardTableB
+assert_no_sorry OpenInfluence.IDInterpretation.interpretB
+assert_no_sorry OpenInfluence.IDInterpretation.interpretB_stochastic
+assert_no_sorry OpenInfluence.IDInterpretation.rewardB_comp
+assert_no_sorry OpenInfluence.IDInterpretation.rewardB_tensor
+assert_no_sorry OpenInfluence.IDInterpretation.sum_fibre_mulB
+assert_no_sorry OpenInfluence.IDInterpretation.kernel_eq_sumB
+assert_no_sorry OpenInfluence.IDInterpretation.rewardTableB_comp
+assert_no_sorry OpenInfluence.IDInterpretation.interpretB_comp
+assert_no_sorry OpenInfluence.IDInterpretation.interpretB_identity
+assert_no_sorry OpenInfluence.IDInterpretation.joinB
+assert_no_sorry OpenInfluence.IDInterpretation.joinB_apply
+assert_no_sorry OpenInfluence.IDInterpretation.rewardTableB_tensor
+assert_no_sorry OpenInfluence.IDInterpretation.kernel_tensor_joinB
+assert_no_sorry OpenInfluence.IDInterpretation.interpretB_tensor
+assert_no_sorry OpenInfluence.IDInterpretation.contextual_identityB
+assert_no_sorry OpenInfluence.IDInterpretation.interpretB_pointMass
+assert_no_sorry OpenInfluence.RewardKernel.mix
+assert_no_sorry OpenInfluence.RewardKernel.mix_comp
+assert_no_sorry OpenInfluence.RewardKernel.comp_mix
+assert_no_sorry OpenInfluence.RewardKernel.eu_mix
+assert_no_sorry OpenInfluence.RewardKernel.eu_mix_le
+assert_no_sorry OpenInfluence.RewardKernel.mediant_le
+assert_no_sorry OpenInfluence.RewardKernel.pull_mix
+assert_no_sorry OpenInfluence.RewardKernel.mass_value_mix
+assert_no_sorry OpenInfluence.RewardKernel.conditionalValue_mix_le
+assert_no_sorry OpenInfluence.AbsentMinded.first
+assert_no_sorry OpenInfluence.AbsentMinded.second
+assert_no_sorry OpenInfluence.AbsentMinded.drive_eu
+assert_no_sorry OpenInfluence.AbsentMinded.randomising_helps
+assert_no_sorry OpenInfluence.AbsentMinded.independent_deterministic_optimal
 assert_no_sorry OpenInfluence.RewardCertificate.Json.constant_eq_ok
 assert_no_sorry OpenInfluence.RewardCertificate.Json.decodeFlag_eq_ok
 assert_no_sorry OpenInfluence.RewardCertificate.Json.decodeMode_eq_ok
@@ -309,6 +386,30 @@ assert_no_sorry OpenInfluence.RewardCertificate.Certificate.cellQ_getElem
 assert_no_sorry OpenInfluence.RewardCertificate.Certificate.inAssign_toPi
 assert_no_sorry OpenInfluence.RewardCertificate.Certificate.outAssign_toPi
 assert_no_sorry OpenInfluence.RewardCertificate.Certificate.cast_val
+assert_no_sorry OpenInfluence.RewardCertificate.addAt
+assert_no_sorry OpenInfluence.RewardCertificate.size_addAt
+assert_no_sorry OpenInfluence.RewardCertificate.getD_addAt
+assert_no_sorry OpenInfluence.RewardCertificate.addAt_comm
+assert_no_sorry OpenInfluence.RewardCertificate.accStep
+assert_no_sorry OpenInfluence.RewardCertificate.accumulate
+assert_no_sorry OpenInfluence.RewardCertificate.size_accumulate
+assert_no_sorry OpenInfluence.RewardCertificate.getD_accumulate
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.readOut?
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.reads_iff
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.outIndex
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.outCount
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.outAxes_fst
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.outIndex_lt
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.outIndex_injective
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.accRow
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.key_eq_iff
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.accRow_getD
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.kErrorFast
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.wErrorFast
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.kErrorFast_le_iff
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.wErrorFast_le_iff
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.kErrorFast_eq
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.wErrorFast_eq
 
 #print axioms OpenInfluence.ObservedInterface.sum
 #print axioms OpenInfluence.ObservedInterface.empty
@@ -505,6 +606,43 @@ assert_no_sorry OpenInfluence.RewardCertificate.Certificate.cast_val
 #print axioms OpenInfluence.Obstruction.early_normalised
 #print axioms OpenInfluence.Obstruction.game
 #print axioms OpenInfluence.Obstruction.obstruction_eq_iff
+#print axioms OpenInfluence.Game.marg₁
+#print axioms OpenInfluence.Game.marg₂
+#print axioms OpenInfluence.Game.leftCont
+#print axioms OpenInfluence.Game.rightCont
+#print axioms OpenInfluence.Game.tensor
+#print axioms OpenInfluence.Game.prodPrior
+#print axioms OpenInfluence.Game.marg₁_prod
+#print axioms OpenInfluence.Game.marg₂_prod
+#print axioms OpenInfluence.Game.sum_comm4
+#print axioms OpenInfluence.Game.tensor_eu_sum
+#print axioms OpenInfluence.Game.tensor_eu_left
+#print axioms OpenInfluence.Game.tensor_eu_right
+#print axioms OpenInfluence.Game.tensor_decision_eq_iff
+#print axioms OpenInfluence.CorrelatedTensor.copyPlay
+#print axioms OpenInfluence.CorrelatedTensor.copyPlay_normalised
+#print axioms OpenInfluence.CorrelatedTensor.first
+#print axioms OpenInfluence.CorrelatedTensor.prior
+#print axioms OpenInfluence.CorrelatedTensor.payoff
+#print axioms OpenInfluence.CorrelatedTensor.joint_eu
+#print axioms OpenInfluence.CorrelatedTensor.correlated_best_responses
+#print axioms OpenInfluence.CorrelatedTensor.first_eu
+#print axioms OpenInfluence.CorrelatedTensor.correlated_no_factor_context
+#print axioms OpenInfluence.Game.perfect
+#print axioms OpenInfluence.Game.perfect_eq_decision
+#print axioms OpenInfluence.Game.seq_perfect_eq_iff
+#print axioms OpenInfluence.Threat.first
+#print axioms OpenInfluence.Threat.payoff
+#print axioms OpenInfluence.Threat.second
+#print axioms OpenInfluence.Threat.first_normalised
+#print axioms OpenInfluence.Threat.second_normalised
+#print axioms OpenInfluence.Threat.composite_eu
+#print axioms OpenInfluence.Threat.first_value
+#print axioms OpenInfluence.Threat.second_value
+#print axioms OpenInfluence.Threat.threat
+#print axioms OpenInfluence.Threat.threat_equilibrium
+#print axioms OpenInfluence.Threat.threat_perfect_iff
+#print axioms OpenInfluence.Threat.threat_optimum
 #print axioms OpenInfluence.RewardKernel.Effect
 #print axioms OpenInfluence.RewardKernel.State
 #print axioms OpenInfluence.RewardKernel.Effect.ofValue
@@ -546,7 +684,47 @@ assert_no_sorry OpenInfluence.RewardCertificate.Certificate.cast_val
 #print axioms OpenInfluence.IDInterpretation.kernelE_comp
 #print axioms OpenInfluence.IDInterpretation.rewardTableE_comp
 #print axioms OpenInfluence.IDInterpretation.interpretE_comp
+#print axioms OpenInfluence.IDInterpretation.lik_tensor
+#print axioms OpenInfluence.IDInterpretation.kernelE_tensor
+#print axioms OpenInfluence.IDInterpretation.rewardTableE_tensor
+#print axioms OpenInfluence.IDInterpretation.interpretE_tensor
 #print axioms OpenInfluence.IDInterpretation.interpretE_one
+#print axioms OpenInfluence.IDInterpretation.Behaviour
+#print axioms OpenInfluence.IDInterpretation.interpB
+#print axioms OpenInfluence.IDInterpretation.pointMass
+#print axioms OpenInfluence.IDInterpretation.interpB_pointMass
+#print axioms OpenInfluence.IDInterpretation.rewardB
+#print axioms OpenInfluence.IDInterpretation.rewardTableB
+#print axioms OpenInfluence.IDInterpretation.interpretB
+#print axioms OpenInfluence.IDInterpretation.interpretB_stochastic
+#print axioms OpenInfluence.IDInterpretation.rewardB_comp
+#print axioms OpenInfluence.IDInterpretation.rewardB_tensor
+#print axioms OpenInfluence.IDInterpretation.sum_fibre_mulB
+#print axioms OpenInfluence.IDInterpretation.kernel_eq_sumB
+#print axioms OpenInfluence.IDInterpretation.rewardTableB_comp
+#print axioms OpenInfluence.IDInterpretation.interpretB_comp
+#print axioms OpenInfluence.IDInterpretation.interpretB_identity
+#print axioms OpenInfluence.IDInterpretation.joinB
+#print axioms OpenInfluence.IDInterpretation.joinB_apply
+#print axioms OpenInfluence.IDInterpretation.rewardTableB_tensor
+#print axioms OpenInfluence.IDInterpretation.kernel_tensor_joinB
+#print axioms OpenInfluence.IDInterpretation.interpretB_tensor
+#print axioms OpenInfluence.IDInterpretation.contextual_identityB
+#print axioms OpenInfluence.IDInterpretation.interpretB_pointMass
+#print axioms OpenInfluence.RewardKernel.mix
+#print axioms OpenInfluence.RewardKernel.mix_comp
+#print axioms OpenInfluence.RewardKernel.comp_mix
+#print axioms OpenInfluence.RewardKernel.eu_mix
+#print axioms OpenInfluence.RewardKernel.eu_mix_le
+#print axioms OpenInfluence.RewardKernel.mediant_le
+#print axioms OpenInfluence.RewardKernel.pull_mix
+#print axioms OpenInfluence.RewardKernel.mass_value_mix
+#print axioms OpenInfluence.RewardKernel.conditionalValue_mix_le
+#print axioms OpenInfluence.AbsentMinded.first
+#print axioms OpenInfluence.AbsentMinded.second
+#print axioms OpenInfluence.AbsentMinded.drive_eu
+#print axioms OpenInfluence.AbsentMinded.randomising_helps
+#print axioms OpenInfluence.AbsentMinded.independent_deterministic_optimal
 #print axioms OpenInfluence.RewardCertificate.Json.constant_eq_ok
 #print axioms OpenInfluence.RewardCertificate.Json.decodeFlag_eq_ok
 #print axioms OpenInfluence.RewardCertificate.Json.decodeMode_eq_ok
@@ -626,3 +804,27 @@ assert_no_sorry OpenInfluence.RewardCertificate.Certificate.cast_val
 #print axioms OpenInfluence.RewardCertificate.Certificate.inAssign_toPi
 #print axioms OpenInfluence.RewardCertificate.Certificate.outAssign_toPi
 #print axioms OpenInfluence.RewardCertificate.Certificate.cast_val
+#print axioms OpenInfluence.RewardCertificate.addAt
+#print axioms OpenInfluence.RewardCertificate.size_addAt
+#print axioms OpenInfluence.RewardCertificate.getD_addAt
+#print axioms OpenInfluence.RewardCertificate.addAt_comm
+#print axioms OpenInfluence.RewardCertificate.accStep
+#print axioms OpenInfluence.RewardCertificate.accumulate
+#print axioms OpenInfluence.RewardCertificate.size_accumulate
+#print axioms OpenInfluence.RewardCertificate.getD_accumulate
+#print axioms OpenInfluence.RewardCertificate.Certificate.readOut?
+#print axioms OpenInfluence.RewardCertificate.Certificate.reads_iff
+#print axioms OpenInfluence.RewardCertificate.Certificate.outIndex
+#print axioms OpenInfluence.RewardCertificate.Certificate.outCount
+#print axioms OpenInfluence.RewardCertificate.Certificate.outAxes_fst
+#print axioms OpenInfluence.RewardCertificate.Certificate.outIndex_lt
+#print axioms OpenInfluence.RewardCertificate.Certificate.outIndex_injective
+#print axioms OpenInfluence.RewardCertificate.Certificate.accRow
+#print axioms OpenInfluence.RewardCertificate.Certificate.key_eq_iff
+#print axioms OpenInfluence.RewardCertificate.Certificate.accRow_getD
+#print axioms OpenInfluence.RewardCertificate.Certificate.kErrorFast
+#print axioms OpenInfluence.RewardCertificate.Certificate.wErrorFast
+#print axioms OpenInfluence.RewardCertificate.Certificate.kErrorFast_le_iff
+#print axioms OpenInfluence.RewardCertificate.Certificate.wErrorFast_le_iff
+#print axioms OpenInfluence.RewardCertificate.Certificate.kErrorFast_eq
+#print axioms OpenInfluence.RewardCertificate.Certificate.wErrorFast_eq

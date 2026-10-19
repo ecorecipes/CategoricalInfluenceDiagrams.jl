@@ -19,8 +19,13 @@ such operation. It offers
   the outputs, with [`evidence_mass`](@ref) and [`conditional_value`](@ref), the expected
   utility given the evidence, which [`contextual_optimize`](@ref) maximises.
 
-Strategies are deterministic, as in the semantics: ADR 0018 keeps behavioural policies out of
-the first release.
+The strategies searched are deterministic. A behavioural (stochastic) strategy is interpreted
+and valued like any other (ADR 0022), but it is never better than the best deterministic one
+when every decision has its own policy: `InfluenceDiagrams`' Lean theorem
+`exists_deterministic_optimal_all` for expected utility, and this package's
+`conditionalValue_mix_le` for the conditional value given evidence. Decisions that share a
+name share a policy, and then randomising can help (the absent-minded driver,
+`AbsentMinded.randomising_helps`); `contextual_optimize` refuses shared names.
 """
 
 # Closed composites
@@ -83,7 +88,9 @@ its own until a prior and a continuation are given, which is what
 components of a composite one by one and composes the results; that is not sound (the
 bundle's `INF-ISOLATED-OBSTRUCTION`).
 
-`evidence` (ADR 0021) is hard evidence on the composite's variables, checked as for
+`evidence` (ADR 0021) is hard evidence on the composite's variables (likelihood evidence
+raises `ArgumentError`: an `InfluenceDiagrams` model observes states only, and
+[`contextual_optimize`](@ref) takes it), checked as for
 [`interpret`](@ref interpret(::OpenInfluenceDiagram, ::AbstractDict, ::AbstractDict, ::Strategy))
 and recorded on the model with `observe`; the solver then maximises the expected utility
 given the evidence, with `InfluenceDiagrams`' rules (decision variable elimination needs
@@ -101,7 +108,9 @@ function optimize(o::OpenInfluenceDiagram, kernels::AbstractDict, utilities::Abs
                   atol::Real=DEFAULT_ATOL, kw...)
     m = _closed_model(o, kernels, utilities; atol=atol)
     ev = _evidence(o, evidence)
-    isempty(ev) || (m = observe(m, sort!(collect(ev); by=first)))
+    all(s -> s isa Symbol, values(ev)) ||
+        throw(ArgumentError("optimize: likelihood evidence on $(sort!([x for (x, s) in ev if !(s isa Symbol)])) cannot be recorded on an InfluenceDiagrams model, which observes states only; optimise the closed composite with contextual_optimize, which takes it"))
+    isempty(ev) || (m = observe(m, sort!([x => s for (x, s) in ev]; by=first)))
     return optimize(m, backend; atol=atol, kw...)
 end
 
@@ -539,7 +548,7 @@ end
 # any arithmetic whose entries convert exactly to `Rational{BigInt}`) between the state
 # `(ν, ρ)` and the effect `(m, c)`, rounded correctly to binary64 (ADR 0016).
 function _exact_conditional(K::AbstractArray, W::AbstractArray, X::FiniteSpace,
-                            Y::FiniteSpace, ν, ρ, m, c, ev::Dict{Symbol,Symbol})
+                            Y::FiniteSpace, ν, ρ, m, c, ev::AbstractDict)
     Q = Rational{BigInt}
     # `vec` first: broadcasting over a zero-dimensional table would give a scalar.
     Kq = reshape(Q.(vec(K)), length(Y), length(X))
@@ -550,9 +559,9 @@ function _exact_conditional(K::AbstractArray, W::AbstractArray, X::FiniteSpace,
     νq = Q.(ν)
     Z = sum(νq .* mp)
     N = (ρ === nothing ? zero(Q) : sum(Q.(ρ) .* mp)) + sum(νq .* cp)
-    iszero(Z) && throw(ImpossibleEvidenceError(copy(ev)))
+    iszero(Z) && throw(ImpossibleEvidenceError(_hard(ev)))
     Z < 0 &&
-        throw(IndeterminatePosteriorError(copy(ev),
+        throw(IndeterminatePosteriorError(_hard(ev),
                                           "the evidence mass is negative: a tolerated negative entry gives the evidence a negative probability"))
     return _nearest_binary64(N / Z)
 end
@@ -605,13 +614,13 @@ function conditional_value(r::RewardKernel; prior=nothing, continuation=nothing,
     Z, N = _mass_and_value(r, ν, ρ, m, c)
     _trusted_mass(Z) && !_pairing_underflows(r, ν, ρ, m, c) && return N / Z
     return _exact_conditional(kernel(r).table, reward(r), dom(r), codom(r), ν, ρ, m, c,
-                              Dict{Symbol,Symbol}())
+                              _Evidence())
 end
 
 # The conditional value of the validated `o` under the checked evidence `ev`, between the
 # checked state `(ν, ρ)` and effect `(m, c)`, with ADR 0014's rules.
 function _conditional_value(o::OpenInfluenceDiagram, kernels::AbstractDict,
-                            utilities::AbstractDict, σ::Strategy, ev::Dict{Symbol,Symbol},
+                            utilities::AbstractDict, σ::Strategy, ev::AbstractDict,
                             ν, ρ, m, c; max_states::Integer, atol::Real)
     t = _interpret_tables(o, kernels, utilities, σ, ev, identity; max_states=max_states,
                           atol=atol)
@@ -621,13 +630,13 @@ function _conditional_value(o::OpenInfluenceDiagram, kernels::AbstractDict,
     if track
         budget = _joint_atol(atol, t.nfactors)
         Z <= budget &&
-            throw(IndeterminatePosteriorError(copy(ev),
+            throw(IndeterminatePosteriorError(_hard(ev),
                                               "the evidence mass $(Z) is within the tolerance budget $(budget) of zero"))
     end
     trusted = _trusted_mass(Z) && !t.underflow && !_pairing_underflows(r, ν, ρ, m, c)
     trusted && return N / Z
     track &&
-        throw(IndeterminatePosteriorError(copy(ev),
+        throw(IndeterminatePosteriorError(_hard(ev),
                                           "the evidence mass $(Z) or a product forming it is below binary64's normal range, and the exact fallback does not accept tolerated negative entries"))
     q = _interpret_tables(o, kernels, utilities, σ, ev, Rational{BigInt};
                           max_states=max_states, atol=atol)
@@ -735,11 +744,19 @@ or carried by the context (a state `prior` from [`boundary_state`](@ref), an eff
 `continuation` from [`continuation_effect`](@ref)), the objective is the
 [`conditional_value`](@ref), the expected utility given all of the evidence, as
 `InfluenceDiagrams`' `ExhaustivePolicySearch` maximises it on a closed model with
-evidence. Every strategy, in the same order, is scored with `conditional_value` (with its
-exact fallback for a mass below binary64's normal range, ADR 0014); strategies under which
-the evidence has probability exactly zero are skipped, and if every strategy is,
-`ImpossibleEvidenceError` is raised. `brute_force` makes no difference there; the
-diagnostics are `(nstrategies, method = :conditional)`. When the evidence lies downstream
+evidence. By default one pass over the apex's joint states, with the decisions left free,
+builds value tables: for each joint state of the decisions' information and action
+variables, the evidence mass and the evidence-weighted value a strategy selecting it
+contributes, the state and the effect folded in as factors on the inputs and outputs. Each
+strategy, in the same order, is then scored by summing the cells it selects
+(`method = :conditional_value_table`). A strategy whose summed mass is below binary64's
+normal range is scored by `conditional_value` instead, with its exact fallback (ADR 0014),
+and if the pass computed a product of nonzero operands below `floatmin`, or met a
+tolerated negative entry with evidence, every strategy is (`exact_fallback = true`). With
+`brute_force = true` every strategy is scored by `conditional_value` through `interpret`
+(`method = :conditional`), the independent path the tests compare with. Strategies under
+which the evidence has probability exactly zero are skipped, and if every strategy is,
+`ImpossibleEvidenceError` is raised. When the evidence lies downstream
 of a decision, its probability depends on the strategy, and the conditional value is not
 the evidence-weighted value up to a constant. A state prior with zero reward and mass one
 within `atol`, or an effect continuation whose probability row is one within `atol`, counts
@@ -785,9 +802,9 @@ function contextual_optimize(o::OpenInfluenceDiagram, kernels::AbstractDict,
     ρ !== nothing && all(iszero, ρ) && abs(sum(ν) - 1) <= atol && (ρ = nothing)
     m !== nothing && all(x -> abs(x - 1) <= atol, m) && (m = nothing)
     if !isempty(ev) || ρ !== nothing || m !== nothing
-        return _conditional_search(o, kernels, utilities, ev, ν, ρ, m, c;
-                                   max_policies=max_policies, max_states=max_states,
-                                   atol=atol)
+        search = brute_force ? _conditional_search : _value_table_search
+        return search(o, kernels, utilities, ev, ν, ρ, m, c; max_policies=max_policies,
+                      max_states=max_states, atol=atol)
     end
     μ = ν
     if brute_force
@@ -821,12 +838,136 @@ function contextual_optimize(o::OpenInfluenceDiagram, m::InfluenceDiagramModel;
     return contextual_optimize(o, ks, us; evidence=ev, kw...)
 end
 
+# The value tables of the validated `o` under the checked evidence `ev`, between the checked
+# state `(ν, ρ)` and effect `(m, c)` (`nothing` for no reward upstream and mass one
+# downstream), for the conditional search (ADR 0021): one pass over the apex's joint states
+# with the decisions left free, accumulating into the joint state of the decisions'
+# information and action variables (`keep`, each once) the evidence mass `Z` and the
+# evidence-weighted value `N` of every apex state. Also whether a product of nonzero operands
+# fell below `floatmin` (`underflow`) and whether a mechanism table has a negative entry.
+function _conditional_tables(o::OpenInfluenceDiagram, kernels::AbstractDict,
+                             utilities::AbstractDict, ev::AbstractDict, ν, ρ, m, c;
+                             max_states::Integer, atol::Real)
+    id = apex(o)
+    in_ids, out_ids = input_variables(o), output_variables(o)
+    ids = collect(parts(id, :Variable))
+    n = prod(BigInt[nstates(id, v) for v in ids]; init=big(1))
+    n <= max_states || throw(ModelTooLargeError(Int(min(n, typemax(Int))), max_states))
+    pos = Dict{Int,Int}(v => i for (i, v) in enumerate(ids))
+    dims = Tuple(nstates(id, v) for v in ids)
+    factors = _factors(id, kernels, pos; atol=atol)
+    negative = any(f -> any(<(0), f.table), factors)
+    for v in ids
+        s = get(ev, variable_name(id, v), nothing)
+        s === nothing && continue
+        push!(factors, _Factor(_evidence_table(id, v, s), Int[pos[v]]))
+    end
+    us = _utility_factors(id, utilities, pos)
+    keep = Int[]
+    for d in parts(id, :Decision), v in vcat(decision_information(id, d),
+                                             decision_variable(id, d))
+        v in keep || push!(keep, v)
+    end
+    Z = zeros(Float64, Tuple(nstates(id, v) for v in keep))
+    N = zeros(Float64, size(Z))
+    in_lin = LinearIndices(Tuple(nstates(id, v) for v in in_ids))
+    out_lin = LinearIndices(Tuple(nstates(id, v) for v in out_ids))
+    underflow = false
+    # A product of nonzero operands below `floatmin` is not trusted (ADR 0014).
+    function mul(a, b)
+        r = a * b
+        !iszero(a) && !iszero(b) && (iszero(r) || abs(r) < floatmin(Float64)) &&
+            (underflow = true)
+        return r
+    end
+    for ci in CartesianIndices(dims)
+        p = _product(factors, ci)
+        if p == 0
+            underflow |= all(f -> !iszero(_value(f, ci)), factors)
+            continue
+        end
+        underflow |= abs(p) < floatmin(Float64)
+        x = in_lin[ntuple(j -> ci[pos[in_ids[j]]], length(in_ids))...]
+        y = out_lin[ntuple(j -> ci[pos[out_ids[j]]], length(out_ids))...]
+        u = 0.0
+        for f in us
+            u += _value(f, ci)
+        end
+        my = m === nothing ? 1.0 : m[y]
+        pν = mul(p, ν[x])
+        k = ntuple(j -> ci[pos[keep[j]]], length(keep))
+        Z[k...] += mul(pν, my)
+        N[k...] += (ρ === nothing ? 0.0 : mul(mul(p, ρ[x]), my)) +
+                   mul(pν, mul(u, my) + c[y])
+    end
+    return (Z=Z, N=N, keep=keep, underflow=underflow, negative=negative)
+end
+
+# The conditional search by value tables (ADR 0021): each strategy, in the order of
+# `all_deterministic_strategies`, scored by the cells of `_conditional_tables` it selects.
+function _value_table_search(o::OpenInfluenceDiagram, kernels::AbstractDict,
+                             utilities::AbstractDict, ev::AbstractDict, ν, ρ, m, c;
+                             max_policies::Integer, max_states::Integer, atol::Real)
+    id = apex(o)
+    total = n_deterministic_strategies(id)
+    total <= max_policies || throw(PolicySearchTooLargeError(total, max_policies))
+    t = _conditional_tables(o, kernels, utilities, ev, ν, ρ, m, c; max_states=max_states,
+                            atol=atol)
+    if t.underflow || (t.negative && !isempty(ev))
+        sol = _conditional_search(o, kernels, utilities, ev, ν, ρ, m, c;
+                                  max_policies=max_policies, max_states=max_states,
+                                  atol=atol)
+        return DecisionSolution(sol.expected_utility, sol.strategy,
+                                merge(sol.diagnostics, (exact_fallback=true,)))
+    end
+    kpos = Dict{Int,Int}(v => i for (i, v) in enumerate(t.keep))
+    decisions = collect(parts(id, :Decision))
+    info_pos = [Int[kpos[v] for v in decision_information(id, d)] for d in decisions]
+    act_pos = [kpos[decision_variable(id, d)] for d in decisions]
+    act_index = [Dict(l => i for (i, l) in enumerate(axis(id, decision_variable(id, d)).labels))
+                 for d in decisions]
+    best, best_strategy = -Inf, nothing
+    for σ in all_deterministic_strategies(id)
+        tabs = [map(a -> act_index[i][a], policy_table(σ[decision_name(id, d)]))
+                for (i, d) in enumerate(decisions)]
+        Zs = Ns = 0.0
+        for k in CartesianIndices(t.Z)
+            ok = true
+            for i in eachindex(decisions)
+                if tabs[i][ntuple(j -> k[info_pos[i][j]], length(info_pos[i]))...] !=
+                   k[act_pos[i]]
+                    ok = false
+                    break
+                end
+            end
+            ok || continue
+            Zs += t.Z[k]
+            Ns += t.N[k]
+        end
+        iszero(Zs) && continue
+        v = _trusted_mass(Zs) ? Ns / Zs :
+            try
+                _conditional_value(o, kernels, utilities, σ, ev, ν, ρ, m, c;
+                                   max_states=max_states, atol=atol)
+            catch e
+                e isa ImpossibleEvidenceError || rethrow()
+                continue
+            end
+        if best_strategy === nothing || v > best
+            best, best_strategy = v, σ
+        end
+    end
+    best_strategy === nothing && throw(ImpossibleEvidenceError(_hard(ev)))
+    return DecisionSolution(best, best_strategy,
+                            (nstrategies=Int(total), method=:conditional_value_table))
+end
+
 # The strategy of the validated `o` with the best conditional value between the checked
 # state `(ν, ρ)` and effect `(m, c)`, under the checked evidence `ev`: each strategy in the
 # order of `all_deterministic_strategies`, the first maximum, strategies of exactly zero
 # evidence mass skipped (ADR 0021).
 function _conditional_search(o::OpenInfluenceDiagram, kernels::AbstractDict,
-                             utilities::AbstractDict, ev::Dict{Symbol,Symbol}, ν, ρ, m, c;
+                             utilities::AbstractDict, ev::AbstractDict, ν, ρ, m, c;
                              max_policies::Integer, max_states::Integer, atol::Real)
     id = apex(o)
     total = n_deterministic_strategies(id)
@@ -844,7 +985,7 @@ function _conditional_search(o::OpenInfluenceDiagram, kernels::AbstractDict,
             best, best_strategy = v, σ
         end
     end
-    best_strategy === nothing && throw(ImpossibleEvidenceError(copy(ev)))
+    best_strategy === nothing && throw(ImpossibleEvidenceError(_hard(ev)))
     return DecisionSolution(best, best_strategy,
                             (nstrategies=Int(total), method=:conditional))
 end

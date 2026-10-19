@@ -46,8 +46,9 @@ expectation semiring on each side:
   boundary.
 - For the syntax, a likelihood on the values of the generators, keyed by label as
   strategies are, weights the sum-product interpretation (`interpretE`). Weighting is
-  functorial under serial composition (`interpretE_comp`), and the constant likelihood one
-  gives back `interpret` (`interpretE_one`). Hard evidence is the indicator likelihood.
+  functorial under serial composition (`interpretE_comp`) and tensor (`interpretE_tensor`),
+  and the constant likelihood one gives back `interpret` (`interpretE_one`). Hard evidence
+  is the indicator likelihood.
 -/
 
 set_option autoImplicit false
@@ -294,7 +295,7 @@ namespace IDInterpretation
 open OpenNet
 
 variable {S : IDSignature} (M : IDInterpretation S) (σ : M.Strategy)
-variable {X Y Z : S.Iface}
+variable {X Y Z X' Y' : S.Iface}
 
 /-- A likelihood on the values of generators, keyed by label as strategies are. Hard
 evidence that a generator takes the value `s` is the indicator of `s`. -/
@@ -393,6 +394,88 @@ theorem interpretE_comp (f : IDNet X Y) (g : IDNet Y Z) :
   ext1
   · exact M.kernelE_comp σ ev f g
   · exact M.rewardTableE_comp σ ev f g
+
+theorem lik_tensor (f : IDNet X Y) (g : IDNet X' Y') (a : (M.interp σ).Internal f.net)
+    (b : (M.interp σ).Internal g.net) :
+    M.lik σ ev (f.tensor g) ((M.interp σ).combine f.net g.net a b) =
+      M.lik σ ev f a * M.lik σ ev g b := by
+  unfold lik
+  erw [Fintype.prod_sum_type]
+  rfl
+
+theorem kernelE_tensor (f : IDNet X Y) (g : IDNet X' Y') (x : (M.interp σ).Boundary X)
+    (x' : (M.interp σ).Boundary X') (y : (M.interp σ).Boundary Y)
+    (y' : (M.interp σ).Boundary Y') :
+    M.kernelE σ ev (f.tensor g) (Interpretation.Assignment.join _ x x')
+        (Interpretation.Assignment.join _ y y') =
+      M.kernelE σ ev f x y * M.kernelE σ ev g x' y' := by
+  unfold kernelE
+  rw [Finset.sum_mul_sum]
+  change (∑ z : (M.interp σ).Internal (f.net.tensor g.net),
+      if Interpretation.Assignment.join _ y y' =
+          (M.interp σ).read (f.net.tensor g.net) (Interpretation.Assignment.join _ x x') z then
+        (M.interp σ).joint (f.net.tensor g.net) (Interpretation.Assignment.join _ x x') z *
+          M.lik σ ev (f.tensor g) z else 0) = _
+  erw [← ((M.interp σ).sumLabelsEquiv f.net.label g.net.label).symm.sum_comp]
+  rw [Fintype.sum_prod_type]
+  apply Finset.sum_congr rfl
+  intro a _
+  apply Finset.sum_congr rfl
+  intro b _
+  have hr := (M.interp σ).read_tensor f.net g.net x x' a b
+  have hj := (M.interp σ).joint_tensor f.net g.net x x' a b
+  have hl := M.lik_tensor σ ev f g a b
+  simp only [Interpretation.combine] at hr hj hl
+  rw [hr, hj, hl]
+  by_cases h₁ : y = (M.interp σ).read f.net x a <;>
+    by_cases h₂ : y' = (M.interp σ).read g.net x' b <;>
+      simp [Interpretation.Assignment.join_injective, h₁, h₂]
+  ring
+
+theorem rewardTableE_tensor (f : IDNet X Y) (g : IDNet X' Y') (x : (M.interp σ).Boundary X)
+    (x' : (M.interp σ).Boundary X') (y : (M.interp σ).Boundary Y)
+    (y' : (M.interp σ).Boundary Y') :
+    M.rewardTableE σ ev (f.tensor g) (Interpretation.Assignment.join _ x x')
+        (Interpretation.Assignment.join _ y y') =
+      M.rewardTableE σ ev f x y * M.kernelE σ ev g x' y' +
+        M.kernelE σ ev f x y * M.rewardTableE σ ev g x' y' := by
+  unfold rewardTableE kernelE
+  rw [Finset.sum_mul_sum, Finset.sum_mul_sum, ← Finset.sum_add_distrib]
+  change (∑ z : (M.interp σ).Internal (f.net.tensor g.net),
+      if Interpretation.Assignment.join _ y y' =
+          (M.interp σ).read (f.net.tensor g.net) (Interpretation.Assignment.join _ x x') z then
+        (M.interp σ).joint (f.net.tensor g.net) (Interpretation.Assignment.join _ x x') z *
+          M.lik σ ev (f.tensor g) z *
+            M.reward σ (f.tensor g) (Interpretation.Assignment.join _ x x') z else 0) = _
+  erw [← ((M.interp σ).sumLabelsEquiv f.net.label g.net.label).symm.sum_comp]
+  rw [Fintype.sum_prod_type]
+  apply Finset.sum_congr rfl
+  intro a _
+  rw [← Finset.sum_add_distrib]
+  apply Finset.sum_congr rfl
+  intro b _
+  have hr := (M.interp σ).read_tensor f.net g.net x x' a b
+  have hj := (M.interp σ).joint_tensor f.net g.net x x' a b
+  have hl := M.lik_tensor σ ev f g a b
+  have hw := M.reward_tensor σ f g x x' a b
+  simp only [Interpretation.combine] at hr hj hl hw
+  rw [hr, hj, hl, hw]
+  by_cases h₁ : y = (M.interp σ).read f.net x a <;>
+    by_cases h₂ : y' = (M.interp σ).read g.net x' b <;>
+      simp [Interpretation.Assignment.join_injective, h₁, h₂]
+  ring
+
+/-- **Evidence composes in parallel**: read through the canonical bijections between
+assignments of a disjoint-union interface and pairs of assignments, the evidence-weighted
+interpretation of a tensor is the tensor of the evidence-weighted interpretations. -/
+theorem interpretE_tensor (f : IDNet X Y) (g : IDNet X' Y') :
+    (M.interpretE σ ev (f.tensor g)).reindex (M.join σ X X') (M.join σ Y Y') =
+      (M.interpretE σ ev f).tensor (M.interpretE σ ev g) := by
+  ext1
+  · funext p q
+    exact M.kernelE_tensor σ ev f g p.1 p.2 q.1 q.2
+  · funext p q
+    exact M.rewardTableE_tensor σ ev f g p.1 p.2 q.1 q.2
 
 /-- With the likelihood one everywhere, there is no evidence. -/
 theorem interpretE_one (f : IDNet X Y) :

@@ -62,7 +62,7 @@ end
 function _component_evidence(components::AbstractVector{<:OpenInfluenceDiagram}, evidence)
     evidence === nothing && return [nothing for _ in components]
     ev = _evidence(_chain_composite(components, false), evidence)
-    return [Dict{Symbol,Symbol}(x => s for (x, s) in ev if has_variable(apex(o), x))
+    return [_Evidence(x => s for (x, s) in ev if has_variable(apex(o), x))
             for o in components]
 end
 
@@ -175,8 +175,9 @@ end
 
 """
     regrets(components, kernels, utilities, σ::Strategy; prior = nothing,
-            continuation = nothing, evidence = nothing, no_forgetting = true,
-            max_policies = 1_000_000, max_states, atol) -> Vector{Float64}
+            continuation = nothing, evidence = nothing, perfect = false,
+            no_forgetting = true, max_policies = 1_000_000, max_states,
+            atol) -> Vector{Float64}
 
 For each component of the chain, how much more it could earn in its context
 ([`component_contexts`](@ref)) by changing its own part of `σ` alone: the optimum of
@@ -195,25 +196,58 @@ values ([`conditional_value`](@ref)), the expected utility given all of the evid
 each regret is the gain in the whole chain's conditional value from the component's
 unilateral change. A strategy under which the evidence is impossible has no conditional
 value (`ImpossibleEvidenceError`).
+
+With `perfect = true` each regret is the largest gain over the component's joint input
+states: for each input state `x`, the best response's value from `x` against the
+component's continuation, less the current strategy's value from `x`, maximised over `x`.
+It is zero exactly when the component's strategy is optimal from every input state,
+including states the chain never reaches, which rules out equilibria sustained by choices
+there (subgame perfection; the Lean module `Perfection`, `threat_perfect_iff`). A perfect
+regret is at least the ordinary one. It is meaningful when the component's decisions
+observe its inputs: a policy cannot depend on a hidden input, so a component with one may
+have no strategy optimal from every input state, and then every perfect regret it has is
+positive. Perfect regrets take no evidence (`ArgumentError`).
 """
 function regrets(components::AbstractVector{<:OpenInfluenceDiagram}, kernels::AbstractDict,
                  utilities::AbstractDict, σ::Strategy; prior=nothing, continuation=nothing,
-                 evidence=nothing, no_forgetting::Bool=true,
+                 evidence=nothing, perfect::Bool=false, no_forgetting::Bool=true,
                  max_policies::Integer=1_000_000, atol::Real=DEFAULT_ATOL,
                  max_states::Integer=DEFAULT_MAX_STATES)
+    conditional = _conditional_mode(evidence, prior, continuation)
+    perfect && conditional &&
+        throw(ArgumentError("perfect regrets take no evidence and no state or effect context"))
     names = _check_chain(components, no_forgetting)
     evs = _component_evidence(components, evidence)
-    conditional = _conditional_mode(evidence, prior, continuation)
     rs = [interpret(o, kernels, utilities, _restrict(σ, ds); evidence=e, atol=atol,
                     max_states=max_states)
           for (o, ds, e) in zip(components, names, evs)]
     ctx = _chain_contexts(rs, prior, continuation, atol; conditional=conditional)
+    perfect && return [isempty(names[i]) ? 0.0 :
+                       _perfect_regret(components[i], rs[i], kernels, utilities,
+                                       ctx[i].continuation; max_policies=max_policies,
+                                       atol=atol, max_states=max_states)
+                       for i in eachindex(components)]
     return [isempty(names[i]) ? 0.0 :
             _best_response(components[i], kernels, utilities, ctx[i], evs[i];
                            max_policies=max_policies, atol=atol,
                            max_states=max_states).expected_utility -
             _context_value(rs[i], ctx[i], conditional, atol)
             for i in eachindex(components)]
+end
+
+# The perfect regret of component `o` (reward kernel `r`) with continuation `c`: the largest
+# gain, over its joint input states `x`, of a best response from `x` over the current value
+# from `x`.
+function _perfect_regret(o::OpenInfluenceDiagram, r::RewardKernel, kernels::AbstractDict,
+                         utilities::AbstractDict, c; kw...)
+    current = continuation_value(r; continuation=c)
+    n = length(current)
+    return maximum(1:n) do x
+        δ = zeros(n)
+        δ[x] = 1.0
+        contextual_optimize(o, kernels, utilities; prior=δ, continuation=c,
+                            kw...).expected_utility - current[x]
+    end
 end
 
 # A component's value in its context: the conditional value given evidence, the
@@ -234,7 +268,8 @@ end
 
 Whether `σ` is an equilibrium of the chain (ADR 0020): every component's part of `σ` is a
 best response in its context, that is every one of [`regrets`](@ref) is at most `tol`. The
-other keywords are those of `regrets`.
+other keywords are those of `regrets`; with `perfect = true` it asks for a perfect
+equilibrium, every component optimal from every input state.
 
 An equilibrium need not be optimal: two components can each be best responding to the other
 while a joint change would do better. The global optimum of the closed composite, from

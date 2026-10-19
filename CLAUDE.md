@@ -44,15 +44,19 @@ export `is_isomorphic`, `validate` and `to_graphviz`, and the parents' bindings 
   interface order, outputs first, joint states with the first variable fastest, apex
   variables enumerated by part id, inputs held fixed (they have no mechanism). Kernels are
   keyed by `KernelRef` or target name as there; utilities by utility name or `utility_ref`.
-  Policies are matched by decision name (equally named decisions share one), must be
-  `DeterministicPolicy` or `ConstantPolicy` (a `StochasticPolicy` is an `ArgumentError`:
-  ADR 0018 decision 4 keeps behavioural policies out of the first release), and a decision
+  Policies are matched by decision name (equally named decisions share one), may be
+  `DeterministicPolicy`, `ConstantPolicy` or `StochasticPolicy` (a behavioural policy, ADR
+  0022: its table is a factor like any other; reward certificates still refuse one), and a
+  decision
   reading an observed input reads the input's state directly. `merge_strategies` is the
   disjoint union and raises `DuplicatePolicyError` on a name in two strategies.
-- Evidence (ADR 0021): `interpret(...; evidence)` takes hard evidence on any apex variable,
-  inputs and outputs included (`_evidence`: `UnknownVariableError`, `UnknownStateError`,
-  `EvidenceOnActionError`, two states for one name an `ArgumentError`), as one indicator
-  factor per observed variable, and returns a substochastic reward kernel built with
+- Evidence (ADR 0021): `interpret(...; evidence)` takes hard evidence (`:X => :x`) or
+  likelihood evidence (`:X => [λ...]`, entries in `[0, 1]`) on any apex variable, inputs and
+  outputs included (`_evidence` returns an `_Evidence` dictionary: `UnknownVariableError`,
+  `UnknownStateError`, `EvidenceOnActionError`, a bad likelihood or two different
+  observations of one name an `ArgumentError`), as one indicator or likelihood factor per
+  observed variable; the ADR 0014 errors get `_hard(ev)`, since their field holds states,
+  and `optimize` on a closed composite refuses likelihoods, and returns a substochastic reward kernel built with
   `check = false`; nothing is ever normalised. Model forms use the model's evidence joined
   with the keyword's (`_model_tables(m, extra)`). The table enumeration is
   `_interpret_tables(..., conv)`, generic over the arithmetic (`identity` for binary64,
@@ -72,8 +76,13 @@ export `is_isomorphic`, `validate` and `to_graphviz`, and the parents' bindings 
   `IndeterminatePosteriorError` with tolerated negative entries and evidence). The
   reward-kernel form decides on its own tables; the diagram forms recompute from the model.
   `contextual_optimize` with evidence or a context that carries mass or reward runs
-  `_conditional_search` (every strategy through `_conditional_value`, exact zeros skipped,
-  `method = :conditional`), never `DecisionContext`, whose semantics conditions on the
+  `_value_table_search` (`_conditional_tables`: one pass with the decisions free, cells over
+  the decisions' information and action variables; per strategy the selected cells summed;
+  `method = :conditional_value_table`; an untrusted strategy mass goes through
+  `_conditional_value`, an untrusted pass to `_conditional_search` with
+  `exact_fallback = true`), or with `brute_force = true` `_conditional_search` (every
+  strategy through `_conditional_value`, exact zeros skipped, `method = :conditional`),
+  never `DecisionContext`, whose semantics conditions on the
   prior's states rather than on the evidence. Reward certificates still refuse evidence.
 - The feet are `VariableSpace`s, the same ACSets as CategoricalBayesianNetworks' feet. Never
   add observability to the feet schema: it lives beside the cospan in `OpenInfluenceDiagram`
@@ -258,6 +267,9 @@ influence-diagram schema); later loads are fast.
   response is taken in the context the rest of the chain induces, and the result is
   documented as an equilibrium, which can be worse than `optimize`'s optimum (the Lean
   coordination witness, 1 < 2).
+- `proofs/.../Certificate/Fast.lean`: the checker's result stages accumulate a row of `K`
+  and `W` per input state in one pass (`accRow`), proved equal to the cell-by-cell errors
+  (`kErrorFast_eq`); keep `check` on the fast errors and `Accepted` on the slow ones.
 - `src/certificates.jl` (ADR 0019): `export_reward_certificate(o, kernels, utilities, σ;
   numeric_mode, exact_tables, description, max_entries)` and the model form, writing
   `OpenInfluence.RewardCertificate/v1`. The format section of the workspace plan
@@ -323,6 +335,9 @@ influence-diagram schema); later loads are fast.
   under both bracketings, contextual and closed optimisation given evidence against the
   exhaustive search, equilibria given evidence against brute-force unilateral gains, the
   Lean local-normalisation witness, ADR 0014's underflow and exact-zero cases, errors),
+  `test_behaviour.jl` (ADR 0022: behavioural strategies against the oracle, functorial on
+  random three-piece chains, never better than the deterministic optimum with or without
+  evidence, regrets and best-response dynamics from a behavioural start),
   `test_certificates.jl` (reward certificates: the umbrella
   split's cells by hand; every cell re-derived from `cpt`, `utility_value`, the policies
   and `kernel_matrix`/`reward_matrix` on the fixtures, the oil wildcatter's strategies and
@@ -348,16 +363,17 @@ normalised), `Syntax` (`IDNet`: ADR 0010's open nets with decision labels and ut
 generators), `Interpretation` (`interpret_comp`, `interpret_identity`, `interpret_tensor`),
 `Obstruction` (the isolated and hidden-input witnesses, as reward-kernel tables),
 `Lens` (ADR 0020: the lens of a reward kernel, open games with decision, identity and
-serial composition, equilibria compositional, optima equilibria, the coordination witness)
+serial composition, equilibria compositional, optima equilibria, the coordination witness), `Perfection` (perfect decision games, backward induction, the threat witness; Julia `regrets(...; perfect = true)` takes the largest pointwise gain over a component's input states), `GameTensor` (the tensor of games: exact for product priors, `tensor_decision_eq_iff`; no factor context for correlated priors, `correlated_no_factor_context`)
+`Behaviour` (ADR 0022: behavioural strategies, their interpretation functorial, mixtures
+never better than the best component with or without evidence, the absent-minded driver)
 and `Evidence` (ADR 0021: effects and states, their actions functorial without
 normalisation, the mass and value pairings invariant across a boundary, observation
 idempotent, the local-normalisation witness, the likelihood-weighted interpretation
-functorial under serial composition). The
+functorial under serial composition and tensor). The
 restrictions in `proofs/README.md` ("Scope and restrictions") are part of every claim:
 `IDNet` is not quotiented by isomorphism, so functoriality is equations on
 representatives; the semantics does not read observability flags; nothing about arbitrary
-gluing, the tensor of evidence-weighted interpretations or the Julia-to-Lean refinement is
-proved. Every theorem sentence in
+gluing or the Julia-to-Lean refinement is proved. Every theorem sentence in
 `proofs/README.md` is an SA-Pass claim (`cid.*` in the workspace
 `conformance/sapass/claims.toml`, shadows in `CategoricalInfluenceDiagramsProofs/Shadows/`,
 a `lean_lib` outside `defaultTargets`); change a sentence and its claim together. `make audit` checks every

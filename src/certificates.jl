@@ -371,7 +371,8 @@ Errors:
   those of `interpret`
   (among them `MissingKernelError`, `KernelBindingError`, `MissingUtilityError`,
   `UtilityScopeError`, `IncompleteStrategyError`, `PolicySignatureError`,
-  `ModelTooLargeError`, and `ArgumentError` for a `StochasticPolicy`);
+  `ModelTooLargeError`), and a `StochasticPolicy` raises `ArgumentError`, since the format
+  records deterministic policies;
 - what the format cannot record raises [`RewardCertificateError`](@ref) with a code:
   `:unset_reference`, `:unsupported_reference`, `:policy_reference_on_chance`,
   `:inconsistent_decision`, `:too_many_entries` (more than `max_entries` cells in all,
@@ -401,6 +402,11 @@ function export_reward_certificate(o::OpenInfluenceDiagram, kernels::AbstractDic
     _reward_budget(o, firsts, max_entries)
     used = Set{Tuple{Symbol,Int,Tuple{Vararg{Int}}}}()
     utility_records = _reward_utilities(id, utilities, dense, companions, used)
+    # The format records deterministic policies; a behavioural one (ADR 0022) is refused.
+    for d in unique(decision_names(apex(o)))
+        haskey(σ, d) && σ[d] isa StochasticPolicy &&
+            throw(ArgumentError("export_reward_certificate: the policy of decision :$d is a StochasticPolicy; reward certificates record deterministic policies only"))
+    end
     r = interpret(o, kernels, utilities, σ)
     chance_tables = _reward_chance_tables(id, kernels, companions, used)
     if companions !== nothing
