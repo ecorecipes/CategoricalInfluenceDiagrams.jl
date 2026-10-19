@@ -188,6 +188,48 @@ assert_no_sorry OpenInfluence.Coordination.coordination_equilibrium_not_optimal
 assert_no_sorry OpenInfluence.Obstruction.early_normalised
 assert_no_sorry OpenInfluence.Obstruction.game
 assert_no_sorry OpenInfluence.Obstruction.obstruction_eq_iff
+assert_no_sorry OpenInfluence.RewardKernel.Effect
+assert_no_sorry OpenInfluence.RewardKernel.State
+assert_no_sorry OpenInfluence.RewardKernel.Effect.ofValue
+assert_no_sorry OpenInfluence.RewardKernel.State.ofPrior
+assert_no_sorry OpenInfluence.RewardKernel.pull
+assert_no_sorry OpenInfluence.RewardKernel.push
+assert_no_sorry OpenInfluence.RewardKernel.mass
+assert_no_sorry OpenInfluence.RewardKernel.value
+assert_no_sorry OpenInfluence.RewardKernel.conditionalValue
+assert_no_sorry OpenInfluence.RewardKernel.pull_comp
+assert_no_sorry OpenInfluence.RewardKernel.push_comp
+assert_no_sorry OpenInfluence.RewardKernel.pull_id
+assert_no_sorry OpenInfluence.RewardKernel.push_id
+assert_no_sorry OpenInfluence.RewardKernel.mass_push
+assert_no_sorry OpenInfluence.RewardKernel.value_push
+assert_no_sorry OpenInfluence.RewardKernel.mass_comp
+assert_no_sorry OpenInfluence.RewardKernel.conditionalValue_comp
+assert_no_sorry OpenInfluence.RewardKernel.value_ofPrior
+assert_no_sorry OpenInfluence.RewardKernel.pull_ofValue
+assert_no_sorry OpenInfluence.RewardKernel.eu_comp_pull
+assert_no_sorry OpenInfluence.RewardKernel.observe
+assert_no_sorry OpenInfluence.RewardKernel.observe_comp_observe
+assert_no_sorry OpenInfluence.RewardKernel.observe_idem
+assert_no_sorry OpenInfluence.RewardKernel.observe_comm
+assert_no_sorry OpenInfluence.LocalNormalisation.normalise
+assert_no_sorry OpenInfluence.LocalNormalisation.prior
+assert_no_sorry OpenInfluence.LocalNormalisation.evidence
+assert_no_sorry OpenInfluence.LocalNormalisation.start
+assert_no_sorry OpenInfluence.LocalNormalisation.finish
+assert_no_sorry OpenInfluence.LocalNormalisation.composite_conditionalValue
+assert_no_sorry OpenInfluence.LocalNormalisation.normalised_conditionalValue
+assert_no_sorry OpenInfluence.LocalNormalisation.local_normalisation_obstruction
+assert_no_sorry OpenInfluence.IDInterpretation.Likelihood
+assert_no_sorry OpenInfluence.IDInterpretation.lik
+assert_no_sorry OpenInfluence.IDInterpretation.kernelE
+assert_no_sorry OpenInfluence.IDInterpretation.rewardTableE
+assert_no_sorry OpenInfluence.IDInterpretation.interpretE
+assert_no_sorry OpenInfluence.IDInterpretation.lik_comp
+assert_no_sorry OpenInfluence.IDInterpretation.kernelE_comp
+assert_no_sorry OpenInfluence.IDInterpretation.rewardTableE_comp
+assert_no_sorry OpenInfluence.IDInterpretation.interpretE_comp
+assert_no_sorry OpenInfluence.IDInterpretation.interpretE_one
 assert_no_sorry OpenInfluence.RewardCertificate.Json.constant_eq_ok
 assert_no_sorry OpenInfluence.RewardCertificate.Json.decodeFlag_eq_ok
 assert_no_sorry OpenInfluence.RewardCertificate.Json.decodeMode_eq_ok
@@ -463,6 +505,48 @@ assert_no_sorry OpenInfluence.RewardCertificate.Certificate.cast_val
 #print axioms OpenInfluence.Obstruction.early_normalised
 #print axioms OpenInfluence.Obstruction.game
 #print axioms OpenInfluence.Obstruction.obstruction_eq_iff
+#print axioms OpenInfluence.RewardKernel.Effect
+#print axioms OpenInfluence.RewardKernel.State
+#print axioms OpenInfluence.RewardKernel.Effect.ofValue
+#print axioms OpenInfluence.RewardKernel.State.ofPrior
+#print axioms OpenInfluence.RewardKernel.pull
+#print axioms OpenInfluence.RewardKernel.push
+#print axioms OpenInfluence.RewardKernel.mass
+#print axioms OpenInfluence.RewardKernel.value
+#print axioms OpenInfluence.RewardKernel.conditionalValue
+#print axioms OpenInfluence.RewardKernel.pull_comp
+#print axioms OpenInfluence.RewardKernel.push_comp
+#print axioms OpenInfluence.RewardKernel.pull_id
+#print axioms OpenInfluence.RewardKernel.push_id
+#print axioms OpenInfluence.RewardKernel.mass_push
+#print axioms OpenInfluence.RewardKernel.value_push
+#print axioms OpenInfluence.RewardKernel.mass_comp
+#print axioms OpenInfluence.RewardKernel.conditionalValue_comp
+#print axioms OpenInfluence.RewardKernel.value_ofPrior
+#print axioms OpenInfluence.RewardKernel.pull_ofValue
+#print axioms OpenInfluence.RewardKernel.eu_comp_pull
+#print axioms OpenInfluence.RewardKernel.observe
+#print axioms OpenInfluence.RewardKernel.observe_comp_observe
+#print axioms OpenInfluence.RewardKernel.observe_idem
+#print axioms OpenInfluence.RewardKernel.observe_comm
+#print axioms OpenInfluence.LocalNormalisation.normalise
+#print axioms OpenInfluence.LocalNormalisation.prior
+#print axioms OpenInfluence.LocalNormalisation.evidence
+#print axioms OpenInfluence.LocalNormalisation.start
+#print axioms OpenInfluence.LocalNormalisation.finish
+#print axioms OpenInfluence.LocalNormalisation.composite_conditionalValue
+#print axioms OpenInfluence.LocalNormalisation.normalised_conditionalValue
+#print axioms OpenInfluence.LocalNormalisation.local_normalisation_obstruction
+#print axioms OpenInfluence.IDInterpretation.Likelihood
+#print axioms OpenInfluence.IDInterpretation.lik
+#print axioms OpenInfluence.IDInterpretation.kernelE
+#print axioms OpenInfluence.IDInterpretation.rewardTableE
+#print axioms OpenInfluence.IDInterpretation.interpretE
+#print axioms OpenInfluence.IDInterpretation.lik_comp
+#print axioms OpenInfluence.IDInterpretation.kernelE_comp
+#print axioms OpenInfluence.IDInterpretation.rewardTableE_comp
+#print axioms OpenInfluence.IDInterpretation.interpretE_comp
+#print axioms OpenInfluence.IDInterpretation.interpretE_one
 #print axioms OpenInfluence.RewardCertificate.Json.constant_eq_ok
 #print axioms OpenInfluence.RewardCertificate.Json.decodeFlag_eq_ok
 #print axioms OpenInfluence.RewardCertificate.Json.decodeMode_eq_ok

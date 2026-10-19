@@ -70,10 +70,20 @@ which stays free of Catlab. The design is the workspace's ADR 0018,
   context, and `best_response_dynamics` improves one component at a time until none can
   gain. An equilibrium is what composes; it can be worth less than the optimum, which
   `optimize` on the closed composite finds.
+- Evidence across a boundary (ADR 0021): `interpret(...; evidence)` conditions a component
+  on hard evidence, which gives a substochastic reward kernel that composes as any other.
+  The contexts then carry the evidence mass: `boundary_state` pushes forward a state (the
+  unnormalised law and the reward earned so far), `continuation_effect` pulls back an
+  effect (the probability of the evidence still to come and the value downstream), and
+  `evidence_mass` and `conditional_value` (the expected utility given the evidence) are the
+  same at every cut of a chain. `contextual_optimize`, `optimize` on a closed composite and
+  the equilibrium functions take `evidence` and maximise the conditional value; a mass
+  below binary64's normal range is resolved exactly, as ADR 0014 requires. Normalising each
+  component on its own evidence is not sound, and the test suite reproduces the Lean
+  witness.
 - Every name of `CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl` is re-exported.
 
-Randomised (behavioural) policies and evidence across a boundary are outside the first
-release.
+Randomised (behavioural) policies are outside the first release.
 
 ## Proofs
 
@@ -89,14 +99,19 @@ The Lean project in [`proofs/`](proofs/) builds on the proof projects of
 - For two decision games, a pair of strategies is an equilibrium of their serial composite exactly when neither component can raise the composite's expected utility by changing its own strategy alone.
 - Every strategy that maximises expected utility in a context is an equilibrium there, for every game built from decision games and identities by serial composition.
 - An equilibrium need not be optimal: in a witness of two decisions that must agree, the later not observing the earlier, an equilibrium is worth 1 where the optimum is 2.
+- Evidence composes: weighting the fixed-strategy interpretation of open influence diagrams by a likelihood on the values of the generators sends serial composition to composition of reward kernels, and the likelihood one gives back the unweighted interpretation.
+- Carrying the evidence mass, the backward action of reward kernels on effects and the forward action on states are functorial with no normalisation hypothesis, and the evidence mass and the evidence-weighted value of a state against an effect are the same on either side of a reward kernel.
+- Normalising each component on its own evidence before composing is not sound: with a uniform binary state worth 1 when true and evidence nine times likelier when it is true, the conditional value is 9/10, while the components normalised one by one give 1/2.
 
 The certificate result is about reward certificates (ADR 0019): `lake exe check_certificate`
 decodes a certificate written by `export_reward_certificate` and checks it, so Julia's
-numbers for a recorded diagram are checked against the Lean semantics. The last four are
-about lenses and open games (ADR 0020), over the reward-kernel semantics; the tensor of games
-is not defined. The syntax is not
+numbers for a recorded diagram are checked against the Lean semantics. The four after it
+are about lenses and open games (ADR 0020), over the reward-kernel semantics; the tensor of
+games is not defined. The last three are about evidence (ADR 0021): the evidence-weighted
+interpretation is proved functorial for serial composition, not for the tensor, and the
+binary64 rules of `conditional_value` are Julia's. The syntax is not
 quotiented by isomorphism, the semantics does not read observability flags, and nothing is
-proved about arbitrary gluing, evidence, or whether a Julia composite is the Lean composite
+proved about arbitrary gluing, or whether a Julia composite is the Lean composite
 of its parts; [`proofs/README.md`](proofs/README.md) lists every theorem and these
 restrictions.
 Each sentence above is checked against its Lean statement by the workspace's SA-Pass
@@ -181,6 +196,7 @@ contextual_optimize(decide, ks, bound_utilities(m); prior = ν).expected_utility
 | 2 | [Composing a management decision with a zoo network](https://github.com/ecorecipes/CategoricalInfluenceDiagrams.jl/blob/main/vignettes/02_management_decision_with_zoo_network/02_management_decision_with_zoo_network.md) | The zoo's reference habitat network opened at a boundary, a grazing decision and a valuation attached as components, the closed composite optimised, and the decision component optimised against the network's boundary law and value function |
 | 3 | [Why optimisation does not compose](https://github.com/ecorecipes/CategoricalInfluenceDiagrams.jl/blob/main/vignettes/03_why_optimisation_does_not_compose/03_why_optimisation_does_not_compose.md) | The isolated-optimisation counterexample (1 < 4), why it fails, the contextual repair, and why pointwise maximisation over hidden boundary states is refused by rule 3 |
 | 4 | [Two agencies: equilibria of a monitoring and a management decision](https://github.com/ecorecipes/CategoricalInfluenceDiagrams.jl/blob/main/vignettes/04_equilibria_of_two_agencies/04_equilibria_of_two_agencies.md) | A survey component inserted into the zoo network: the joint optimum surveys, the status quo of no survey is also an equilibrium, and which one separate revision reaches depends on who revises first (ADR 0020) |
+| 5 | [Evidence across a boundary](https://github.com/ecorecipes/CategoricalInfluenceDiagrams.jl/blob/main/vignettes/05_evidence_across_a_boundary/05_evidence_across_a_boundary.md) | Evidence held by one component of the zoo network's management chain: a wet year at the site changes the managers' best action, an absence found by the survey moves belief about the site's soil moisture, normalising a component on its own evidence loses it, and every cut gives the same conditional value (ADR 0021) |
 
 Each vignette is also published as a tutorial in the [documentation](https://ecorecipes.github.io/CategoricalInfluenceDiagrams.jl/);
 the sources are the `.qmd` files in [`vignettes/`](vignettes/).

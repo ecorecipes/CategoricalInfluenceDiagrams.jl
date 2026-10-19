@@ -51,11 +51,26 @@ Each sentence below is registered as an SA-Pass claim in `conformance/sapass/cla
     (`cid.game-coordination`)
 16. In the bundle's witness, the equilibria are exactly the strategies that take the early action, and each of them attains the joint optimum 4.
     (`cid.obstruction-equilibria`)
+17. Evidence composes: weighting the fixed-strategy interpretation of open influence diagrams by a likelihood on the values of the generators sends serial composition to composition of reward kernels, and the likelihood one gives back the unweighted interpretation.
+    (`cid.evidence-functor`)
+18. Carrying the evidence mass, the backward action of reward kernels on effects and the forward action on states are functorial with no normalisation hypothesis, and the evidence mass and the evidence-weighted value of a state against an effect are the same on either side of a reward kernel.
+    (`cid.evidence-lens`)
+19. For any two reward kernels, normalised or not, the composite's expected utility is the prefix's value against the suffix's effect, and the composite's conditional value, the evidence-weighted value divided by the evidence mass, is the conditional value of the prefix's pushed-forward state against the suffix's pulled-back effect.
+    (`cid.evidence-contextual`)
+20. Hard evidence on a boundary, the diagonal indicator with zero reward, is idempotent and commutes with other hard evidence.
+    (`cid.observe-idempotent`)
+21. Normalising each component on its own evidence before composing is not sound: with a uniform binary state worth 1 when true and evidence nine times likelier when it is true, the conditional value is 9/10, while the components normalised one by one give 1/2.
+    (`cid.local-normalisation`)
 
 Here `EU_f(μ, c) = Σ_x μ x Σ_y (W x y + K x y · c y)` for a boundary prior `μ` and a terminal
 continuation `c`; `c_g y = Σ_z (W_g y z + K_g y z · c z)` is the suffix's value function,
 `ν_f y = Σ_x μ x K_f x y` the boundary law induced by the prefix and
-`L_f = Σ_x μ x Σ_y W_f x y` the prefix's reward.
+`L_f = Σ_x μ x Σ_y W_f x y` the prefix's reward. An effect `(m, c)` on `Y` is the
+likelihood `m` of the evidence still to come and the evidence-weighted value `c` of what
+follows, pulled back by `(K, W)` to `(K m, W m + K c)`; a state `(ν, ρ)` on `X` is the
+unnormalised law `ν` of the evidence seen so far and the reward-weighted law `ρ`, pushed
+forward to `(ν K, ρ K + ν W)`. Their evidence mass is `Σ ν m`, their evidence-weighted
+value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
 
 ## Scope and restrictions
 
@@ -106,8 +121,21 @@ continuation `c`; `c_g y = Σ_z (W_g y z + K_g y z · c z)` is the suffix's valu
   semantics, like the obstructions; that Julia's `component_contexts`, `regrets` and
   `best_response_dynamics` compute these contexts and equilibria is checked by the test
   suite, not proved.
-- **Not proved:** a category of open influence diagrams with arbitrary gluing, evidence
-  composition, and optimisation of composites beyond the contextual identity. Reward
+- **Evidence** (ADR 0021; module `Evidence`). Hard evidence is the indicator likelihood
+  of a general likelihood on the values of generators, keyed by label as strategies are
+  (`IDInterpretation.Likelihood`); the evidence-weighted interpretation is not stochastic, so
+  it is a reward kernel but not a morphism of `FinRew`. Its functoriality is proved for
+  serial composition (`interpretE_comp`), not for the tensor. Evidence on an input of the
+  syntax, which has no generator, is the composition with `observe` on that boundary, so it is
+  covered at the level of reward kernels only. The conditional value is a real quotient: it
+  is `0` when the evidence mass is `0` (Lean's division), and nothing is claimed about that
+  case; Julia raises `ImpossibleEvidenceError` instead. ADR 0014's binary64 rules (trusted
+  masses, exact fallback, tolerated negative entries) are Julia's, not proved. That Julia's
+  `boundary_state`, `continuation_effect`, `evidence_mass` and `conditional_value` compute
+  these quantities is checked by the test suite against the closed-composite oracle.
+- **Not proved:** a category of open influence diagrams with arbitrary gluing, the tensor of
+  evidence-weighted interpretations, and optimisation of composites beyond the contextual
+  identity. Reward
   certificates check Julia's numbers for the diagram a certificate records against
   `interpret`, but that the recorded diagram is the Julia composite of its parts, the
   refinement of Julia's composition operations (ADR 0018, decision 6), is still unproved.
@@ -154,6 +182,12 @@ continuation `c`; `c_g y = Σ_z (W_g y z + K_g y z · c z)` is the suffix's valu
 | `Game.Sound`, `decision_sound`, `idGame_sound`, `seq_sound` | Maximisers are equilibria, for decision and identity games and serial composites of such games |
 | `Coordination.first`, `second`, `payoff`, `game`, `composite_eu`, `game_eq_iff`, `coordination_equilibrium_not_optimal` | Two decisions that must agree, the later blind to the earlier: equilibria worth 1 and 2, optimum 2 |
 | `Obstruction.early_normalised`, `Obstruction.game`, `obstruction_eq_iff` | In the obstruction witness the equilibria are exactly the strategies taking the early action |
+| `RewardKernel.Effect`, `State`, `Effect.ofValue`, `State.ofPrior`, `pull`, `push`, `mass`, `value`, `conditionalValue` | Effects `(m, c)` and states `(ν, ρ)`, the backward and forward actions of a reward kernel, and the evidence mass, evidence-weighted value and conditional value of a state against an effect |
+| `RewardKernel.pull_comp`, `push_comp`, `pull_id`, `push_id`, `mass_push`, `value_push` | Both actions are functorial with no normalisation hypothesis; the pairing is the same on either side of a reward kernel |
+| `RewardKernel.mass_comp`, `conditionalValue_comp`, `value_ofPrior`, `pull_ofValue`, `eu_comp_pull` | The composite's evidence mass is the pairing of the prefix's boundary law with the suffix's likelihood; its conditional value is computed at the boundary; with mass one these are ADR 0018's expected utility and ADR 0020's value function; `EU_{f;g}(μ, c)` is the prefix's value against the suffix's effect, normalised or not |
+| `RewardKernel.observe`, `observe_comp_observe`, `observe_idem`, `observe_comm` | Hard evidence on a boundary: two observations compose to their conjunction, so observing is idempotent and commutes |
+| `LocalNormalisation.normalise`, `prior`, `evidence`, `composite_conditionalValue`, `normalised_conditionalValue`, `local_normalisation_obstruction` | Normalising each component on its own evidence gives `1/2` where the composite conditioned on all of it gives `9/10` |
+| `IDInterpretation.Likelihood`, `lik`, `kernelE`, `rewardTableE`, `interpretE`, `lik_comp`, `kernelE_comp`, `rewardTableE_comp`, `interpretE_comp`, `interpretE_one` | The evidence-weighted interpretation of the syntax, functorial under serial composition; the likelihood one gives `interpret` |
 | `RewardCertificate.Certificate`, `Value`, `ChanceTable`, `Utility`, `Policy`, `Result`, `isPolicy` | The decoded record: CategoricalBayesianNetworks' raw network, flags, chance and utility tables, one policy per decision name, the recorded `K` and `W`; a generator is a decision when its reference is a `policy` reference |
 | `Json.decodeCertificate`, `read`, `decodeCertificate_eq_ok`, `read_eq_ok`, `networkBody_fields` | The decoder succeeds with `c` exactly when the JSON is `c`'s layout key for key, reusing CategoricalBayesianNetworks' network readers and InfluenceDiagrams' value decoder |
 | `Json.decodeFlag_eq_ok`, `decodeMode_eq_ok`, `decodeMetadata_eq_ok`, `decodeObservability_eq_ok`, `decodeChanceTable_eq_ok`, `decodeUtility_eq_ok`, `decodePolicy_eq_ok`, `decodeResult_eq_ok` | Each new record decodes exactly when the JSON has its layout |

@@ -47,9 +47,34 @@ export `is_isomorphic`, `validate` and `to_graphviz`, and the parents' bindings 
   Policies are matched by decision name (equally named decisions share one), must be
   `DeterministicPolicy` or `ConstantPolicy` (a `StochasticPolicy` is an `ArgumentError`:
   ADR 0018 decision 4 keeps behavioural policies out of the first release), and a decision
-  reading an observed input reads the input's state directly. A model's evidence is an
-  `ArgumentError` (evidence composition is out of scope). `merge_strategies` is the
+  reading an observed input reads the input's state directly. `merge_strategies` is the
   disjoint union and raises `DuplicatePolicyError` on a name in two strategies.
+- Evidence (ADR 0021): `interpret(...; evidence)` takes hard evidence on any apex variable,
+  inputs and outputs included (`_evidence`: `UnknownVariableError`, `UnknownStateError`,
+  `EvidenceOnActionError`, two states for one name an `ArgumentError`), as one indicator
+  factor per observed variable, and returns a substochastic reward kernel built with
+  `check = false`; nothing is ever normalised. Model forms use the model's evidence joined
+  with the keyword's (`_model_tables(m, extra)`). The table enumeration is
+  `_interpret_tables(..., conv)`, generic over the arithmetic (`identity` for binary64,
+  `Rational{BigInt}` for the exact fallback); keep `interpret` and the exact path on that one
+  function. Contexts carry the mass: a `prior` may be a `RewardKernel` state `I → X`
+  (`_state_vectors`: `(ν, ρ)`, mass at most one within `atol`), a `continuation` a
+  `RewardKernel` effect `Y → I` (`_effect_vectors`: `(m, c)`); plain vectors become
+  `(μ, nothing)` and `(nothing, c)`, and the `nothing` branches keep the old arithmetic
+  operation for operation (`_pull` uses column sums when `m` is `nothing`), so values
+  without evidence do not change in the last bit. `boundary_state` and `continuation_effect`
+  are the two passes; `evidence_mass` is unnormalised and returned as computed;
+  `conditional_value` is the only entry point that divides by the mass and follows ADR 0014
+  (trusted iff the mass is finite and `>= floatmin` and no product of nonzero operands fell
+  below `floatmin`: `underflow` of `_interpret_tables`, and `_pairing_underflows`, a
+  conservative bound from the smallest nonzero entries; otherwise exact recomputation and
+  `_nearest_binary64`; `ImpossibleEvidenceError` only for an exact zero;
+  `IndeterminatePosteriorError` with tolerated negative entries and evidence). The
+  reward-kernel form decides on its own tables; the diagram forms recompute from the model.
+  `contextual_optimize` with evidence or a context that carries mass or reward runs
+  `_conditional_search` (every strategy through `_conditional_value`, exact zeros skipped,
+  `method = :conditional`), never `DecisionContext`, whose semantics conditions on the
+  prior's states rather than on the evidence. Reward certificates still refuse evidence.
 - The feet are `VariableSpace`s, the same ACSets as CategoricalBayesianNetworks' feet. Never
   add observability to the feet schema: it lives beside the cospan in `OpenInfluenceDiagram`
   (`input_observability`, `output_observability`, one flag per interface position) and in
@@ -213,7 +238,10 @@ influence-diagram schema); later loads are fast.
   imported from `InfluenceDiagrams` and extended), `contextual_value`,
   `continuation_value` and `boundary_law` (each on a `RewardKernel` and, through
   `interpret`, on a diagram, dictionary and model forms), and `contextual_optimize`
-  (`InfluenceDiagrams`' exhaustive search with a `DecisionContext`, or brute force).
+  (`InfluenceDiagrams`' exhaustive search with a `DecisionContext`, or brute force), and
+  the evidence functions of ADR 0021 (`boundary_state`, `continuation_effect`,
+  `evidence_mass`, `conditional_value`, `_conditional_search`; `_evidence`,
+  `_interpret_tables` and `_model_tables` are in `src/semantics.jl`).
 - `src/games.jl` (ADR 0020): lenses and open-game equilibria for a chain of components
   composed with `compose` (`no_forgetting` passed through; limited-memory chains need
   `false`). `component_contexts` runs the lens passes (`boundary_law` forward from the
@@ -222,7 +250,10 @@ influence-diagram schema); later loads are fast.
   component's `contextual_optimize` in its context with its `contextual_value` there;
   `is_equilibrium` thresholds the regrets; `best_response_dynamics` replaces one
   component's policies at a time by a best response while that gains more than `tol`, and
-  stops at an equilibrium. A decision name in two components is an `ArgumentError`. This
+  stops at an equilibrium. A decision name in two components is an `ArgumentError`. With
+  `evidence` (split by `_component_evidence`, checked on the composite) or a state or effect
+  as the chain's context, the contexts are states and effects (`_chain_states_effects`) and
+  every value is a conditional value (`_conditional_mode`, `_context_value`). This
   is not the forbidden "optimise each component in isolation and compose": every best
   response is taken in the context the rest of the chain induces, and the result is
   documented as an equilibrium, which can be worse than `optimize`'s optimum (the Lean
@@ -286,7 +317,13 @@ influence-diagram schema); later loads are fast.
   `no_forgetting = false`, the contextual identity along the chain, bracketing-independent
   contexts, regrets equal to unilateral gains found by brute force on the closed composite,
   best-response dynamics monotone and ending at an equilibrium, and brute-force optima being
-  equilibria), `test_certificates.jl` (reward certificates: the umbrella
+  equilibria), `test_evidence.jl` (ADR 0021: interpret with evidence against the oracle's
+  `expected_utility` of the observed model and its `marginal`, evidence on either side of a
+  boundary, states and effects at every cut, random three-piece chains with random evidence
+  under both bracketings, contextual and closed optimisation given evidence against the
+  exhaustive search, equilibria given evidence against brute-force unilateral gains, the
+  Lean local-normalisation witness, ADR 0014's underflow and exact-zero cases, errors),
+  `test_certificates.jl` (reward certificates: the umbrella
   split's cells by hand; every cell re-derived from `cpt`, `utility_value`, the policies
   and `kernel_matrix`/`reward_matrix` on the fixtures, the oil wildcatter's strategies and
   seeded random pieces; the model form; rational companions and their rounding; every
@@ -295,7 +332,7 @@ influence-diagram schema); later loads are fast.
 - `proofs/`: the Lean project (see below). `proofs/certificate-fixtures/*.json` is written by
   `scripts/write_certificate_fixtures.jl` (other than `hand-*.json` and `*.bad.json`, written
   by `proofs/scripts/hand_fixtures.py`); do not edit it by hand.
-- `vignettes/`: the quarto project: 01 open influence diagrams and composition, 02 a management decision composed with the zoo's `reference_habitat_bn` (MIT, built in), 03 why optimisation does not compose, 04 equilibria of a monitoring and a management agency (ADR 0020: `component_contexts`, `regrets`, `best_response_dynamics` on the zoo network with a survey component).
+- `vignettes/`: the quarto project: 01 open influence diagrams and composition, 02 a management decision composed with the zoo's `reference_habitat_bn` (MIT, built in), 03 why optimisation does not compose, 04 equilibria of a monitoring and a management agency (ADR 0020: `component_contexts`, `regrets`, `best_response_dynamics` on the zoo network with a survey component), 05 evidence across a boundary (ADR 0021: `boundary_state`, `continuation_effect`, `evidence_mass`, `conditional_value` on the zoo network, evidence upstream and downstream of the decision, the local-normalisation pitfall).
 
 ## Proofs
 
@@ -309,13 +346,18 @@ because the sandbox has no network; keep its revisions equal to theirs. Namespac
 not natural), `Context` (the contextual identity; its first equation needs the suffix
 normalised), `Syntax` (`IDNet`: ADR 0010's open nets with decision labels and utility
 generators), `Interpretation` (`interpret_comp`, `interpret_identity`, `interpret_tensor`),
-`Obstruction` (the isolated and hidden-input witnesses, as reward-kernel tables) and
+`Obstruction` (the isolated and hidden-input witnesses, as reward-kernel tables),
 `Lens` (ADR 0020: the lens of a reward kernel, open games with decision, identity and
-serial composition, equilibria compositional, optima equilibria, the coordination witness). The
+serial composition, equilibria compositional, optima equilibria, the coordination witness)
+and `Evidence` (ADR 0021: effects and states, their actions functorial without
+normalisation, the mass and value pairings invariant across a boundary, observation
+idempotent, the local-normalisation witness, the likelihood-weighted interpretation
+functorial under serial composition). The
 restrictions in `proofs/README.md` ("Scope and restrictions") are part of every claim:
 `IDNet` is not quotiented by isomorphism, so functoriality is equations on
 representatives; the semantics does not read observability flags; nothing about arbitrary
-gluing, evidence or the Julia-to-Lean refinement is proved. Every theorem sentence in
+gluing, the tensor of evidence-weighted interpretations or the Julia-to-Lean refinement is
+proved. Every theorem sentence in
 `proofs/README.md` is an SA-Pass claim (`cid.*` in the workspace
 `conformance/sapass/claims.toml`, shadows in `CategoricalInfluenceDiagramsProofs/Shadows/`,
 a `lean_lib` outside `defaultTargets`); change a sentence and its claim together. `make audit` checks every

@@ -29,7 +29,10 @@ Catlab-free (ADR 0009), the open-system machinery of the categorical layer.
     on a closed composite, and [`contextual_value`](@ref) and
     [`contextual_optimize`](@ref) on an open component against an explicit boundary prior
     and continuation value, with [`continuation_value`](@ref) and
-    [`boundary_law`](@ref) the contexts a serial composite induces.
+    [`boundary_law`](@ref) the contexts a serial composite induces. With evidence
+    (ADR 0021), [`boundary_state`](@ref) and [`continuation_effect`](@ref) carry the
+    evidence mass across a boundary, and [`conditional_value`](@ref) is the expected
+    utility given the evidence.
   - **Reward certificates** (`src/certificates.jl`, ADR 0019):
     [`export_reward_certificate`](@ref) writes a diagram, a strategy and the reward kernel
     `interpret` computed for it as an `OpenInfluence.RewardCertificate/v1` record, which
@@ -109,7 +112,8 @@ export InfluenceDiagramCospanObUntyped, InfluenceDiagramCospanUntyped,
 export RewardKernel, reward, reward_matrix, identity_reward_kernel, copy_reward_kernel,
        discard_reward_kernel, swap_reward_kernel, merge_strategies
 # optimization.jl
-export contextual_value, contextual_optimize, continuation_value, boundary_law
+export contextual_value, contextual_optimize, continuation_value, boundary_law,
+       boundary_state, continuation_effect, evidence_mass, conditional_value
 # games.jl
 export component_contexts, regrets, is_equilibrium, best_response_dynamics
 # certificates.jl

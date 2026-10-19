@@ -183,8 +183,12 @@ end
         @test continuation_value(whole, m, τ) ≈ [expected_utility(m, τ)]
         @test boundary_law(whole, m, τ) ≈ [1.0]
         @test_throws MissingKernelError contextual_value(compose(A, B), m, τ)
-        @test_throws ArgumentError contextual_value(whole, observe(m, :Forecast => :rainy),
-                                                    τ)
+        # A model's evidence is used (ADR 0021): the value given the evidence is the
+        # oracle's expected utility of the model with the evidence observed.
+        mo = observe(m, :Forecast => :rainy)
+        @test conditional_value(whole, mo, τ) ≈ expected_utility(mo, τ)
+        @test contextual_value(whole, mo, τ) ≈
+              expected_utility(mo, τ) * evidence_mass(whole, mo, τ)
     end
 
     @testset "the contextual identity on the oil wildcatter split, every strategy" begin
@@ -258,8 +262,8 @@ end
         # Only a closed composite has an expected utility of its own.
         @test_throws ArgumentError optimize(A, ks, us)
         @test_throws ArgumentError optimize(B, ks, us)
-        @test_throws ArgumentError optimize(Open(syntax(m)),
-                                            observe(m, :Forecast => :rainy))
+        @test optimize(Open(syntax(m)), observe(m, :Forecast => :rainy)).expected_utility ≈
+              optimize(observe(m, :Forecast => :rainy)).expected_utility
         @test_throws MissingKernelError optimize(C, Dict{Symbol,FiniteKernel}(), us)
         @test_throws MissingUtilityError optimize(C, ks, Dict{Symbol,AbstractUtility}())
         # The oil wildcatter: both backends agree with brute force.
@@ -542,12 +546,15 @@ end
                                continuation=zeros(16)) == -2
         @test interpret(twice, ksl, usl, constant(:A, :no)) isa RewardKernel
 
-        # Evidence and decision variable elimination are not reachable: the model form
-        # refuses evidence, and there is no backend to choose, the search being
-        # `ExhaustivePolicySearch`'s.
+        # Decision variable elimination is not reachable: there is no backend to choose,
+        # the search being `ExhaustivePolicySearch`'s, or with evidence (ADR 0021) the
+        # conditional search, which maximises what that search maximises on the model.
         m = umbrella_model()
-        @test_throws ArgumentError contextual_optimize(Open(syntax(m)),
-                                                       observe(m, :Forecast => :rainy))
+        mo = observe(m, :Forecast => :rainy)
+        sol = contextual_optimize(Open(syntax(m)), mo)
+        @test sol.diagnostics.method === :conditional
+        @test sol.expected_utility ≈
+              optimize(mo; backend=ExhaustivePolicySearch()).expected_utility
         ν = boundary_law(umbrella_chance(), kernels_by_name(m), bound_utilities(m),
                          Strategy())
         @test_throws MethodError contextual_optimize(umbrella_decision(),

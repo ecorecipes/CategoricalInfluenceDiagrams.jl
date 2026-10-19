@@ -91,6 +91,12 @@ Catlab out of the model layer (ADR 0009).
   component could gain alone, and [`best_response_dynamics`](@ref) revises one component at
   a time until none can. An equilibrium can be worth less than the optimum; see
   [Lenses and equilibria](games.md).
+- **Evidence across a boundary** (ADR 0021). `interpret` takes hard `evidence`, which
+  makes a component's reward kernel substochastic; [`boundary_state`](@ref) and
+  [`continuation_effect`](@ref) carry the evidence mass across a boundary, and
+  [`evidence_mass`](@ref) and [`conditional_value`](@ref), the expected utility given the
+  evidence, are the same at every cut. Normalising each component on its own evidence is
+  not sound; see [Evidence across a boundary](evidence.md).
 - **Reward certificates** (ADR 0019). [`export_reward_certificate`](@ref) writes a
   diagram, its flags and tables, a deterministic strategy and the reward kernel
   `interpret` computed for it as an `OpenInfluence.RewardCertificate/v1` record, for the
@@ -103,11 +109,11 @@ The Lean project in `proofs/` builds on the proof projects of
 `CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl`. It proves the
 reward-kernel category and its symmetric monoidal structure, the functoriality of the
 fixed-strategy interpretation under serial composition and tensor, the contextual
-identity, and the two obstructions of the research bundle. Its checker for reward
+identity, the two obstructions of the research bundle, lenses and open-game equilibria
+(ADR 0020), and the composition of evidence (ADR 0021). Its checker for reward
 certificates ties Julia's `interpret` of a recorded diagram to that interpretation, cell
 by cell (ADR 0019). `proofs/README.md` lists the theorems and their restrictions; the
 test suite checks the same laws numerically.
 
-Randomised (behavioural) policies and evidence across a boundary are outside the first
-release. That a Julia composite is the Lean composite of its parts is not proved: a
+Randomised (behavioural) policies are outside the first release. That a Julia composite is the Lean composite of its parts is not proved: a
 certificate checks the diagram it records, not the operation that built it.

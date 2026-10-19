@@ -275,8 +275,115 @@ function _utility_factors(id::AbstractInfluenceDiagram, utilities::AbstractDict,
     return out
 end
 
+# Evidence (ADR 0021)
+#####################
+
+# The evidence `ev` on the apex of `o` as a dictionary from variable name to state: `nothing`,
+# a pair, a vector of pairs or a dictionary. Every name must be an apex variable
+# (`UnknownVariableError`), every state one of its states (`UnknownStateError`), and no
+# evidence may be on a decision's action (`EvidenceOnActionError`: an action is chosen, not
+# observed). A name shared by several apex variables (a diagram tensored with itself)
+# observes all of them.
+function _evidence(o::OpenInfluenceDiagram, ev)
+    ev === nothing && return Dict{Symbol,Symbol}()
+    ev isa Union{Pair,AbstractVector,AbstractDict} ||
+        throw(ArgumentError("evidence must be a pair, a vector of pairs or a dictionary of variable name => state, not a $(typeof(ev))"))
+    pairs_ = ev isa Pair ? [ev] : collect(ev)
+    all(p -> p isa Pair{Symbol,Symbol}, pairs_) ||
+        throw(ArgumentError("evidence must map variable names (Symbols) to states (Symbols)"))
+    d = Dict{Symbol,Symbol}()
+    for (x, s) in pairs_
+        haskey(d, x) && d[x] !== s &&
+            throw(ArgumentError("the evidence gives :$x two states, :$(d[x]) and :$s"))
+        d[x] = s
+    end
+    id = apex(o)
+    for x in sort!(collect(keys(d)))
+        vs = [v for v in parts(id, :Variable) if variable_name(id, v) === x]
+        isempty(vs) && throw(UnknownVariableError(x))
+        for v in vs
+            d[x] in axis(id, v).labels || throw(UnknownStateError(x, d[x]))
+            dec = InfluenceDiagrams.decision_of(id, v)
+            dec === nothing ||
+                throw(EvidenceOnActionError(x, decision_name(id, dec), d[x]))
+        end
+    end
+    return d
+end
+
+# The tables of `⟦o⟧_σ` under the evidence `ev` (checked by `_evidence`), in the arithmetic
+# that `conv` maps each Float64 table entry into: `identity` for the binary64 run,
+# `Rational{BigInt}` for an exact one. `o` must be validated. Evidence is one indicator factor
+# per observed apex variable, inputs and outputs included, so `T` is the probability of
+# reaching each output with the evidence and `W` the reward on those paths. Also returns
+# whether a mechanism table has a (tolerated) negative entry, the number of mechanism and
+# policy factors (one per variable that is not an input), the `n` of ADR 0014's budget, and
+# whether the binary64 run computed a product of nonzero operands below `floatmin` (ADR
+# 0014's shared trust rule: such a run decides nothing about the evidence mass).
+function _interpret_tables(o::OpenInfluenceDiagram, kernels::AbstractDict,
+                           utilities::AbstractDict, σ::Strategy, ev::Dict{Symbol,Symbol},
+                           conv; max_states::Integer=DEFAULT_MAX_STATES,
+                           atol::Real=DEFAULT_ATOL)
+    id = apex(o)
+    in_ids, out_ids = input_variables(o), output_variables(o)
+    ids = collect(parts(id, :Variable))
+    n = prod(BigInt[nstates(id, v) for v in ids]; init=big(1))
+    n <= max_states || throw(ModelTooLargeError(Int(min(n, typemax(Int))), max_states))
+    pos = Dict{Int,Int}(v => i for (i, v) in enumerate(ids))
+    dims = Tuple(nstates(id, v) for v in ids)
+    factors = _factors(id, kernels, pos; atol=atol)
+    negative = any(f -> any(<(0), f.table), factors)
+    append!(factors, _policy_factors(id, σ, pos))
+    nfactors = length(factors)
+    for v in ids
+        s = get(ev, variable_name(id, v), nothing)
+        s === nothing && continue
+        push!(factors, _Factor(Float64[l === s for l in axis(id, v).labels], Int[pos[v]]))
+    end
+    us = _utility_factors(id, utilities, pos)
+    X = FiniteSpace(FiniteAxis[axis(id, v) for v in in_ids])
+    Y = FiniteSpace(FiniteAxis[axis(id, v) for v in out_ids])
+    R = typeof(conv(0.0))
+    T = zeros(R, (size(Y)..., size(X)...))
+    W = zeros(R, size(T))
+    sel = Int[pos[v] for v in vcat(out_ids, in_ids)]
+    underflow = false
+    tiny(x) = !iszero(x) && abs(x) < floatmin(Float64)
+    for ci in CartesianIndices(dims)
+        if R === Float64
+            p = _product(factors, ci)
+            if p == 0
+                underflow |= all(f -> !iszero(_value(f, ci)), factors)
+                continue
+            end
+            underflow |= tiny(p)
+        else
+            p = one(R)
+            for f in factors
+                x = _value(f, ci)
+                if iszero(x)
+                    p = zero(R)
+                    break
+                end
+                p *= conv(x)
+            end
+            iszero(p) && continue
+        end
+        u = zero(R)
+        for f in us
+            u += conv(_value(f, ci))
+        end
+        idx = ntuple(j -> ci[sel[j]], length(sel))
+        T[idx...] += p
+        pu = p * u
+        R === Float64 && !iszero(u) && (underflow |= iszero(pu) || tiny(pu))
+        W[idx...] += pu
+    end
+    return (X=X, Y=Y, K=T, W=W, negative=negative, nfactors=nfactors, underflow=underflow)
+end
+
 """
-    interpret(o::OpenInfluenceDiagram, kernels, utilities, σ::Strategy;
+    interpret(o::OpenInfluenceDiagram, kernels, utilities, σ::Strategy; evidence = nothing,
               max_states = 1_000_000, atol = DEFAULT_ATOL) -> RewardKernel
     interpret(o::OpenInfluenceDiagram, m::InfluenceDiagramModel, σ::Strategy = strategy(m); kwargs...)
 
@@ -296,6 +403,22 @@ inputs, no outputs) the result is the `1 × 1` reward kernel with `K = 1` and `W
 expected utility that `InfluenceDiagrams`' `expected_utility` computes on the instantiated
 diagram.
 
+`evidence` (ADR 0021) is hard evidence on apex variables: a pair `:X => :x`, a vector of
+pairs or a dictionary. Each observed variable contributes the indicator of its observed
+state, inputs and outputs included, so `K(y | x)` becomes the probability of reaching `y`
+*and* seeing the evidence, and `W` the reward earned on those paths. `K` is then
+substochastic: it is built unchecked, and its column sums are the probability of the
+evidence given each input state. Nothing is normalised, since the evidence mass must cross
+the boundary to the rest of the problem (normalising each component on its own evidence
+is not sound; see [`conditional_value`](@ref)). Reward kernels with evidence compose as any
+others: `interpret(compose(A, B), merge_strategies(σ, τ); evidence = e)` is
+`compose(interpret(A, σ; evidence = e_A), interpret(B, τ; evidence = e_B))`, where `e_A`
+and `e_B` are the parts of `e` on each apex; evidence on a variable of the shared boundary
+may be given to either or both, since an indicator is idempotent. An unknown variable
+raises `UnknownVariableError`, an unknown state `UnknownStateError`, evidence on a
+decision's action `EvidenceOnActionError` (an action is chosen, not observed), and two
+states for one variable `ArgumentError`.
+
 The tables come from the apex's references, as `instantiate` reads them:
 
 - `kernels` is a dictionary keyed by `KernelRef` or by target variable name, exactly as
@@ -305,8 +428,8 @@ The tables come from the apex's references, as `instantiate` reads them:
   `bound_utilities` of a model) or by `utility_ref` (`MissingUtilityError` when one does
   not resolve, `UtilityScopeError` when one does not fit its scope);
 - a model `m` supplies `kernels(m)` and `bound_utilities(m)`, and `σ` defaults to its
-  strategy. A model with evidence raises `ArgumentError`: evidence composition is outside
-  ADR 0018's first release.
+  strategy. Its evidence is used as the evidence, together with the `evidence` keyword
+  (a variable given different states by the two raises `ArgumentError`).
 
 `σ` needs a `DeterministicPolicy` or `ConstantPolicy` for every decision name of the apex
 (`IncompleteStrategyError`; a `StochasticPolicy` raises `ArgumentError`), checked against
@@ -321,45 +444,37 @@ strategy of a composite with [`merge_strategies`](@ref).
 
 Functoriality, checked numerically by the test suite against the closed-composite oracle:
 `interpret(compose(A, B), merge_strategies(σ, τ)) ≈ compose(interpret(A, σ),
-interpret(B, τ))`, and likewise for `otimes`.
+interpret(B, τ))`, and likewise for `otimes`, with and without evidence.
 """
 function interpret(o::OpenInfluenceDiagram, kernels::AbstractDict,
-                   utilities::AbstractDict, σ::Strategy;
+                   utilities::AbstractDict, σ::Strategy; evidence=nothing,
                    max_states::Integer=DEFAULT_MAX_STATES, atol::Real=DEFAULT_ATOL)
     validate(o)
-    id = apex(o)
-    in_ids, out_ids = input_variables(o), output_variables(o)
-    ids = collect(parts(id, :Variable))
-    n = prod(BigInt[nstates(id, v) for v in ids]; init=big(1))
-    n <= max_states || throw(ModelTooLargeError(Int(min(n, typemax(Int))), max_states))
-    pos = Dict{Int,Int}(v => i for (i, v) in enumerate(ids))
-    dims = Tuple(nstates(id, v) for v in ids)
-    factors = _factors(id, kernels, pos; atol=atol)
-    append!(factors, _policy_factors(id, σ, pos))
-    us = _utility_factors(id, utilities, pos)
-    X = FiniteSpace(FiniteAxis[axis(id, v) for v in in_ids])
-    Y = FiniteSpace(FiniteAxis[axis(id, v) for v in out_ids])
-    T = zeros(Float64, (size(Y)..., size(X)...))
-    W = zeros(Float64, size(T))
-    sel = Int[pos[v] for v in vcat(out_ids, in_ids)]
-    for ci in CartesianIndices(dims)
-        p = _product(factors, ci)
-        p == 0 && continue
-        u = 0.0
-        for f in us
-            u += _value(f, ci)
+    ev = _evidence(o, evidence)
+    t = _interpret_tables(o, kernels, utilities, σ, ev, identity; max_states=max_states,
+                          atol=atol)
+    K = isempty(ev) ? FiniteKernel(t.X, t.Y, t.K; atol=_joint_atol(atol, t.nfactors)) :
+        FiniteKernel(t.X, t.Y, t.K; check=false)
+    return RewardKernel(K, t.W)
+end
+
+# The kernels, utilities and evidence of a model, its own evidence joined with `extra`.
+function _model_tables(m::InfluenceDiagramModel, extra=nothing)
+    ev = Dict{Symbol,Symbol}(BayesianNetworks.evidence(m))
+    if extra !== nothing
+        extra isa Union{Pair,AbstractVector,AbstractDict} ||
+            throw(ArgumentError("evidence must be a pair, a vector of pairs or a dictionary of variable name => state, not a $(typeof(extra))"))
+        for (x, s) in (extra isa Pair ? [extra] : collect(extra))
+            haskey(ev, x) && ev[x] !== s &&
+                throw(ArgumentError("the model observes :$x in state :$(ev[x]), but the evidence keyword gives :$s"))
+            ev[x] = s
         end
-        idx = ntuple(j -> ci[sel[j]], length(sel))
-        T[idx...] += p
-        W[idx...] += p * u
     end
-    K = FiniteKernel(X, Y, T; atol=_joint_atol(atol, length(factors)))
-    return RewardKernel(K, W)
+    return kernels(m), bound_utilities(m), ev
 end
 
 function interpret(o::OpenInfluenceDiagram, m::InfluenceDiagramModel,
-                   σ::Strategy=strategy(m); kw...)
-    isempty(evidence(m)) ||
-        throw(ArgumentError("interpret: the model has evidence on $(sort!(collect(keys(evidence(m))))); evidence composition is outside ADR 0018's first release"))
-    return interpret(o, kernels(m), bound_utilities(m), σ; kw...)
+                   σ::Strategy=strategy(m); evidence=nothing, kw...)
+    ks, us, ev = _model_tables(m, evidence)
+    return interpret(o, ks, us, σ; evidence=ev, kw...)
 end

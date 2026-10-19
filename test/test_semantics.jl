@@ -299,7 +299,15 @@ end
                                                   Strategy())
         @test_throws ModelTooLargeError interpret(B, ks, us, σ; max_states=2)
         whole = Open(syntax(m))
-        @test_throws ArgumentError interpret(whole, observe(m, :Forecast => :rainy), σ)
+        # A model's evidence is used (ADR 0021): the closed reward kernel is the probability
+        # of the evidence and the evidence-weighted expected utility.
+        mo = observe(m, :Forecast => :rainy)
+        r = interpret(whole, mo, σ)
+        pe = marginal(instantiate(m, σ), [:Forecast]).table[3]
+        @test kernel(r).table[] ≈ pe
+        @test reward(r)[] ≈ pe * expected_utility(mo, σ)
+        @test_throws ArgumentError interpret(whole, mo, σ; evidence=:Forecast => :sunny)
+        @test interpret(whole, mo, σ; evidence=:Forecast => :rainy) == r
         # Policies for decisions that are not in the apex are ignored, as `instantiate`
         # ignores them.
         @test interpret(A, ks, us, σ) ≈ interpret(A, ks, us, Strategy())
