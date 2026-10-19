@@ -85,6 +85,12 @@ Catlab out of the model layer (ADR 0009).
   continuation, actual induced prior) composes to the value `1`, while the composite
   attains `4`. Maximising separately at each hidden boundary state would need a policy that
   reads the hidden input, which rule 3 rejects.
+- **Lenses and equilibria** (ADR 0020). Along a chain of components,
+  [`component_contexts`](@ref) gives each component the prior and continuation the rest of
+  the chain induces, [`regrets`](@ref) and [`is_equilibrium`](@ref) test whether any one
+  component could gain alone, and [`best_response_dynamics`](@ref) revises one component at
+  a time until none can. An equilibrium can be worth less than the optimum; see
+  [Lenses and equilibria](games.md).
 - **Reward certificates** (ADR 0019). [`export_reward_certificate`](@ref) writes a
   diagram, its flags and tables, a deterministic strategy and the reward kernel
   `interpret` computed for it as an `OpenInfluence.RewardCertificate/v1` record, for the

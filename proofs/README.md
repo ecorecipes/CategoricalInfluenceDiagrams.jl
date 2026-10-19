@@ -39,6 +39,18 @@ Each sentence below is registered as an SA-Pass claim in `conformance/sapass/cla
    (`cid.certificate-sound`)
 10. `decodeCertificate_eq_ok` proves that the reward-certificate decoder succeeds on a parsed JSON value with a certificate `c` exactly when the value is `c`'s layout key for key, with exactly the nine top-level keys and with the network and the utility scope rows read by CategoricalBayesianNetworks' record readers.
     (`cid.certificate-decode`)
+11. The lens of a reward kernel, with the boundary law as its forward map and the value function as its backward map, sends serial composition with a normalised suffix to composition of lenses and the identity to the identity lens.
+    (`cid.lens-functor`)
+12. Serial composition of open games is associative and unital on equilibria: a strategy of three games in series is an equilibrium, under either bracketing, exactly when each game's strategy is an equilibrium in the context that the lenses of the other two transport to it.
+    (`cid.game-category`)
+13. For two decision games, a pair of strategies is an equilibrium of their serial composite exactly when neither component can raise the composite's expected utility by changing its own strategy alone.
+    (`cid.game-nash`)
+14. Every strategy that maximises expected utility in a context is an equilibrium there, for every game built from decision games and identities by serial composition.
+    (`cid.game-optimum`)
+15. An equilibrium need not be optimal: in a witness of two decisions that must agree, the later not observing the earlier, an equilibrium is worth 1 where the optimum is 2.
+    (`cid.game-coordination`)
+16. In the bundle's witness, the equilibria are exactly the strategies that take the early action, and each of them attains the joint optimum 4.
+    (`cid.obstruction-equilibria`)
 
 Here `EU_f(μ, c) = Σ_x μ x Σ_y (W x y + K x y · c y)` for a boundary prior `μ` and a terminal
 continuation `c`; `c_g y = Σ_z (W_g y z + K_g y z · c z)` is the suffix's value function,
@@ -84,6 +96,16 @@ continuation `c`; `c_g y = Σ_z (W_g y z + K_g y z · c z)` is the suffix's valu
   signature keys tables by label. The exact reward kernel is computed by enumeration, so
   checking costs about `|X| · |Y| · |Z|` weight evaluations, for the input, output and
   generator state spaces.
+- **Lenses and games** (ADR 0020; module `Lens`). A reward kernel's lens is the pair
+  (`pushforward`, `continuation`) on real functions; its laws need the later kernel
+  normalised, as the contextual identity does. A `Game` has a type of strategies, a
+  normalised play for each and an equilibrium predicate; decision games, identity games and
+  serial composition are defined, the tensor of games is not (the context of a tensor factor
+  depends on the other factor's input state). Equilibrium is a person-by-person optimum, not
+  the optimum (`coordination_equilibrium_not_optimal`). The results are about the reward-kernel
+  semantics, like the obstructions; that Julia's `component_contexts`, `regrets` and
+  `best_response_dynamics` compute these contexts and equilibria is checked by the test
+  suite, not proved.
 - **Not proved:** a category of open influence diagrams with arbitrary gluing, evidence
   composition, and optimisation of composites beyond the contextual identity. Reward
   certificates check Julia's numbers for the diagram a certificate records against
@@ -124,6 +146,14 @@ continuation `c`; `c_g y = Σ_z (W_g y z + K_g y z · c z)` is the suffix's valu
 | `Obstruction.isolated_optimisation_fails` | `INF-ISOLATED-OBSTRUCTION`: every pair of isolated optima composes to `1`, the joint optimum is `4` |
 | `Obstruction.early_isolatedOptimal_iff`, `late_isolatedOptimal`, `composite_eu` | The prefix is isolated-optimal iff `a = false`; every suffix is isolated-optimal; the composite value is `1 + 3[a]` |
 | `Obstruction.hidden_input_obstruction`, `peek_pointwise_max`, `peek_not_legal` | `INF-HIDDEN-OBSTRUCTION`: legal suffixes have value `1`; the pointwise maximiser has value `2` and reads the hidden `H` |
+| `RewardKernel.pushforward_comp`, `continuation_comp`, `pushforward_id`, `continuation_id`, `eu_eq_prefixReward_add` | The boundary law composes forward, the value function backward (suffix normalised); identities fix both; `EU_f(μ, c) = L_f(μ) + Σ_y ν_f y c y` |
+| `Lens`, `Lens.comp`, `Lens.id`, `RewardKernel.lens`, `lens_comp`, `lens_id` | Lenses on real functions and the lens of a reward kernel, a functor on serial composites with a normalised suffix |
+| `Game`, `Game.decision`, `Game.idGame`, `Game.seq` | Open games over reward kernels: strategies, a normalised play, equilibria in a context `(μ, c)`; decision games maximise, the composite asks each part to be an equilibrium in the context the other induces |
+| `Game.seq_seq_eq_iff`, `seq_assoc_eq`, `seq_assoc_play`, `idGame_seq_eq`, `seq_idGame_eq` | Three games in series: each in equilibrium in its transported context; associativity and units on plays and equilibria |
+| `Game.seq_decision_eq_iff` | Two decision games: an equilibrium is a pair from which neither gains alone, measured by the composite's expected utility |
+| `Game.Sound`, `decision_sound`, `idGame_sound`, `seq_sound` | Maximisers are equilibria, for decision and identity games and serial composites of such games |
+| `Coordination.first`, `second`, `payoff`, `game`, `composite_eu`, `game_eq_iff`, `coordination_equilibrium_not_optimal` | Two decisions that must agree, the later blind to the earlier: equilibria worth 1 and 2, optimum 2 |
+| `Obstruction.early_normalised`, `Obstruction.game`, `obstruction_eq_iff` | In the obstruction witness the equilibria are exactly the strategies taking the early action |
 | `RewardCertificate.Certificate`, `Value`, `ChanceTable`, `Utility`, `Policy`, `Result`, `isPolicy` | The decoded record: CategoricalBayesianNetworks' raw network, flags, chance and utility tables, one policy per decision name, the recorded `K` and `W`; a generator is a decision when its reference is a `policy` reference |
 | `Json.decodeCertificate`, `read`, `decodeCertificate_eq_ok`, `read_eq_ok`, `networkBody_fields` | The decoder succeeds with `c` exactly when the JSON is `c`'s layout key for key, reusing CategoricalBayesianNetworks' network readers and InfluenceDiagrams' value decoder |
 | `Json.decodeFlag_eq_ok`, `decodeMode_eq_ok`, `decodeMetadata_eq_ok`, `decodeObservability_eq_ok`, `decodeChanceTable_eq_ok`, `decodeUtility_eq_ok`, `decodePolicy_eq_ok`, `decodeResult_eq_ok` | Each new record decodes exactly when the JSON has its layout |

@@ -11,6 +11,7 @@ using ACSets: attrs, acset_schema
     include("test_composition.jl")
     include("test_semantics.jl")
     include("test_optimization.jl")
+    include("test_games.jl")
     include("test_certificates.jl")
     include("test_errors.jl")
     include("test_docstrings.jl")

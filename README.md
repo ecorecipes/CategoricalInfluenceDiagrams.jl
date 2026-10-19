@@ -63,6 +63,13 @@ which stays free of Catlab. The design is the workspace's ADR 0018,
   Lean checker in `proofs/` (`lake exe check_certificate`) decodes and checks against the
   exact semantics. Exact rational companions certify models whose binary64 tables do not
   sum to exactly one.
+- Lenses and equilibria (ADR 0020): along a chain of components `f₁ ⋅ … ⋅ fₙ`,
+  `component_contexts` computes the prior and the continuation each component receives
+  (the forward and backward passes of the reward kernels' lenses), `regrets` and
+  `is_equilibrium` test whether every component's strategy is a best response in its
+  context, and `best_response_dynamics` improves one component at a time until none can
+  gain. An equilibrium is what composes; it can be worth less than the optimum, which
+  `optimize` on the closed composite finds.
 - Every name of `CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl` is re-exported.
 
 Randomised (behavioural) policies and evidence across a boundary are outside the first
@@ -78,10 +85,16 @@ The Lean project in [`proofs/`](proofs/) builds on the proof projects of
 - For reward kernels whose suffix has a normalised probability component, and so for all open influence diagrams under a fixed strategy, `EU_{f;g}(μ, c) = EU_f(μ, c_g) = L_f + EU_g(ν_f, c)`.
 - In the bundle's witness, every pair of separately optimal components composes to expected utility 1, while the joint optimum is 4.
 - If the reward-certificate checker accepts a decoded certificate at tolerance `τ`, its network is valid, no decision of the decoded open influence diagram reads an input flagged hidden, and for every pair of boundary assignments `(x, y)` the recorded `K` and `W` cells at the flat index of `(x, y)`, which is a bijection onto the cells of `K`, are within `τ` of `interpret σ f` at `(x, y)`, for the decoded diagram `f` and strategy `σ`.
+- The lens of a reward kernel, with the boundary law as its forward map and the value function as its backward map, sends serial composition with a normalised suffix to composition of lenses and the identity to the identity lens.
+- For two decision games, a pair of strategies is an equilibrium of their serial composite exactly when neither component can raise the composite's expected utility by changing its own strategy alone.
+- Every strategy that maximises expected utility in a context is an equilibrium there, for every game built from decision games and identities by serial composition.
+- An equilibrium need not be optimal: in a witness of two decisions that must agree, the later not observing the earlier, an equilibrium is worth 1 where the optimum is 2.
 
-The last result is about reward certificates (ADR 0019): `lake exe check_certificate`
+The certificate result is about reward certificates (ADR 0019): `lake exe check_certificate`
 decodes a certificate written by `export_reward_certificate` and checks it, so Julia's
-numbers for a recorded diagram are checked against the Lean semantics. The syntax is not
+numbers for a recorded diagram are checked against the Lean semantics. The last four are
+about lenses and open games (ADR 0020), over the reward-kernel semantics; the tensor of games
+is not defined. The syntax is not
 quotiented by isomorphism, the semantics does not read observability flags, and nothing is
 proved about arbitrary gluing, evidence, or whether a Julia composite is the Lean composite
 of its parts; [`proofs/README.md`](proofs/README.md) lists every theorem and these

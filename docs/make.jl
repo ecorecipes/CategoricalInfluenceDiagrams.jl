@@ -27,6 +27,7 @@ function tutorial_pages()
 end
 
 pages = Any["Home" => "index.md", "Reward certificates" => "certificates.md",
+            "Lenses and equilibria" => "games.md",
             "API Reference" => "api.md"]
 tutorials = tutorial_pages()
 isempty(tutorials) || push!(pages, "Tutorials" => tutorials)

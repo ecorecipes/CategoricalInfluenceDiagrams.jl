@@ -214,6 +214,19 @@ influence-diagram schema); later loads are fast.
   `continuation_value` and `boundary_law` (each on a `RewardKernel` and, through
   `interpret`, on a diagram, dictionary and model forms), and `contextual_optimize`
   (`InfluenceDiagrams`' exhaustive search with a `DecisionContext`, or brute force).
+- `src/games.jl` (ADR 0020): lenses and open-game equilibria for a chain of components
+  composed with `compose` (`no_forgetting` passed through; limited-memory chains need
+  `false`). `component_contexts` runs the lens passes (`boundary_law` forward from the
+  chain's prior, `continuation_value` backward from its continuation) over the reward
+  kernels of the components under the restricted strategy; `regrets` compares each
+  component's `contextual_optimize` in its context with its `contextual_value` there;
+  `is_equilibrium` thresholds the regrets; `best_response_dynamics` replaces one
+  component's policies at a time by a best response while that gains more than `tol`, and
+  stops at an equilibrium. A decision name in two components is an `ArgumentError`. This
+  is not the forbidden "optimise each component in isolation and compose": every best
+  response is taken in the context the rest of the chain induces, and the result is
+  documented as an equilibrium, which can be worse than `optimize`'s optimum (the Lean
+  coordination witness, 1 < 2).
 - `src/certificates.jl` (ADR 0019): `export_reward_certificate(o, kernels, utilities, σ;
   numeric_mode, exact_tables, description, max_entries)` and the model form, writing
   `OpenInfluence.RewardCertificate/v1`. The format section of the workspace plan
@@ -268,7 +281,12 @@ influence-diagram schema); later loads are fast.
   decision variable elimination unreachable; the bundle's Lean witness of
   `INF-ISOLATED-OBSTRUCTION`, `lean_early` and `lean_late`, giving `1 < 4`, and of
   `INF-HIDDEN-OBSTRUCTION`, where the pointwise value 2 needs a policy reading the hidden
-  input and rule 3 rejects it), `test_certificates.jl` (reward certificates: the umbrella
+  input and rule 3 rejects it), `test_games.jl` (ADR 0020: contexts against `boundary_law`/`continuation_value`; the Lean
+  obstruction and coordination witnesses; on seeded random three-piece chains composed with
+  `no_forgetting = false`, the contextual identity along the chain, bracketing-independent
+  contexts, regrets equal to unilateral gains found by brute force on the closed composite,
+  best-response dynamics monotone and ending at an equilibrium, and brute-force optima being
+  equilibria), `test_certificates.jl` (reward certificates: the umbrella
   split's cells by hand; every cell re-derived from `cpt`, `utility_value`, the policies
   and `kernel_matrix`/`reward_matrix` on the fixtures, the oil wildcatter's strategies and
   seeded random pieces; the model form; rational companions and their rounding; every
@@ -290,8 +308,10 @@ because the sandbox has no network; keep its revisions equal to theirs. Namespac
 `Category` (`FinRew` with Mathlib's symmetric monoidal copy-discard instances; discard is
 not natural), `Context` (the contextual identity; its first equation needs the suffix
 normalised), `Syntax` (`IDNet`: ADR 0010's open nets with decision labels and utility
-generators), `Interpretation` (`interpret_comp`, `interpret_identity`, `interpret_tensor`)
-and `Obstruction` (the isolated and hidden-input witnesses, as reward-kernel tables). The
+generators), `Interpretation` (`interpret_comp`, `interpret_identity`, `interpret_tensor`),
+`Obstruction` (the isolated and hidden-input witnesses, as reward-kernel tables) and
+`Lens` (ADR 0020: the lens of a reward kernel, open games with decision, identity and
+serial composition, equilibria compositional, optima equilibria, the coordination witness). The
 restrictions in `proofs/README.md` ("Scope and restrictions") are part of every claim:
 `IDNet` is not quotiented by isomorphism, so functoriality is equations on
 representatives; the semantics does not read observability flags; nothing about arbitrary

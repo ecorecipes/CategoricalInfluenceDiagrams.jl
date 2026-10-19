@@ -151,6 +151,43 @@ assert_no_sorry OpenInfluence.Obstruction.peek
 assert_no_sorry OpenInfluence.Obstruction.peek_pointwise_max
 assert_no_sorry OpenInfluence.Obstruction.peek_not_legal
 assert_no_sorry OpenInfluence.Obstruction.hidden_input_obstruction
+assert_no_sorry OpenInfluence.RewardKernel.pushforward_comp
+assert_no_sorry OpenInfluence.RewardKernel.continuation_comp
+assert_no_sorry OpenInfluence.RewardKernel.pushforward_id
+assert_no_sorry OpenInfluence.RewardKernel.continuation_id
+assert_no_sorry OpenInfluence.RewardKernel.eu_eq_prefixReward_add
+assert_no_sorry OpenInfluence.Lens
+assert_no_sorry OpenInfluence.Lens.comp
+assert_no_sorry OpenInfluence.Lens.id
+assert_no_sorry OpenInfluence.RewardKernel.lens
+assert_no_sorry OpenInfluence.RewardKernel.lens_comp
+assert_no_sorry OpenInfluence.RewardKernel.lens_id
+assert_no_sorry OpenInfluence.Game
+assert_no_sorry OpenInfluence.Game.decision
+assert_no_sorry OpenInfluence.Game.idGame
+assert_no_sorry OpenInfluence.Game.seq
+assert_no_sorry OpenInfluence.Game.seq_assoc_play
+assert_no_sorry OpenInfluence.Game.seq_seq_eq_iff
+assert_no_sorry OpenInfluence.Game.seq_assoc_eq
+assert_no_sorry OpenInfluence.Game.idGame_seq_eq
+assert_no_sorry OpenInfluence.Game.seq_idGame_eq
+assert_no_sorry OpenInfluence.Game.seq_decision_eq_iff
+assert_no_sorry OpenInfluence.Game.Sound
+assert_no_sorry OpenInfluence.Game.decision_sound
+assert_no_sorry OpenInfluence.Game.idGame_sound
+assert_no_sorry OpenInfluence.Game.seq_sound
+assert_no_sorry OpenInfluence.Coordination.first
+assert_no_sorry OpenInfluence.Coordination.payoff
+assert_no_sorry OpenInfluence.Coordination.second
+assert_no_sorry OpenInfluence.Coordination.first_normalised
+assert_no_sorry OpenInfluence.Coordination.second_normalised
+assert_no_sorry OpenInfluence.Coordination.game
+assert_no_sorry OpenInfluence.Coordination.composite_eu
+assert_no_sorry OpenInfluence.Coordination.game_eq_iff
+assert_no_sorry OpenInfluence.Coordination.coordination_equilibrium_not_optimal
+assert_no_sorry OpenInfluence.Obstruction.early_normalised
+assert_no_sorry OpenInfluence.Obstruction.game
+assert_no_sorry OpenInfluence.Obstruction.obstruction_eq_iff
 assert_no_sorry OpenInfluence.RewardCertificate.Json.constant_eq_ok
 assert_no_sorry OpenInfluence.RewardCertificate.Json.decodeFlag_eq_ok
 assert_no_sorry OpenInfluence.RewardCertificate.Json.decodeMode_eq_ok
@@ -389,6 +426,43 @@ assert_no_sorry OpenInfluence.RewardCertificate.Certificate.cast_val
 #print axioms OpenInfluence.Obstruction.peek_pointwise_max
 #print axioms OpenInfluence.Obstruction.peek_not_legal
 #print axioms OpenInfluence.Obstruction.hidden_input_obstruction
+#print axioms OpenInfluence.RewardKernel.pushforward_comp
+#print axioms OpenInfluence.RewardKernel.continuation_comp
+#print axioms OpenInfluence.RewardKernel.pushforward_id
+#print axioms OpenInfluence.RewardKernel.continuation_id
+#print axioms OpenInfluence.RewardKernel.eu_eq_prefixReward_add
+#print axioms OpenInfluence.Lens
+#print axioms OpenInfluence.Lens.comp
+#print axioms OpenInfluence.Lens.id
+#print axioms OpenInfluence.RewardKernel.lens
+#print axioms OpenInfluence.RewardKernel.lens_comp
+#print axioms OpenInfluence.RewardKernel.lens_id
+#print axioms OpenInfluence.Game
+#print axioms OpenInfluence.Game.decision
+#print axioms OpenInfluence.Game.idGame
+#print axioms OpenInfluence.Game.seq
+#print axioms OpenInfluence.Game.seq_assoc_play
+#print axioms OpenInfluence.Game.seq_seq_eq_iff
+#print axioms OpenInfluence.Game.seq_assoc_eq
+#print axioms OpenInfluence.Game.idGame_seq_eq
+#print axioms OpenInfluence.Game.seq_idGame_eq
+#print axioms OpenInfluence.Game.seq_decision_eq_iff
+#print axioms OpenInfluence.Game.Sound
+#print axioms OpenInfluence.Game.decision_sound
+#print axioms OpenInfluence.Game.idGame_sound
+#print axioms OpenInfluence.Game.seq_sound
+#print axioms OpenInfluence.Coordination.first
+#print axioms OpenInfluence.Coordination.payoff
+#print axioms OpenInfluence.Coordination.second
+#print axioms OpenInfluence.Coordination.first_normalised
+#print axioms OpenInfluence.Coordination.second_normalised
+#print axioms OpenInfluence.Coordination.game
+#print axioms OpenInfluence.Coordination.composite_eu
+#print axioms OpenInfluence.Coordination.game_eq_iff
+#print axioms OpenInfluence.Coordination.coordination_equilibrium_not_optimal
+#print axioms OpenInfluence.Obstruction.early_normalised
+#print axioms OpenInfluence.Obstruction.game
+#print axioms OpenInfluence.Obstruction.obstruction_eq_iff
 #print axioms OpenInfluence.RewardCertificate.Json.constant_eq_ok
 #print axioms OpenInfluence.RewardCertificate.Json.decodeFlag_eq_ok
 #print axioms OpenInfluence.RewardCertificate.Json.decodeMode_eq_ok

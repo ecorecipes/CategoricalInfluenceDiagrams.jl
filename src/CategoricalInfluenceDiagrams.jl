@@ -110,6 +110,8 @@ export RewardKernel, reward, reward_matrix, identity_reward_kernel, copy_reward_
        discard_reward_kernel, swap_reward_kernel, merge_strategies
 # optimization.jl
 export contextual_value, contextual_optimize, continuation_value, boundary_law
+# games.jl
+export component_contexts, regrets, is_equilibrium, best_response_dynamics
 # certificates.jl
 export export_reward_certificate
 
@@ -118,6 +120,7 @@ include("open.jl")
 include("composition.jl")
 include("semantics.jl")
 include("optimization.jl")
+include("games.jl")
 include("certificates.jl")
 
 end # module
