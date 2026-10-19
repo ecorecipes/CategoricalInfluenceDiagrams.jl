@@ -295,7 +295,7 @@ influence-diagram schema); later loads are fast.
 - `proofs/`: the Lean project (see below). `proofs/certificate-fixtures/*.json` is written by
   `scripts/write_certificate_fixtures.jl` (other than `hand-*.json` and `*.bad.json`, written
   by `proofs/scripts/hand_fixtures.py`); do not edit it by hand.
-- `vignettes/`: the quarto project: 01 open influence diagrams and composition, 02 a management decision composed with the zoo's `reference_habitat_bn` (MIT, built in), 03 why optimisation does not compose.
+- `vignettes/`: the quarto project: 01 open influence diagrams and composition, 02 a management decision composed with the zoo's `reference_habitat_bn` (MIT, built in), 03 why optimisation does not compose, 04 equilibria of a monitoring and a management agency (ADR 0020: `component_contexts`, `regrets`, `best_response_dynamics` on the zoo network with a survey component).
 
 ## Proofs
 
