@@ -79,6 +79,8 @@ Each sentence below is registered as an SA-Pass claim in `conformance/sapass/cla
     (`cid.composition-certificate`)
 30. If the tensor checker accepts a tensor certificate at tolerance `τ`, the composite's interfaces are the parts' side by side and, for all coordinates of the two parts, the decoded composite's exact probability and reward at the joined coordinates are within an explicit bound, computed from `τ` and the recorded cells, of the tensor in the category of reward kernels of the decoded parts' exact tables.
     (`cid.tensor-certificate`)
+31. Every stochastic kernel between finite spaces is the mixture of the deterministic kernels of its rules, each weighted by the probability of drawing it, so one randomised decision placed in a serial context, beside other wires, has expected utility at most that of some deterministic rule in its place.
+    (`cid.single-decision`)
 
 Here `EU_f(μ, c) = Σ_x μ x Σ_y (W x y + K x y · c y)` for a boundary prior `μ` and a terminal
 continuation `c`; `c_g y = Σ_z (W_g y z + K_g y z · c z)` is the suffix's value function,
@@ -104,8 +106,10 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
   decision's information ports (its ordered parents); a behavioural policy (module
   `Behaviour`, ADR 0022) is a table of probabilities given those values, normalised on
   correctly typed rows, drawn from independently at every use. Deterministic sufficiency
-  is proved here for mixtures of reward kernels (`eu_mix_le`, `conditionalValue_mix_le`);
-  that a behavioural strategy of decisions with distinct labels is such a mixture is
+  is proved here for mixtures of reward kernels (`eu_mix_le`, `conditionalValue_mix_le`) and
+  for one randomised decision in a serial context beside other wires
+  (`single_decision_sufficiency`, through `kernel_eq_mix_ofFun`); that a behavioural strategy
+  of several decisions with distinct labels in an `IDNet` is such a mixture is
   `InfluenceDiagrams.jl`'s `exists_deterministic_optimal_all`, proved there for its finite
   model, not here for `IDNet`. With shared labels it fails (`AbsentMinded`).
 - **Observability.** The fixed-strategy semantics does not read observability flags.
@@ -233,6 +237,7 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
 | `IDInterpretation.Behaviour`, `interpB`, `pointMass`, `interpB_pointMass`, `rewardB`, `rewardTableB`, `interpretB`, `interpretB_stochastic` | Behavioural strategies and their semantics; the point masses of a deterministic strategy give `interp` |
 | `rewardB_comp`, `rewardTableB_comp`, `interpretB_comp`, `interpretB_identity`, `rewardB_tensor`, `rewardTableB_tensor`, `kernel_tensor_joinB`, `interpretB_tensor`, `contextual_identityB`, `interpretB_pointMass` | Functoriality and the contextual identity for behavioural strategies |
 | `RewardKernel.mix`, `mix_comp`, `comp_mix`, `eu_mix`, `eu_mix_le`, `mediant_le`, `pull_mix`, `mass_value_mix`, `conditionalValue_mix_le` | Mixtures compose affinely; their expected utility, and given evidence their conditional value, never exceed the best component's |
+| `RewardKernel.ruleWeight`, `kernel_eq_mix_ofFun`, `ruleWeight_nonneg`, `sum_ruleWeight`, `lift_eq_mix`, `mix_tensor`, `single_decision_sufficiency` | A stochastic kernel is the mixture of its deterministic rules; one randomised decision in a serial context beside other wires is never better than the best deterministic rule |
 | `AbsentMinded.first`, `second`, `drive_eu`, `randomising_helps`, `independent_deterministic_optimal` | The absent-minded driver: a shared policy is best randomised (`4/3 > 1`); separate policies are best deterministic (`4`) |
 | `RewardCertificate.Certificate`, `Value`, `ChanceTable`, `Utility`, `Policy`, `Result`, `isPolicy` | The decoded record: CategoricalBayesianNetworks' raw network, flags, chance and utility tables, one policy per decision name, the recorded `K` and `W`; a generator is a decision when its reference is a `policy` reference |
 | `Json.decodeCertificate`, `read`, `decodeCertificate_eq_ok`, `read_eq_ok`, `networkBody_fields` | The decoder succeeds with `c` exactly when the JSON is `c`'s layout key for key, reusing CategoricalBayesianNetworks' network readers and InfluenceDiagrams' value decoder |

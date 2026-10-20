@@ -302,6 +302,13 @@ assert_no_sorry OpenInfluence.RewardKernel.mediant_le
 assert_no_sorry OpenInfluence.RewardKernel.pull_mix
 assert_no_sorry OpenInfluence.RewardKernel.mass_value_mix
 assert_no_sorry OpenInfluence.RewardKernel.conditionalValue_mix_le
+assert_no_sorry OpenInfluence.RewardKernel.ruleWeight
+assert_no_sorry OpenInfluence.RewardKernel.kernel_eq_mix_ofFun
+assert_no_sorry OpenInfluence.RewardKernel.ruleWeight_nonneg
+assert_no_sorry OpenInfluence.RewardKernel.sum_ruleWeight
+assert_no_sorry OpenInfluence.RewardKernel.lift_eq_mix
+assert_no_sorry OpenInfluence.RewardKernel.mix_tensor
+assert_no_sorry OpenInfluence.RewardKernel.single_decision_sufficiency
 assert_no_sorry OpenInfluence.AbsentMinded.first
 assert_no_sorry OpenInfluence.AbsentMinded.second
 assert_no_sorry OpenInfluence.AbsentMinded.drive_eu
@@ -759,6 +766,13 @@ assert_no_sorry OpenInfluence.RewardCertificate.Json.readOperation
 #print axioms OpenInfluence.RewardKernel.pull_mix
 #print axioms OpenInfluence.RewardKernel.mass_value_mix
 #print axioms OpenInfluence.RewardKernel.conditionalValue_mix_le
+#print axioms OpenInfluence.RewardKernel.ruleWeight
+#print axioms OpenInfluence.RewardKernel.kernel_eq_mix_ofFun
+#print axioms OpenInfluence.RewardKernel.ruleWeight_nonneg
+#print axioms OpenInfluence.RewardKernel.sum_ruleWeight
+#print axioms OpenInfluence.RewardKernel.lift_eq_mix
+#print axioms OpenInfluence.RewardKernel.mix_tensor
+#print axioms OpenInfluence.RewardKernel.single_decision_sufficiency
 #print axioms OpenInfluence.AbsentMinded.first
 #print axioms OpenInfluence.AbsentMinded.second
 #print axioms OpenInfluence.AbsentMinded.drive_eu

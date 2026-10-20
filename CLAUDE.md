@@ -377,7 +377,9 @@ generators), `Interpretation` (`interpret_comp`, `interpret_identity`, `interpre
 `Lens` (ADR 0020: the lens of a reward kernel, open games with decision, identity and
 serial composition, equilibria compositional, optima equilibria, the coordination witness), `Perfection` (perfect decision games, backward induction, the threat witness; Julia `regrets(...; perfect = true)` takes the largest pointwise gain over a component's input states), `GameTensor` (the tensor of games: exact for product priors, `tensor_decision_eq_iff`; no factor context for correlated priors, `correlated_no_factor_context`)
 `Behaviour` (ADR 0022: behavioural strategies, their interpretation functorial, mixtures
-never better than the best component with or without evidence, the absent-minded driver)
+never better than the best component with or without evidence, a stochastic kernel the
+mixture of its rules and one randomised decision never better than a rule, the
+absent-minded driver)
 and `Evidence` (ADR 0021: effects and states, their actions functorial without
 normalisation, the mass and value pairings invariant across a boundary, observation
 idempotent, the local-normalisation witness, the likelihood-weighted interpretation

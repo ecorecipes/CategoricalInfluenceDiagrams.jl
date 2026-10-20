@@ -117,6 +117,7 @@ The Lean project in [`proofs/`](proofs/) builds on the proof projects of
 - Normalising each component on its own evidence before composing is not sound: with a uniform binary state worth 1 when true and evidence nine times likelier when it is true, the conditional value is 9/10, while the components normalised one by one give 1/2.
 - For a behavioural strategy, which gives every decision a table of action probabilities, the interpretation of open influence diagrams sends serial composition to composition of reward kernels, identities to `(id, 0)` and tensor to the tensor of reward kernels, and a deterministic strategy has the interpretation of its point masses.
 - A mixture of reward kernels with nonnegative weights summing to one has expected utility at most that of one of its components, and, when masses are nonnegative and a component of zero mass has zero evidence-weighted value, conditional value at most that of one of its components of positive mass.
+- Every stochastic kernel between finite spaces is the mixture of the deterministic kernels of its rules, each weighted by the probability of drawing it, so one randomised decision placed in a serial context, beside other wires, has expected utility at most that of some deterministic rule in its place.
 - When two decisions share a policy, randomising can help: in the absent-minded driver, continuing with probability 2/3 at both junctions is worth 4/3, while either deterministic policy is worth at most 1; with a policy each, the deterministic pair that continues and then exits is worth 4 and no pair of probabilities does better.
 
 The three certificate results are about reward certificates (ADR 0019) and composition and
@@ -128,7 +129,7 @@ about lenses and open games (ADR 0020), over the reward-kernel semantics: equili
 tensor of games (exact for product priors; for correlated priors no context of one factor
 suffices) and perfect equilibria. The three after them are about evidence (ADR 0021): the
 evidence-weighted interpretation is proved functorial for serial composition and tensor,
-and the binary64 rules of `conditional_value` are Julia's. The last three are about
+and the binary64 rules of `conditional_value` are Julia's. The last four are about
 behavioural strategies (ADR 0022). The syntax is not quotiented by isomorphism, the
 semantics does not read observability flags, and nothing is proved about arbitrary gluing;
 [`proofs/README.md`](proofs/README.md) lists every theorem and these restrictions.

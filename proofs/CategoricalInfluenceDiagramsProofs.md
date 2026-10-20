@@ -3111,6 +3111,7 @@ end OpenInfluence
 
 ```lean
 import CategoricalInfluenceDiagramsProofs.Evidence
+import InfluenceDiagramsProofs.Finite.Optimization
 ```
 
 ADR 0018 kept randomised policies out of the first release "until a theorem covers them".
@@ -3606,6 +3607,69 @@ theorem conditionalValue_mix_le (q : ι → ℝ) (hq0 : ∀ i, 0 ≤ q i)
   unfold conditionalValue
   rw [(mass_value_mix q f s e).1, (mass_value_mix q f s e).2]
   exact mediant_le q _ _ hq0 hmass hzero hpos
+```
+
+### A behavioural decision is a mixture of deterministic ones
+
+```lean
+omit [Fintype X] [Fintype Y] [Fintype Z] [Fintype ι] in
+/-- The weight of the deterministic rule `f` in a stochastic kernel `k`: the probability of
+drawing `f(x)` from `k(x, ·)` independently at every `x`. -/
+def ruleWeight [Fintype X] (k : Kernel X Y) (f : X → Y) : ℝ := ∏ x, k x (f x)
+
+omit [Fintype Z] [Fintype ι] in
+/-- **A stochastic kernel is the mixture of the deterministic kernels of its rules**, each
+weighted by the probability of drawing it (Kuhn's theorem for one decision). -/
+theorem kernel_eq_mix_ofFun [DecidableEq X] [DecidableEq Y] (k : Kernel X Y)
+    (hk : Kernel.Normalised k) (x : X) (y : Y) :
+    k x y = ∑ f : X → Y, ruleWeight k f * Kernel.ofFun f x y := by
+  simp only [ruleWeight, Kernel.ofFun_apply]
+  exact (InfluenceDiagramsProofs.FinInfluenceDiagram.sum_table_indicator k hk x y).symm
+
+omit [Fintype Y] [Fintype Z] [Fintype ι] in
+theorem ruleWeight_nonneg (k : Kernel X Y) (hk : Kernel.Nonneg k) (f : X → Y) :
+    0 ≤ ruleWeight k f :=
+  Finset.prod_nonneg fun x _ => hk x (f x)
+
+omit [Fintype Z] [Fintype ι] in
+theorem sum_ruleWeight [DecidableEq X] (k : Kernel X Y) (hk : Kernel.Normalised k) :
+    ∑ f : X → Y, ruleWeight k f = 1 := by
+  classical
+  unfold ruleWeight
+  rw [← Fintype.prod_sum]
+  simp [hk _]
+
+omit [Fintype Z] [Fintype ι] in
+/-- The lifted kernel is the mixture of the lifted deterministic kernels. -/
+theorem lift_eq_mix [DecidableEq X] [DecidableEq Y] (k : Kernel X Y) (hk : Kernel.Normalised k) :
+    lift k = mix (ruleWeight k) (fun f => lift (Kernel.ofFun f)) := by
+  ext x y
+  · exact kernel_eq_mix_ofFun k hk x y
+  · simp [mix, lift]
+
+omit [Fintype X] [Fintype Y] [Fintype Z] in
+/-- A mixture beside a reward kernel is the mixture of the tensors. -/
+theorem mix_tensor {X' Y' : Type} [Fintype Y'] (q : ι → ℝ) (f : ι → RewardKernel X Y)
+    (g : RewardKernel X' Y') : (mix q f).tensor g = mix q (fun i => (f i).tensor g) := by
+  ext p p'
+  · simp only [mix, tensor_K, Kernel.tensor_apply, Finset.sum_mul]
+    exact Finset.sum_congr rfl fun _ _ => by ring
+  · simp only [mix, tensor_W, tensor_K, Kernel.tensor_apply, Pi.add_apply, Finset.sum_mul,
+      ← Finset.sum_add_distrib]
+    exact Finset.sum_congr rfl fun _ _ => by ring
+
+/-- **One randomised decision in any context never beats the best deterministic rule.** A
+decision drawing its action from `k` given its information `P`, beside the wires `V` and
+between a prefix and a suffix, has expected utility at most that of one deterministic rule
+`f : P → A` in its place. -/
+theorem single_decision_sufficiency {P A V : Type} [Fintype P] [DecidableEq P] [Fintype A]
+    [DecidableEq A] [Nonempty A] [Fintype V] [DecidableEq V]
+    (pre : RewardKernel X (P × V)) (k : Kernel P A) (hk0 : Kernel.Nonneg k)
+    (hk : Kernel.Normalised k) (post : RewardKernel (A × V) Z) (μ : X → ℝ) (c : Z → ℝ) :
+    ∃ f : P → A, (pre.comp (((lift k).tensor (id V)).comp post)).eu μ c ≤
+      (pre.comp (((lift (Kernel.ofFun f)).tensor (id V)).comp post)).eu μ c := by
+  rw [lift_eq_mix k hk, mix_tensor, mix_comp, comp_mix]
+  exact eu_mix_le (ruleWeight k) (ruleWeight_nonneg k hk0) (sum_ruleWeight k hk) _ μ c
 
 end RewardKernel
 ```
