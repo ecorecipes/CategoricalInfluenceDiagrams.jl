@@ -6019,6 +6019,192 @@ theorem composition_sound_W {τ : ℚ} (hc : cc.check τ = true) :
 end Composition
 ```
 
+## Tensor certificates
+
+```lean
+/-- The format string of tensor certificates, version 1: the same three reward certificates,
+the composite being `otimes(A, B)`. -/
+def tensorFormatName : String := "OpenInfluence.TensorCertificate/v1"
+
+theorem length_of_rowAttrs_append {n m k : ℕ} {L : List (BoundaryRow n)}
+    {R : List (BoundaryRow m)} {C : List (BoundaryRow k)}
+    (h : rowAttrs C = rowAttrs L ++ rowAttrs R) : C.length = L.length + R.length := by
+  have := congrArg List.length h
+  simpa [rowAttrs] using this
+
+theorem attrs_left_of_append {n m k : ℕ} {L : List (BoundaryRow n)} {R : List (BoundaryRow m)}
+    {C : List (BoundaryRow k)} (h : rowAttrs C = rowAttrs L ++ rowAttrs R) (j : ℕ)
+    (hC : j < C.length) (hL : j < L.length) : C[j].attrs = L[j].attrs := by
+  have := congrArg (fun l => l[j]?) h
+  simp only [rowAttrs] at this
+  rw [List.getElem?_append_left (by simpa using hL)] at this
+  simpa [List.getElem?_eq_getElem hC, List.getElem?_eq_getElem hL] using this
+
+theorem attrs_right_of_append {n m k : ℕ} {L : List (BoundaryRow n)} {R : List (BoundaryRow m)}
+    {C : List (BoundaryRow k)} (h : rowAttrs C = rowAttrs L ++ rowAttrs R) (j : ℕ)
+    (hC : j < C.length) (hL : L.length ≤ j) (hR : j - L.length < R.length) :
+    C[j].attrs = R[j - L.length].attrs := by
+  have := congrArg (fun l => l[j]?) h
+  simp only [rowAttrs] at this
+  rw [List.getElem?_append_right (by simpa using hL)] at this
+  simpa [List.getElem?_eq_getElem hC, List.getElem?_eq_getElem hR] using this
+
+/-- Coordinates of rows `L` and of rows `R` joined as coordinates of rows `C`, whose attributes
+are those of `L` followed by those of `R`. -/
+def joinCoord {n m k : ℕ} (L : List (BoundaryRow n)) (R : List (BoundaryRow m))
+    (C : List (BoundaryRow k)) (h : rowAttrs C = rowAttrs L ++ rowAttrs R)
+    (x : ∀ j : Fin L.length, Fin (dimension L[j].attrs))
+    (x' : ∀ j : Fin R.length, Fin (dimension R[j].attrs)) :
+    ∀ j : Fin C.length, Fin (dimension C[j].attrs) := fun j =>
+  if hj : j.val < L.length then
+    Fin.cast (congrArg dimension (attrs_left_of_append h j.val j.isLt hj)).symm (x ⟨j.val, hj⟩)
+  else
+    have hR : j.val - L.length < R.length := by
+      have := length_of_rowAttrs_append h
+      have := j.isLt
+      omega
+    Fin.cast (congrArg dimension (attrs_right_of_append h j.val j.isLt (by omega) hR)).symm
+      (x' ⟨j.val - L.length, hR⟩)
+
+namespace Composition
+
+variable (cc : Composition)
+
+/-- The interfaces of a tensor line up: the composite's input rows are the left part's
+followed by the right part's, and likewise its output rows. -/
+def TensorAligned : Prop :=
+  rowAttrs cc.composite.network.inputs =
+      rowAttrs cc.left.network.inputs ++ rowAttrs cc.right.network.inputs ∧
+    rowAttrs cc.composite.network.outputs =
+      rowAttrs cc.left.network.outputs ++ rowAttrs cc.right.network.outputs
+
+instance : Decidable cc.TensorAligned := by unfold TensorAligned; infer_instance
+
+variable {cc}
+
+/-- A pair of input coordinates as a composite input coordinate. -/
+def joinIn (h : cc.TensorAligned) (x : cc.left.InCoord) (x' : cc.right.InCoord) :
+    cc.composite.InCoord :=
+  joinCoord _ _ _ h.1 x x'
+
+/-- A pair of output coordinates as a composite output coordinate. -/
+def joinOut (h : cc.TensorAligned) (y : cc.left.OutCoord) (y' : cc.right.OutCoord) :
+    cc.composite.OutCoord :=
+  joinCoord _ _ _ h.2 y y'
+
+/-- The largest gap between the tensor's recorded `K` and the product of the parts'. -/
+def tensorKError (h : cc.TensorAligned) : ℚ :=
+  (Finset.univ : Finset ((cc.left.InCoord × cc.right.InCoord) ×
+      (cc.left.OutCoord × cc.right.OutCoord))).fold max 0 fun p =>
+    |kHat cc.composite (joinIn h p.1.1 p.1.2) (joinOut h p.2.1 p.2.2) -
+      kHat cc.left p.1.1 p.2.1 * kHat cc.right p.1.2 p.2.2|
+
+/-- The largest gap between the tensor's recorded `W` and the parts' `W ⊗ K + K ⊗ W`. -/
+def tensorWError (h : cc.TensorAligned) : ℚ :=
+  (Finset.univ : Finset ((cc.left.InCoord × cc.right.InCoord) ×
+      (cc.left.OutCoord × cc.right.OutCoord))).fold max 0 fun p =>
+    |wHat cc.composite (joinIn h p.1.1 p.1.2) (joinOut h p.2.1 p.2.2) -
+      (wHat cc.left p.1.1 p.2.1 * kHat cc.right p.1.2 p.2.2 +
+        kHat cc.left p.1.1 p.2.1 * wHat cc.right p.1.2 p.2.2)|
+
+variable (cc)
+
+/-- **The tensor checker.** -/
+def checkTensor (τ : ℚ) : Bool :=
+  cc.left.check τ && cc.right.check τ && cc.composite.check τ &&
+    if h : cc.TensorAligned then decide (tensorKError h ≤ τ) && decide (tensorWError h ≤ τ)
+    else false
+
+/-- The name of the tensor checker's first failing stage, if any. -/
+def firstFailureTensor (τ : ℚ) : Option String :=
+  if !cc.left.check τ then some s!"left: {(cc.left.firstFailure τ).getD "unknown stage"}"
+  else if !cc.right.check τ then some s!"right: {(cc.right.firstFailure τ).getD "unknown stage"}"
+  else if !cc.composite.check τ then
+    some s!"composite: {(cc.composite.firstFailure τ).getD "unknown stage"}"
+  else if h : cc.TensorAligned then
+    if !decide (tensorKError h ≤ τ) then
+      some "tensor K (a composite cell is not within the tolerance of the parts' product)"
+    else if !decide (tensorWError h ≤ τ) then
+      some "tensor W (a composite cell is not within the tolerance of the parts' product)"
+    else none
+  else some "alignment (the composite's interfaces are not the parts' side by side)"
+
+variable {cc}
+
+theorem accepted_of_checkTensor {τ : ℚ} (hc : cc.checkTensor τ = true) :
+    cc.left.Accepted τ ∧ cc.right.Accepted τ ∧ cc.composite.Accepted τ ∧
+      ∃ h : cc.TensorAligned, tensorKError h ≤ τ ∧ tensorWError h ≤ τ := by
+  unfold checkTensor at hc
+  simp only [Bool.and_eq_true] at hc
+  obtain ⟨⟨⟨hl, hr⟩, hco⟩, ha⟩ := hc
+  refine ⟨(Certificate.check_iff_accepted _ _).1 hl, (Certificate.check_iff_accepted _ _).1 hr,
+    (Certificate.check_iff_accepted _ _).1 hco, ?_⟩
+  by_cases h : cc.TensorAligned
+  · rw [dif_pos h] at ha
+    simp only [Bool.and_eq_true, decide_eq_true_eq] at ha
+    exact ⟨h, ha⟩
+  · rw [dif_neg h] at ha
+    exact absurd ha (by simp)
+
+/-- **Tensor soundness for `K`**: on acceptance, the decoded tensor's exact probability at a
+pair of coordinates is within `2τ + τ (|K̂_L| + |K̂_R| + τ)` of the product of the decoded
+parts' exact probabilities. -/
+theorem tensor_sound_K {τ : ℚ} (hc : cc.checkTensor τ = true) :
+    ∃ h : cc.TensorAligned, ∀ (x : cc.left.InCoord) (x' : cc.right.InCoord)
+      (y : cc.left.OutCoord) (y' : cc.right.OutCoord),
+      |cc.composite.exactK (joinIn h x x') (joinOut h y y') -
+          cc.left.exactK x y * cc.right.exactK x' y'| ≤
+        2 * τ + τ * (|kHat cc.left x y| + |kHat cc.right x' y'| + τ) := by
+  obtain ⟨hl, hr, hco, h, hk, -⟩ := accepted_of_checkTensor hc
+  refine ⟨h, fun x x' y y' => ?_⟩
+  have hCA : |cc.composite.exactK (joinIn h x x') (joinOut h y y') -
+      kHat cc.composite (joinIn h x x') (joinOut h y y')| ≤ τ := by
+    rw [abs_sub_comm]
+    exact Certificate.kError_le _ hco.kError _ _
+  have hcomp := le_of_fold hk ((x, x'), (y, y'))
+  have hprod := abs_mul_sub_le (Certificate.kError_le _ hl.kError x y)
+    (Certificate.kError_le _ hr.kError x' y')
+  exact (abs_sub_le_three hCA hcomp hprod).trans (le_of_eq (by simp only [kHat]; ring))
+
+/-- **Tensor soundness for `W`**: on acceptance, the decoded tensor's exact reward at a pair
+of coordinates is within `2τ + τ (|Ŵ_L| + |K̂_R| + |K̂_L| + |Ŵ_R| + 2τ)` of the parts'
+`W ⊗ K + K ⊗ W`. -/
+theorem tensor_sound_W {τ : ℚ} (hc : cc.checkTensor τ = true) :
+    ∃ h : cc.TensorAligned, ∀ (x : cc.left.InCoord) (x' : cc.right.InCoord)
+      (y : cc.left.OutCoord) (y' : cc.right.OutCoord),
+      |cc.composite.exactW (joinIn h x x') (joinOut h y y') -
+          (cc.left.exactW x y * cc.right.exactK x' y' +
+            cc.left.exactK x y * cc.right.exactW x' y')| ≤
+        2 * τ + τ * (|wHat cc.left x y| + |kHat cc.right x' y'| + |kHat cc.left x y| +
+          |wHat cc.right x' y'| + 2 * τ) := by
+  obtain ⟨hl, hr, hco, h, -, hw⟩ := accepted_of_checkTensor hc
+  refine ⟨h, fun x x' y y' => ?_⟩
+  have hCA : |cc.composite.exactW (joinIn h x x') (joinOut h y y') -
+      wHat cc.composite (joinIn h x x') (joinOut h y y')| ≤ τ := by
+    rw [abs_sub_comm]
+    exact Certificate.wError_le _ hco.wError _ _
+  have hcomp := le_of_fold hw ((x, x'), (y, y'))
+  have h1 := abs_mul_sub_le (Certificate.wError_le _ hl.wError x y)
+    (Certificate.kError_le _ hr.kError x' y')
+  have h2 := abs_mul_sub_le (Certificate.kError_le _ hl.kError x y)
+    (Certificate.wError_le _ hr.wError x' y')
+  have hsum : |(wHat cc.left x y * kHat cc.right x' y' + kHat cc.left x y * wHat cc.right x' y') -
+      (cc.left.exactW x y * cc.right.exactK x' y' + cc.left.exactK x y * cc.right.exactW x' y')|
+      ≤ τ * (|wHat cc.left x y| + |kHat cc.right x' y'| + |kHat cc.left x y| +
+        |wHat cc.right x' y'| + 2 * τ) := by
+    have e : (wHat cc.left x y * kHat cc.right x' y' + kHat cc.left x y * wHat cc.right x' y') -
+        (cc.left.exactW x y * cc.right.exactK x' y' + cc.left.exactK x y * cc.right.exactW x' y') =
+        (wHat cc.left x y * kHat cc.right x' y' - cc.left.exactW x y * cc.right.exactK x' y') +
+        (kHat cc.left x y * wHat cc.right x' y' - cc.left.exactK x y * cc.right.exactW x' y') := by
+      ring
+    rw [e]
+    exact (abs_add_le _ _).trans ((add_le_add h1 h2).trans
+      (le_of_eq (by simp only [kHat, wHat]; ring)))
+  exact (abs_sub_le_three hCA hcomp hsum).trans (le_of_eq (by ring))
+
+end Composition
+```
+
 ## Decoding
 
 ```lean
@@ -6037,6 +6223,27 @@ def decodeComposition (j : Json) : Except String Composition := do
   let r ← get o "right" decodeCertificate
   let c ← get o "composite" decodeCertificate
   pure ⟨l, r, c⟩
+
+/-- Decode a tensor certificate: the keys of a composition certificate, with the tensor's
+format string. -/
+def decodeTensor (j : Json) : Except String Composition := do
+  let o ← object "tensor" 4 j
+  get o "format" (constant tensorFormatName)
+  let l ← get o "left" decodeCertificate
+  let r ← get o "right" decodeCertificate
+  let c ← get o "composite" decodeCertificate
+  pure ⟨l, r, c⟩
+
+/-- Read a composition (`false`) or tensor (`true`) certificate from its text, by its format
+string. -/
+def readOperation (text : String) : Except String (Bool × Composition) := do
+  let j ← OpenNet.CertificateSyntax.parse text
+  match decodeComposition j with
+  | .ok cc => pure (false, cc)
+  | .error e₁ =>
+    match decodeTensor j with
+    | .ok cc => pure (true, cc)
+    | .error e₂ => throw s!"neither a composition ({e₁}) nor a tensor ({e₂}) certificate"
 
 /-- Read a composition certificate from its text. -/
 def readComposition (text : String) : Except String Composition := do

@@ -432,6 +432,23 @@ assert_no_sorry OpenInfluence.RewardCertificate.Composition.composition_sound_K
 assert_no_sorry OpenInfluence.RewardCertificate.Composition.composition_sound_W
 assert_no_sorry OpenInfluence.RewardCertificate.Json.decodeComposition
 assert_no_sorry OpenInfluence.RewardCertificate.Json.readComposition
+assert_no_sorry OpenInfluence.RewardCertificate.tensorFormatName
+assert_no_sorry OpenInfluence.RewardCertificate.length_of_rowAttrs_append
+assert_no_sorry OpenInfluence.RewardCertificate.attrs_left_of_append
+assert_no_sorry OpenInfluence.RewardCertificate.attrs_right_of_append
+assert_no_sorry OpenInfluence.RewardCertificate.joinCoord
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.TensorAligned
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.joinIn
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.joinOut
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.tensorKError
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.tensorWError
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.checkTensor
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.firstFailureTensor
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.accepted_of_checkTensor
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.tensor_sound_K
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.tensor_sound_W
+assert_no_sorry OpenInfluence.RewardCertificate.Json.decodeTensor
+assert_no_sorry OpenInfluence.RewardCertificate.Json.readOperation
 
 #print axioms OpenInfluence.ObservedInterface.sum
 #print axioms OpenInfluence.ObservedInterface.empty
@@ -872,3 +889,20 @@ assert_no_sorry OpenInfluence.RewardCertificate.Json.readComposition
 #print axioms OpenInfluence.RewardCertificate.Composition.composition_sound_W
 #print axioms OpenInfluence.RewardCertificate.Json.decodeComposition
 #print axioms OpenInfluence.RewardCertificate.Json.readComposition
+#print axioms OpenInfluence.RewardCertificate.tensorFormatName
+#print axioms OpenInfluence.RewardCertificate.length_of_rowAttrs_append
+#print axioms OpenInfluence.RewardCertificate.attrs_left_of_append
+#print axioms OpenInfluence.RewardCertificate.attrs_right_of_append
+#print axioms OpenInfluence.RewardCertificate.joinCoord
+#print axioms OpenInfluence.RewardCertificate.Composition.TensorAligned
+#print axioms OpenInfluence.RewardCertificate.Composition.joinIn
+#print axioms OpenInfluence.RewardCertificate.Composition.joinOut
+#print axioms OpenInfluence.RewardCertificate.Composition.tensorKError
+#print axioms OpenInfluence.RewardCertificate.Composition.tensorWError
+#print axioms OpenInfluence.RewardCertificate.Composition.checkTensor
+#print axioms OpenInfluence.RewardCertificate.Composition.firstFailureTensor
+#print axioms OpenInfluence.RewardCertificate.Composition.accepted_of_checkTensor
+#print axioms OpenInfluence.RewardCertificate.Composition.tensor_sound_K
+#print axioms OpenInfluence.RewardCertificate.Composition.tensor_sound_W
+#print axioms OpenInfluence.RewardCertificate.Json.decodeTensor
+#print axioms OpenInfluence.RewardCertificate.Json.readOperation

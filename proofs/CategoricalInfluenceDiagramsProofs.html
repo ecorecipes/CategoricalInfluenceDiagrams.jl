@@ -214,6 +214,8 @@ certificates: the Julia composite against the Lean composite (ADR
 id="toc-carrying-coordinates-across-aligned-rows">Carrying coordinates
 across aligned rows</a></li>
 <li><a href="#soundness" id="toc-soundness">Soundness</a></li>
+<li><a href="#tensor-certificates" id="toc-tensor-certificates">Tensor
+certificates</a></li>
 <li><a href="#decoding" id="toc-decoding">Decoding</a></li>
 </ul></li>
 </ul>
@@ -6171,31 +6173,235 @@ class="sourceCode lean"><code class="sourceCode lean"><span id="cb94-1"><a href=
 <span id="cb94-115"><a href="#cb94-115" aria-hidden="true" tabindex="-1"></a>  <span class="cf">exact</span> (abs_sub_le_three hCA hcomp hsum).trans (le_of_eq (<span class="kw">by</span> <span class="cf">ring</span>))</span>
 <span id="cb94-116"><a href="#cb94-116" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb94-117"><a href="#cb94-117" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> Composition</span></code></pre></div>
-<h2 id="decoding">Decoding</h2>
+<h2 id="tensor-certificates">Tensor certificates</h2>
 <div class="sourceCode" id="cb95"><pre
-class="sourceCode lean"><code class="sourceCode lean"><span id="cb95-1"><a href="#cb95-1" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> Json</span>
-<span id="cb95-2"><a href="#cb95-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb95-3"><a href="#cb95-3" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> Lean (Json)</span>
-<span id="cb95-4"><a href="#cb95-4" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> BayesianNetworksProofs.Raw (object)</span>
-<span id="cb95-5"><a href="#cb95-5" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> InfluenceDiagramsProofs.DVECertificate (get)</span>
-<span id="cb95-6"><a href="#cb95-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb95-7"><a href="#cb95-7" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Decode a composition certificate: exactly the keys `format`, `left`, `right` and</span></span>
-<span id="cb95-8"><a href="#cb95-8" aria-hidden="true" tabindex="-1"></a><span class="do">`composite`, the last three reward certificates. -/</span></span>
-<span id="cb95-9"><a href="#cb95-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> decodeComposition (j : Json) : Except String Composition := <span class="kw">do</span></span>
-<span id="cb95-10"><a href="#cb95-10" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> o ← object <span class="st">&quot;composition&quot;</span> <span class="dv">4</span> j</span>
-<span id="cb95-11"><a href="#cb95-11" aria-hidden="true" tabindex="-1"></a>  get o <span class="st">&quot;format&quot;</span> (constant compositionFormatName)</span>
-<span id="cb95-12"><a href="#cb95-12" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> l ← get o <span class="st">&quot;left&quot;</span> decodeCertificate</span>
-<span id="cb95-13"><a href="#cb95-13" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> r ← get o <span class="st">&quot;right&quot;</span> decodeCertificate</span>
-<span id="cb95-14"><a href="#cb95-14" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> c ← get o <span class="st">&quot;composite&quot;</span> decodeCertificate</span>
-<span id="cb95-15"><a href="#cb95-15" aria-hidden="true" tabindex="-1"></a>  pure ⟨l, r, c⟩</span>
-<span id="cb95-16"><a href="#cb95-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb95-17"><a href="#cb95-17" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Read a composition certificate from its text. -/</span></span>
-<span id="cb95-18"><a href="#cb95-18" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> readComposition (text : String) : Except String Composition := <span class="kw">do</span></span>
-<span id="cb95-19"><a href="#cb95-19" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> j ← OpenNet.CertificateSyntax.parse text</span>
-<span id="cb95-20"><a href="#cb95-20" aria-hidden="true" tabindex="-1"></a>  decodeComposition j</span>
-<span id="cb95-21"><a href="#cb95-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb95-22"><a href="#cb95-22" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> Json</span>
-<span id="cb95-23"><a href="#cb95-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb95-24"><a href="#cb95-24" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> OpenInfluence.RewardCertificate</span></code></pre></div>
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb95-1"><a href="#cb95-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The format string of tensor certificates, version 1: the same three reward certificates,</span></span>
+<span id="cb95-2"><a href="#cb95-2" aria-hidden="true" tabindex="-1"></a><span class="do">the composite being `otimes(A, B)`. -/</span></span>
+<span id="cb95-3"><a href="#cb95-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tensorFormatName : String := <span class="st">&quot;OpenInfluence.TensorCertificate/v1&quot;</span></span>
+<span id="cb95-4"><a href="#cb95-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-5"><a href="#cb95-5" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> length_of_rowAttrs_append {n m k : ℕ} {L : List (BoundaryRow n)}</span>
+<span id="cb95-6"><a href="#cb95-6" aria-hidden="true" tabindex="-1"></a>    {R : List (BoundaryRow m)} {C : List (BoundaryRow k)}</span>
+<span id="cb95-7"><a href="#cb95-7" aria-hidden="true" tabindex="-1"></a>    (h : rowAttrs C = rowAttrs L ++ rowAttrs R) : C.length = L.length + R.length := <span class="kw">by</span></span>
+<span id="cb95-8"><a href="#cb95-8" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> := congrArg List.length h</span>
+<span id="cb95-9"><a href="#cb95-9" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simpa</span> [rowAttrs] <span class="kw">using</span> this</span>
+<span id="cb95-10"><a href="#cb95-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-11"><a href="#cb95-11" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> attrs_left_of_append {n m k : ℕ} {L : List (BoundaryRow n)} {R : List (BoundaryRow m)}</span>
+<span id="cb95-12"><a href="#cb95-12" aria-hidden="true" tabindex="-1"></a>    {C : List (BoundaryRow k)} (h : rowAttrs C = rowAttrs L ++ rowAttrs R) (j : ℕ)</span>
+<span id="cb95-13"><a href="#cb95-13" aria-hidden="true" tabindex="-1"></a>    (hC : j &lt; C.length) (hL : j &lt; L.length) : C[j].attrs = L[j].attrs := <span class="kw">by</span></span>
+<span id="cb95-14"><a href="#cb95-14" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> := congrArg (<span class="kw">fun</span> l =&gt; l[j]?) h</span>
+<span id="cb95-15"><a href="#cb95-15" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [rowAttrs] <span class="kw">at</span> this</span>
+<span id="cb95-16"><a href="#cb95-16" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [List.getElem?_append_left (<span class="kw">by</span> <span class="cf">simpa</span> <span class="kw">using</span> hL)] <span class="kw">at</span> this</span>
+<span id="cb95-17"><a href="#cb95-17" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simpa</span> [List.getElem?_eq_getElem hC, List.getElem?_eq_getElem hL] <span class="kw">using</span> this</span>
+<span id="cb95-18"><a href="#cb95-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-19"><a href="#cb95-19" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> attrs_right_of_append {n m k : ℕ} {L : List (BoundaryRow n)} {R : List (BoundaryRow m)}</span>
+<span id="cb95-20"><a href="#cb95-20" aria-hidden="true" tabindex="-1"></a>    {C : List (BoundaryRow k)} (h : rowAttrs C = rowAttrs L ++ rowAttrs R) (j : ℕ)</span>
+<span id="cb95-21"><a href="#cb95-21" aria-hidden="true" tabindex="-1"></a>    (hC : j &lt; C.length) (hL : L.length ≤ j) (hR : j - L.length &lt; R.length) :</span>
+<span id="cb95-22"><a href="#cb95-22" aria-hidden="true" tabindex="-1"></a>    C[j].attrs = R[j - L.length].attrs := <span class="kw">by</span></span>
+<span id="cb95-23"><a href="#cb95-23" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> := congrArg (<span class="kw">fun</span> l =&gt; l[j]?) h</span>
+<span id="cb95-24"><a href="#cb95-24" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [rowAttrs] <span class="kw">at</span> this</span>
+<span id="cb95-25"><a href="#cb95-25" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [List.getElem?_append_right (<span class="kw">by</span> <span class="cf">simpa</span> <span class="kw">using</span> hL)] <span class="kw">at</span> this</span>
+<span id="cb95-26"><a href="#cb95-26" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simpa</span> [List.getElem?_eq_getElem hC, List.getElem?_eq_getElem hR] <span class="kw">using</span> this</span>
+<span id="cb95-27"><a href="#cb95-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-28"><a href="#cb95-28" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Coordinates of rows `L` and of rows `R` joined as coordinates of rows `C`, whose attributes</span></span>
+<span id="cb95-29"><a href="#cb95-29" aria-hidden="true" tabindex="-1"></a><span class="do">are those of `L` followed by those of `R`. -/</span></span>
+<span id="cb95-30"><a href="#cb95-30" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> joinCoord {n m k : ℕ} (L : List (BoundaryRow n)) (R : List (BoundaryRow m))</span>
+<span id="cb95-31"><a href="#cb95-31" aria-hidden="true" tabindex="-1"></a>    (C : List (BoundaryRow k)) (h : rowAttrs C = rowAttrs L ++ rowAttrs R)</span>
+<span id="cb95-32"><a href="#cb95-32" aria-hidden="true" tabindex="-1"></a>    (x : ∀ j : Fin L.length, Fin (dimension L[j].attrs))</span>
+<span id="cb95-33"><a href="#cb95-33" aria-hidden="true" tabindex="-1"></a>    (x&#39; : ∀ j : Fin R.length, Fin (dimension R[j].attrs)) :</span>
+<span id="cb95-34"><a href="#cb95-34" aria-hidden="true" tabindex="-1"></a>    ∀ j : Fin C.length, Fin (dimension C[j].attrs) := <span class="kw">fun</span> j =&gt;</span>
+<span id="cb95-35"><a href="#cb95-35" aria-hidden="true" tabindex="-1"></a>  <span class="kw">if</span> hj : j.val &lt; L.length <span class="kw">then</span></span>
+<span id="cb95-36"><a href="#cb95-36" aria-hidden="true" tabindex="-1"></a>    Fin.cast (congrArg dimension (attrs_left_of_append h j.val j.isLt hj)).symm (x ⟨j.val, hj⟩)</span>
+<span id="cb95-37"><a href="#cb95-37" aria-hidden="true" tabindex="-1"></a>  <span class="kw">else</span></span>
+<span id="cb95-38"><a href="#cb95-38" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hR : j.val - L.length &lt; R.length := <span class="kw">by</span></span>
+<span id="cb95-39"><a href="#cb95-39" aria-hidden="true" tabindex="-1"></a>      <span class="kw">have</span> := length_of_rowAttrs_append h</span>
+<span id="cb95-40"><a href="#cb95-40" aria-hidden="true" tabindex="-1"></a>      <span class="kw">have</span> := j.isLt</span>
+<span id="cb95-41"><a href="#cb95-41" aria-hidden="true" tabindex="-1"></a>      <span class="cf">omega</span></span>
+<span id="cb95-42"><a href="#cb95-42" aria-hidden="true" tabindex="-1"></a>    Fin.cast (congrArg dimension (attrs_right_of_append h j.val j.isLt (<span class="kw">by</span> <span class="cf">omega</span>) hR)).symm</span>
+<span id="cb95-43"><a href="#cb95-43" aria-hidden="true" tabindex="-1"></a>      (x&#39; ⟨j.val - L.length, hR⟩)</span>
+<span id="cb95-44"><a href="#cb95-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-45"><a href="#cb95-45" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> Composition</span>
+<span id="cb95-46"><a href="#cb95-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-47"><a href="#cb95-47" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> (cc : Composition)</span>
+<span id="cb95-48"><a href="#cb95-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-49"><a href="#cb95-49" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The interfaces of a tensor line up: the composite&#39;s input rows are the left part&#39;s</span></span>
+<span id="cb95-50"><a href="#cb95-50" aria-hidden="true" tabindex="-1"></a><span class="do">followed by the right part&#39;s, and likewise its output rows. -/</span></span>
+<span id="cb95-51"><a href="#cb95-51" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> TensorAligned : <span class="kw">Prop</span> :=</span>
+<span id="cb95-52"><a href="#cb95-52" aria-hidden="true" tabindex="-1"></a>  rowAttrs cc.composite.network.inputs =</span>
+<span id="cb95-53"><a href="#cb95-53" aria-hidden="true" tabindex="-1"></a>      rowAttrs cc.left.network.inputs ++ rowAttrs cc.right.network.inputs ∧</span>
+<span id="cb95-54"><a href="#cb95-54" aria-hidden="true" tabindex="-1"></a>    rowAttrs cc.composite.network.outputs =</span>
+<span id="cb95-55"><a href="#cb95-55" aria-hidden="true" tabindex="-1"></a>      rowAttrs cc.left.network.outputs ++ rowAttrs cc.right.network.outputs</span>
+<span id="cb95-56"><a href="#cb95-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-57"><a href="#cb95-57" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> : Decidable cc.TensorAligned := <span class="kw">by</span> <span class="cf">unfold</span> TensorAligned; <span class="cf">infer_instance</span></span>
+<span id="cb95-58"><a href="#cb95-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-59"><a href="#cb95-59" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> {cc}</span>
+<span id="cb95-60"><a href="#cb95-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-61"><a href="#cb95-61" aria-hidden="true" tabindex="-1"></a><span class="do">/-- A pair of input coordinates as a composite input coordinate. -/</span></span>
+<span id="cb95-62"><a href="#cb95-62" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> joinIn (h : cc.TensorAligned) (x : cc.left.InCoord) (x&#39; : cc.right.InCoord) :</span>
+<span id="cb95-63"><a href="#cb95-63" aria-hidden="true" tabindex="-1"></a>    cc.composite.InCoord :=</span>
+<span id="cb95-64"><a href="#cb95-64" aria-hidden="true" tabindex="-1"></a>  joinCoord _ _ _ h<span class="fl">.1</span> x x&#39;</span>
+<span id="cb95-65"><a href="#cb95-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-66"><a href="#cb95-66" aria-hidden="true" tabindex="-1"></a><span class="do">/-- A pair of output coordinates as a composite output coordinate. -/</span></span>
+<span id="cb95-67"><a href="#cb95-67" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> joinOut (h : cc.TensorAligned) (y : cc.left.OutCoord) (y&#39; : cc.right.OutCoord) :</span>
+<span id="cb95-68"><a href="#cb95-68" aria-hidden="true" tabindex="-1"></a>    cc.composite.OutCoord :=</span>
+<span id="cb95-69"><a href="#cb95-69" aria-hidden="true" tabindex="-1"></a>  joinCoord _ _ _ h<span class="fl">.2</span> y y&#39;</span>
+<span id="cb95-70"><a href="#cb95-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-71"><a href="#cb95-71" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The largest gap between the tensor&#39;s recorded `K` and the product of the parts&#39;. -/</span></span>
+<span id="cb95-72"><a href="#cb95-72" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tensorKError (h : cc.TensorAligned) : ℚ :=</span>
+<span id="cb95-73"><a href="#cb95-73" aria-hidden="true" tabindex="-1"></a>  (Finset.univ : Finset ((cc.left.InCoord × cc.right.InCoord) ×</span>
+<span id="cb95-74"><a href="#cb95-74" aria-hidden="true" tabindex="-1"></a>      (cc.left.OutCoord × cc.right.OutCoord))).fold max <span class="dv">0</span> <span class="kw">fun</span> p =&gt;</span>
+<span id="cb95-75"><a href="#cb95-75" aria-hidden="true" tabindex="-1"></a>    |kHat cc.composite (joinIn h p.<span class="fl">1.1</span> p.<span class="fl">1.2</span>) (joinOut h p.<span class="fl">2.1</span> p.<span class="fl">2.2</span>) -</span>
+<span id="cb95-76"><a href="#cb95-76" aria-hidden="true" tabindex="-1"></a>      kHat cc.left p.<span class="fl">1.1</span> p.<span class="fl">2.1</span> * kHat cc.right p.<span class="fl">1.2</span> p.<span class="fl">2.2</span>|</span>
+<span id="cb95-77"><a href="#cb95-77" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-78"><a href="#cb95-78" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The largest gap between the tensor&#39;s recorded `W` and the parts&#39; `W ⊗ K + K ⊗ W`. -/</span></span>
+<span id="cb95-79"><a href="#cb95-79" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tensorWError (h : cc.TensorAligned) : ℚ :=</span>
+<span id="cb95-80"><a href="#cb95-80" aria-hidden="true" tabindex="-1"></a>  (Finset.univ : Finset ((cc.left.InCoord × cc.right.InCoord) ×</span>
+<span id="cb95-81"><a href="#cb95-81" aria-hidden="true" tabindex="-1"></a>      (cc.left.OutCoord × cc.right.OutCoord))).fold max <span class="dv">0</span> <span class="kw">fun</span> p =&gt;</span>
+<span id="cb95-82"><a href="#cb95-82" aria-hidden="true" tabindex="-1"></a>    |wHat cc.composite (joinIn h p.<span class="fl">1.1</span> p.<span class="fl">1.2</span>) (joinOut h p.<span class="fl">2.1</span> p.<span class="fl">2.2</span>) -</span>
+<span id="cb95-83"><a href="#cb95-83" aria-hidden="true" tabindex="-1"></a>      (wHat cc.left p.<span class="fl">1.1</span> p.<span class="fl">2.1</span> * kHat cc.right p.<span class="fl">1.2</span> p.<span class="fl">2.2</span> +</span>
+<span id="cb95-84"><a href="#cb95-84" aria-hidden="true" tabindex="-1"></a>        kHat cc.left p.<span class="fl">1.1</span> p.<span class="fl">2.1</span> * wHat cc.right p.<span class="fl">1.2</span> p.<span class="fl">2.2</span>)|</span>
+<span id="cb95-85"><a href="#cb95-85" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-86"><a href="#cb95-86" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> (cc)</span>
+<span id="cb95-87"><a href="#cb95-87" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-88"><a href="#cb95-88" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **The tensor checker.** -/</span></span>
+<span id="cb95-89"><a href="#cb95-89" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> checkTensor (τ : ℚ) : Bool :=</span>
+<span id="cb95-90"><a href="#cb95-90" aria-hidden="true" tabindex="-1"></a>  cc.left.check τ &amp;&amp; cc.right.check τ &amp;&amp; cc.composite.check τ &amp;&amp;</span>
+<span id="cb95-91"><a href="#cb95-91" aria-hidden="true" tabindex="-1"></a>    <span class="kw">if</span> h : cc.TensorAligned <span class="kw">then</span> <span class="cf">decide</span> (tensorKError h ≤ τ) &amp;&amp; <span class="cf">decide</span> (tensorWError h ≤ τ)</span>
+<span id="cb95-92"><a href="#cb95-92" aria-hidden="true" tabindex="-1"></a>    <span class="kw">else</span> false</span>
+<span id="cb95-93"><a href="#cb95-93" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-94"><a href="#cb95-94" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The name of the tensor checker&#39;s first failing stage, if any. -/</span></span>
+<span id="cb95-95"><a href="#cb95-95" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> firstFailureTensor (τ : ℚ) : Option String :=</span>
+<span id="cb95-96"><a href="#cb95-96" aria-hidden="true" tabindex="-1"></a>  <span class="kw">if</span> !cc.left.check τ <span class="kw">then</span> some s!<span class="st">&quot;left: {(cc.left.firstFailure τ).getD &quot;</span>unknown stage<span class="st">&quot;}&quot;</span></span>
+<span id="cb95-97"><a href="#cb95-97" aria-hidden="true" tabindex="-1"></a>  <span class="kw">else</span> <span class="kw">if</span> !cc.right.check τ <span class="kw">then</span> some s!<span class="st">&quot;right: {(cc.right.firstFailure τ).getD &quot;</span>unknown stage<span class="st">&quot;}&quot;</span></span>
+<span id="cb95-98"><a href="#cb95-98" aria-hidden="true" tabindex="-1"></a>  <span class="kw">else</span> <span class="kw">if</span> !cc.composite.check τ <span class="kw">then</span></span>
+<span id="cb95-99"><a href="#cb95-99" aria-hidden="true" tabindex="-1"></a>    some s!<span class="st">&quot;composite: {(cc.composite.firstFailure τ).getD &quot;</span>unknown stage<span class="st">&quot;}&quot;</span></span>
+<span id="cb95-100"><a href="#cb95-100" aria-hidden="true" tabindex="-1"></a>  <span class="kw">else</span> <span class="kw">if</span> h : cc.TensorAligned <span class="kw">then</span></span>
+<span id="cb95-101"><a href="#cb95-101" aria-hidden="true" tabindex="-1"></a>    <span class="kw">if</span> !<span class="cf">decide</span> (tensorKError h ≤ τ) <span class="kw">then</span></span>
+<span id="cb95-102"><a href="#cb95-102" aria-hidden="true" tabindex="-1"></a>      some <span class="st">&quot;tensor K (a composite cell is not within the tolerance of the parts&#39; product)&quot;</span></span>
+<span id="cb95-103"><a href="#cb95-103" aria-hidden="true" tabindex="-1"></a>    <span class="kw">else</span> <span class="kw">if</span> !<span class="cf">decide</span> (tensorWError h ≤ τ) <span class="kw">then</span></span>
+<span id="cb95-104"><a href="#cb95-104" aria-hidden="true" tabindex="-1"></a>      some <span class="st">&quot;tensor W (a composite cell is not within the tolerance of the parts&#39; product)&quot;</span></span>
+<span id="cb95-105"><a href="#cb95-105" aria-hidden="true" tabindex="-1"></a>    <span class="kw">else</span> none</span>
+<span id="cb95-106"><a href="#cb95-106" aria-hidden="true" tabindex="-1"></a>  <span class="kw">else</span> some <span class="st">&quot;alignment (the composite&#39;s interfaces are not the parts&#39; side by side)&quot;</span></span>
+<span id="cb95-107"><a href="#cb95-107" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-108"><a href="#cb95-108" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> {cc}</span>
+<span id="cb95-109"><a href="#cb95-109" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-110"><a href="#cb95-110" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> accepted_of_checkTensor {τ : ℚ} (hc : cc.checkTensor τ = true) :</span>
+<span id="cb95-111"><a href="#cb95-111" aria-hidden="true" tabindex="-1"></a>    cc.left.Accepted τ ∧ cc.right.Accepted τ ∧ cc.composite.Accepted τ ∧</span>
+<span id="cb95-112"><a href="#cb95-112" aria-hidden="true" tabindex="-1"></a>      ∃ h : cc.TensorAligned, tensorKError h ≤ τ ∧ tensorWError h ≤ τ := <span class="kw">by</span></span>
+<span id="cb95-113"><a href="#cb95-113" aria-hidden="true" tabindex="-1"></a>  <span class="cf">unfold</span> checkTensor <span class="kw">at</span> hc</span>
+<span id="cb95-114"><a href="#cb95-114" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [Bool.and_eq_true] <span class="kw">at</span> hc</span>
+<span id="cb95-115"><a href="#cb95-115" aria-hidden="true" tabindex="-1"></a>  <span class="cf">obtain</span> ⟨⟨⟨hl, hr⟩, hco⟩, ha⟩ := hc</span>
+<span id="cb95-116"><a href="#cb95-116" aria-hidden="true" tabindex="-1"></a>  <span class="cf">refine</span> ⟨(Certificate.check_iff_accepted _ _).<span class="dv">1</span> hl, (Certificate.check_iff_accepted _ _).<span class="dv">1</span> hr,</span>
+<span id="cb95-117"><a href="#cb95-117" aria-hidden="true" tabindex="-1"></a>    (Certificate.check_iff_accepted _ _).<span class="dv">1</span> hco, ?_⟩</span>
+<span id="cb95-118"><a href="#cb95-118" aria-hidden="true" tabindex="-1"></a>  <span class="cf">by_cases</span> h : cc.TensorAligned</span>
+<span id="cb95-119"><a href="#cb95-119" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">rw</span> [dif_pos h] <span class="kw">at</span> ha</span>
+<span id="cb95-120"><a href="#cb95-120" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> only [Bool.and_eq_true, decide_eq_true_eq] <span class="kw">at</span> ha</span>
+<span id="cb95-121"><a href="#cb95-121" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> ⟨h, ha⟩</span>
+<span id="cb95-122"><a href="#cb95-122" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">rw</span> [dif_neg h] <span class="kw">at</span> ha</span>
+<span id="cb95-123"><a href="#cb95-123" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> absurd ha (<span class="kw">by</span> <span class="cf">simp</span>)</span>
+<span id="cb95-124"><a href="#cb95-124" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-125"><a href="#cb95-125" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **Tensor soundness for `K`**: on acceptance, the decoded tensor&#39;s exact probability at a</span></span>
+<span id="cb95-126"><a href="#cb95-126" aria-hidden="true" tabindex="-1"></a><span class="do">pair of coordinates is within `2τ + τ (|K̂_L| + |K̂_R| + τ)` of the product of the decoded</span></span>
+<span id="cb95-127"><a href="#cb95-127" aria-hidden="true" tabindex="-1"></a><span class="do">parts&#39; exact probabilities. -/</span></span>
+<span id="cb95-128"><a href="#cb95-128" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> tensor_sound_K {τ : ℚ} (hc : cc.checkTensor τ = true) :</span>
+<span id="cb95-129"><a href="#cb95-129" aria-hidden="true" tabindex="-1"></a>    ∃ h : cc.TensorAligned, ∀ (x : cc.left.InCoord) (x&#39; : cc.right.InCoord)</span>
+<span id="cb95-130"><a href="#cb95-130" aria-hidden="true" tabindex="-1"></a>      (y : cc.left.OutCoord) (y&#39; : cc.right.OutCoord),</span>
+<span id="cb95-131"><a href="#cb95-131" aria-hidden="true" tabindex="-1"></a>      |cc.composite.exactK (joinIn h x x&#39;) (joinOut h y y&#39;) -</span>
+<span id="cb95-132"><a href="#cb95-132" aria-hidden="true" tabindex="-1"></a>          cc.left.exactK x y * cc.right.exactK x&#39; y&#39;| ≤</span>
+<span id="cb95-133"><a href="#cb95-133" aria-hidden="true" tabindex="-1"></a>        <span class="dv">2</span> * τ + τ * (|kHat cc.left x y| + |kHat cc.right x&#39; y&#39;| + τ) := <span class="kw">by</span></span>
+<span id="cb95-134"><a href="#cb95-134" aria-hidden="true" tabindex="-1"></a>  <span class="cf">obtain</span> ⟨hl, hr, hco, h, hk, -⟩ := accepted_of_checkTensor hc</span>
+<span id="cb95-135"><a href="#cb95-135" aria-hidden="true" tabindex="-1"></a>  <span class="cf">refine</span> ⟨h, <span class="kw">fun</span> x x&#39; y y&#39; =&gt; ?_⟩</span>
+<span id="cb95-136"><a href="#cb95-136" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hCA : |cc.composite.exactK (joinIn h x x&#39;) (joinOut h y y&#39;) -</span>
+<span id="cb95-137"><a href="#cb95-137" aria-hidden="true" tabindex="-1"></a>      kHat cc.composite (joinIn h x x&#39;) (joinOut h y y&#39;)| ≤ τ := <span class="kw">by</span></span>
+<span id="cb95-138"><a href="#cb95-138" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [abs_sub_comm]</span>
+<span id="cb95-139"><a href="#cb95-139" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> Certificate.kError_le _ hco.kError _ _</span>
+<span id="cb95-140"><a href="#cb95-140" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hcomp := le_of_fold hk ((x, x&#39;), (y, y&#39;))</span>
+<span id="cb95-141"><a href="#cb95-141" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hprod := abs_mul_sub_le (Certificate.kError_le _ hl.kError x y)</span>
+<span id="cb95-142"><a href="#cb95-142" aria-hidden="true" tabindex="-1"></a>    (Certificate.kError_le _ hr.kError x&#39; y&#39;)</span>
+<span id="cb95-143"><a href="#cb95-143" aria-hidden="true" tabindex="-1"></a>  <span class="cf">exact</span> (abs_sub_le_three hCA hcomp hprod).trans (le_of_eq (<span class="kw">by</span> <span class="cf">simp</span> only [kHat]; <span class="cf">ring</span>))</span>
+<span id="cb95-144"><a href="#cb95-144" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-145"><a href="#cb95-145" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **Tensor soundness for `W`**: on acceptance, the decoded tensor&#39;s exact reward at a pair</span></span>
+<span id="cb95-146"><a href="#cb95-146" aria-hidden="true" tabindex="-1"></a><span class="do">of coordinates is within `2τ + τ (|Ŵ_L| + |K̂_R| + |K̂_L| + |Ŵ_R| + 2τ)` of the parts&#39;</span></span>
+<span id="cb95-147"><a href="#cb95-147" aria-hidden="true" tabindex="-1"></a><span class="do">`W ⊗ K + K ⊗ W`. -/</span></span>
+<span id="cb95-148"><a href="#cb95-148" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> tensor_sound_W {τ : ℚ} (hc : cc.checkTensor τ = true) :</span>
+<span id="cb95-149"><a href="#cb95-149" aria-hidden="true" tabindex="-1"></a>    ∃ h : cc.TensorAligned, ∀ (x : cc.left.InCoord) (x&#39; : cc.right.InCoord)</span>
+<span id="cb95-150"><a href="#cb95-150" aria-hidden="true" tabindex="-1"></a>      (y : cc.left.OutCoord) (y&#39; : cc.right.OutCoord),</span>
+<span id="cb95-151"><a href="#cb95-151" aria-hidden="true" tabindex="-1"></a>      |cc.composite.exactW (joinIn h x x&#39;) (joinOut h y y&#39;) -</span>
+<span id="cb95-152"><a href="#cb95-152" aria-hidden="true" tabindex="-1"></a>          (cc.left.exactW x y * cc.right.exactK x&#39; y&#39; +</span>
+<span id="cb95-153"><a href="#cb95-153" aria-hidden="true" tabindex="-1"></a>            cc.left.exactK x y * cc.right.exactW x&#39; y&#39;)| ≤</span>
+<span id="cb95-154"><a href="#cb95-154" aria-hidden="true" tabindex="-1"></a>        <span class="dv">2</span> * τ + τ * (|wHat cc.left x y| + |kHat cc.right x&#39; y&#39;| + |kHat cc.left x y| +</span>
+<span id="cb95-155"><a href="#cb95-155" aria-hidden="true" tabindex="-1"></a>          |wHat cc.right x&#39; y&#39;| + <span class="dv">2</span> * τ) := <span class="kw">by</span></span>
+<span id="cb95-156"><a href="#cb95-156" aria-hidden="true" tabindex="-1"></a>  <span class="cf">obtain</span> ⟨hl, hr, hco, h, -, hw⟩ := accepted_of_checkTensor hc</span>
+<span id="cb95-157"><a href="#cb95-157" aria-hidden="true" tabindex="-1"></a>  <span class="cf">refine</span> ⟨h, <span class="kw">fun</span> x x&#39; y y&#39; =&gt; ?_⟩</span>
+<span id="cb95-158"><a href="#cb95-158" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hCA : |cc.composite.exactW (joinIn h x x&#39;) (joinOut h y y&#39;) -</span>
+<span id="cb95-159"><a href="#cb95-159" aria-hidden="true" tabindex="-1"></a>      wHat cc.composite (joinIn h x x&#39;) (joinOut h y y&#39;)| ≤ τ := <span class="kw">by</span></span>
+<span id="cb95-160"><a href="#cb95-160" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [abs_sub_comm]</span>
+<span id="cb95-161"><a href="#cb95-161" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> Certificate.wError_le _ hco.wError _ _</span>
+<span id="cb95-162"><a href="#cb95-162" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hcomp := le_of_fold hw ((x, x&#39;), (y, y&#39;))</span>
+<span id="cb95-163"><a href="#cb95-163" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> h1 := abs_mul_sub_le (Certificate.wError_le _ hl.wError x y)</span>
+<span id="cb95-164"><a href="#cb95-164" aria-hidden="true" tabindex="-1"></a>    (Certificate.kError_le _ hr.kError x&#39; y&#39;)</span>
+<span id="cb95-165"><a href="#cb95-165" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> h2 := abs_mul_sub_le (Certificate.kError_le _ hl.kError x y)</span>
+<span id="cb95-166"><a href="#cb95-166" aria-hidden="true" tabindex="-1"></a>    (Certificate.wError_le _ hr.wError x&#39; y&#39;)</span>
+<span id="cb95-167"><a href="#cb95-167" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hsum : |(wHat cc.left x y * kHat cc.right x&#39; y&#39; + kHat cc.left x y * wHat cc.right x&#39; y&#39;) -</span>
+<span id="cb95-168"><a href="#cb95-168" aria-hidden="true" tabindex="-1"></a>      (cc.left.exactW x y * cc.right.exactK x&#39; y&#39; + cc.left.exactK x y * cc.right.exactW x&#39; y&#39;)|</span>
+<span id="cb95-169"><a href="#cb95-169" aria-hidden="true" tabindex="-1"></a>      ≤ τ * (|wHat cc.left x y| + |kHat cc.right x&#39; y&#39;| + |kHat cc.left x y| +</span>
+<span id="cb95-170"><a href="#cb95-170" aria-hidden="true" tabindex="-1"></a>        |wHat cc.right x&#39; y&#39;| + <span class="dv">2</span> * τ) := <span class="kw">by</span></span>
+<span id="cb95-171"><a href="#cb95-171" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> e : (wHat cc.left x y * kHat cc.right x&#39; y&#39; + kHat cc.left x y * wHat cc.right x&#39; y&#39;) -</span>
+<span id="cb95-172"><a href="#cb95-172" aria-hidden="true" tabindex="-1"></a>        (cc.left.exactW x y * cc.right.exactK x&#39; y&#39; + cc.left.exactK x y * cc.right.exactW x&#39; y&#39;) =</span>
+<span id="cb95-173"><a href="#cb95-173" aria-hidden="true" tabindex="-1"></a>        (wHat cc.left x y * kHat cc.right x&#39; y&#39; - cc.left.exactW x y * cc.right.exactK x&#39; y&#39;) +</span>
+<span id="cb95-174"><a href="#cb95-174" aria-hidden="true" tabindex="-1"></a>        (kHat cc.left x y * wHat cc.right x&#39; y&#39; - cc.left.exactK x y * cc.right.exactW x&#39; y&#39;) := <span class="kw">by</span></span>
+<span id="cb95-175"><a href="#cb95-175" aria-hidden="true" tabindex="-1"></a>      <span class="cf">ring</span></span>
+<span id="cb95-176"><a href="#cb95-176" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [e]</span>
+<span id="cb95-177"><a href="#cb95-177" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> (abs_add_le _ _).trans ((add_le_add h1 h2).trans</span>
+<span id="cb95-178"><a href="#cb95-178" aria-hidden="true" tabindex="-1"></a>      (le_of_eq (<span class="kw">by</span> <span class="cf">simp</span> only [kHat, wHat]; <span class="cf">ring</span>)))</span>
+<span id="cb95-179"><a href="#cb95-179" aria-hidden="true" tabindex="-1"></a>  <span class="cf">exact</span> (abs_sub_le_three hCA hcomp hsum).trans (le_of_eq (<span class="kw">by</span> <span class="cf">ring</span>))</span>
+<span id="cb95-180"><a href="#cb95-180" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-181"><a href="#cb95-181" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> Composition</span></code></pre></div>
+<h2 id="decoding">Decoding</h2>
+<div class="sourceCode" id="cb96"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb96-1"><a href="#cb96-1" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> Json</span>
+<span id="cb96-2"><a href="#cb96-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb96-3"><a href="#cb96-3" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> Lean (Json)</span>
+<span id="cb96-4"><a href="#cb96-4" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> BayesianNetworksProofs.Raw (object)</span>
+<span id="cb96-5"><a href="#cb96-5" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> InfluenceDiagramsProofs.DVECertificate (get)</span>
+<span id="cb96-6"><a href="#cb96-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb96-7"><a href="#cb96-7" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Decode a composition certificate: exactly the keys `format`, `left`, `right` and</span></span>
+<span id="cb96-8"><a href="#cb96-8" aria-hidden="true" tabindex="-1"></a><span class="do">`composite`, the last three reward certificates. -/</span></span>
+<span id="cb96-9"><a href="#cb96-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> decodeComposition (j : Json) : Except String Composition := <span class="kw">do</span></span>
+<span id="cb96-10"><a href="#cb96-10" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> o ← object <span class="st">&quot;composition&quot;</span> <span class="dv">4</span> j</span>
+<span id="cb96-11"><a href="#cb96-11" aria-hidden="true" tabindex="-1"></a>  get o <span class="st">&quot;format&quot;</span> (constant compositionFormatName)</span>
+<span id="cb96-12"><a href="#cb96-12" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> l ← get o <span class="st">&quot;left&quot;</span> decodeCertificate</span>
+<span id="cb96-13"><a href="#cb96-13" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> r ← get o <span class="st">&quot;right&quot;</span> decodeCertificate</span>
+<span id="cb96-14"><a href="#cb96-14" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> c ← get o <span class="st">&quot;composite&quot;</span> decodeCertificate</span>
+<span id="cb96-15"><a href="#cb96-15" aria-hidden="true" tabindex="-1"></a>  pure ⟨l, r, c⟩</span>
+<span id="cb96-16"><a href="#cb96-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb96-17"><a href="#cb96-17" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Decode a tensor certificate: the keys of a composition certificate, with the tensor&#39;s</span></span>
+<span id="cb96-18"><a href="#cb96-18" aria-hidden="true" tabindex="-1"></a><span class="do">format string. -/</span></span>
+<span id="cb96-19"><a href="#cb96-19" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> decodeTensor (j : Json) : Except String Composition := <span class="kw">do</span></span>
+<span id="cb96-20"><a href="#cb96-20" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> o ← object <span class="st">&quot;tensor&quot;</span> <span class="dv">4</span> j</span>
+<span id="cb96-21"><a href="#cb96-21" aria-hidden="true" tabindex="-1"></a>  get o <span class="st">&quot;format&quot;</span> (constant tensorFormatName)</span>
+<span id="cb96-22"><a href="#cb96-22" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> l ← get o <span class="st">&quot;left&quot;</span> decodeCertificate</span>
+<span id="cb96-23"><a href="#cb96-23" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> r ← get o <span class="st">&quot;right&quot;</span> decodeCertificate</span>
+<span id="cb96-24"><a href="#cb96-24" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> c ← get o <span class="st">&quot;composite&quot;</span> decodeCertificate</span>
+<span id="cb96-25"><a href="#cb96-25" aria-hidden="true" tabindex="-1"></a>  pure ⟨l, r, c⟩</span>
+<span id="cb96-26"><a href="#cb96-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb96-27"><a href="#cb96-27" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Read a composition (`false`) or tensor (`true`) certificate from its text, by its format</span></span>
+<span id="cb96-28"><a href="#cb96-28" aria-hidden="true" tabindex="-1"></a><span class="do">string. -/</span></span>
+<span id="cb96-29"><a href="#cb96-29" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> readOperation (text : String) : Except String (Bool × Composition) := <span class="kw">do</span></span>
+<span id="cb96-30"><a href="#cb96-30" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> j ← OpenNet.CertificateSyntax.parse text</span>
+<span id="cb96-31"><a href="#cb96-31" aria-hidden="true" tabindex="-1"></a>  <span class="kw">match</span> decodeComposition j <span class="kw">with</span></span>
+<span id="cb96-32"><a href="#cb96-32" aria-hidden="true" tabindex="-1"></a>  | .ok cc =&gt; pure (false, cc)</span>
+<span id="cb96-33"><a href="#cb96-33" aria-hidden="true" tabindex="-1"></a>  | .error e₁ =&gt;</span>
+<span id="cb96-34"><a href="#cb96-34" aria-hidden="true" tabindex="-1"></a>    <span class="kw">match</span> decodeTensor j <span class="kw">with</span></span>
+<span id="cb96-35"><a href="#cb96-35" aria-hidden="true" tabindex="-1"></a>    | .ok cc =&gt; pure (true, cc)</span>
+<span id="cb96-36"><a href="#cb96-36" aria-hidden="true" tabindex="-1"></a>    | .error e₂ =&gt; <span class="kw">throw</span> s!<span class="st">&quot;neither a composition ({e₁}) nor a tensor ({e₂}) certificate&quot;</span></span>
+<span id="cb96-37"><a href="#cb96-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb96-38"><a href="#cb96-38" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Read a composition certificate from its text. -/</span></span>
+<span id="cb96-39"><a href="#cb96-39" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> readComposition (text : String) : Except String Composition := <span class="kw">do</span></span>
+<span id="cb96-40"><a href="#cb96-40" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> j ← OpenNet.CertificateSyntax.parse text</span>
+<span id="cb96-41"><a href="#cb96-41" aria-hidden="true" tabindex="-1"></a>  decodeComposition j</span>
+<span id="cb96-42"><a href="#cb96-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb96-43"><a href="#cb96-43" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> Json</span>
+<span id="cb96-44"><a href="#cb96-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb96-45"><a href="#cb96-45" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> OpenInfluence.RewardCertificate</span></code></pre></div>
 </body>
 </html>

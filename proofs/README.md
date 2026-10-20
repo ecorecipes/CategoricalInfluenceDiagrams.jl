@@ -77,6 +77,8 @@ Each sentence below is registered as an SA-Pass claim in `conformance/sapass/cla
     (`cid.threat-witness`)
 29. If the composition checker accepts a composition certificate at tolerance `τ`, its parts' interfaces line up and, for every input coordinate `x` of the left part and output coordinate `z` of the right part, the decoded composite's exact probability and reward at `(x, z)` are within an explicit bound, computed from `τ` and the recorded cells, of the composite in the category of reward kernels of the decoded parts' exact tables.
     (`cid.composition-certificate`)
+30. If the tensor checker accepts a tensor certificate at tolerance `τ`, the composite's interfaces are the parts' side by side and, for all coordinates of the two parts, the decoded composite's exact probability and reward at the joined coordinates are within an explicit bound, computed from `τ` and the recorded cells, of the tensor in the category of reward kernels of the decoded parts' exact tables.
+    (`cid.tensor-certificate`)
 
 Here `EU_f(μ, c) = Σ_x μ x Σ_y (W x y + K x y · c y)` for a boundary prior `μ` and a terminal
 continuation `c`; `c_g y = Σ_z (W_g y z + K_g y z · c z)` is the suffix's value function,
@@ -164,8 +166,10 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
   cell of the composite against the composite of the parts' recorded cells. Soundness bounds
   the gap between the decoded composite's exact tables and the composite of the decoded
   parts' exact tables, cell by cell; with `interpret_K_eq` and `interpret_W_eq` these are the
-  decoded diagrams' `interpret`. It ties semantics, not syntax: that the composite's net is
-  `IDNet.comp` of the parts' (an isomorphism of nets) is not checked.
+  decoded diagrams' `interpret`. Tensor certificates do the same for `otimes`, the
+  composite's cells against the products of the parts'. It ties semantics, not syntax: that
+  the composite's net is `IDNet.comp` (or `IDNet.tensor`) of the parts' (an isomorphism of
+  nets) is not checked.
 - **Not proved:** a category of open influence diagrams with arbitrary gluing, and
   optimisation of composites beyond the contextual
   identity. Reward
@@ -237,6 +241,7 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
 | `Certificate.exactK`, `exactW`, `resultIndex`, `resultCell_bijective` | The reward kernel of the certificate's numbers over `ℚ` by enumeration; the result layout is a bijection onto the cells |
 | `Certificate.readOut?`, `reads_iff`, `outIndex`, `outIndex_injective`, `accRow`, `accRow_getD`, `kErrorFast`, `wErrorFast`, `kErrorFast_le_iff`, `wErrorFast_le_iff`, `kErrorFast_eq`, `wErrorFast_eq` | One pass over the generator states per input state gives the row of `K` and `W`; the fast errors are the errors, so the checker uses them |
 | `Composition`, `rowAttrs`, `recoord`, `Composition.Aligned`, `inC`, `outC`, `mid`, `kHat`, `wHat`, `compKError`, `compWError`, `check`, `firstFailure`, `accepted_of_check` | Composition certificates (ADR 0023): three reward certificates, aligned interfaces, and the composite's recorded cells against the composite of the parts' |
+| `tensorFormatName`, `joinCoord`, `Composition.TensorAligned`, `joinIn`, `joinOut`, `tensorKError`, `tensorWError`, `checkTensor`, `firstFailureTensor`, `tensor_sound_K`, `tensor_sound_W`, `Json.decodeTensor`, `Json.readOperation` | Tensor certificates: the composite's interfaces are the parts' side by side, and its exact tables are within an explicit bound of the tensor of the parts' |
 | `Composition.abs_mul_sub_le`, `abs_sub_le_three`, `composition_sound_K`, `composition_sound_W`, `Json.decodeComposition`, `Json.readComposition` | On acceptance the decoded composite's exact `K` and `W` are within an explicit bound of the composite of the decoded parts' exact tables |
 | `Certificate.check`, `stages`, `firstFailure`, `check_iff_firstFailure`, `Accepted`, `check_iff_accepted` | The checker as sixteen ordered stages; acceptance is their conjunction, and the reported stage is the first that fails |
 | `Certificate.check_sound`, `InformationLocal` | Acceptance gives a valid network and information locality with the recorded flags |

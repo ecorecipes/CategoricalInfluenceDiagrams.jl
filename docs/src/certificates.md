@@ -237,6 +237,13 @@ composite, its net up to isomorphism, is not checked.
 cc = export_composition_certificate(chance, decide, kernels(m), bound_utilities(m), σ)
 ```
 
+[`export_tensor_certificate`](@ref) writes an `OpenInfluence.TensorCertificate/v1` record
+for `otimes(A, B)` in the same way, and `lake exe check_composition` reads either kind by
+its format string. For a tensor the composite's interfaces must be the parts' side by side,
+`A`'s first, and every recorded cell must be within the tolerance of the product of the
+parts' cells: `K_A(x, y) K_B(x', y')`, and `W_A K_B + K_A W_B` for the reward. The theorems
+`tensor_sound_K` and `tensor_sound_W` bound the gap as for composition.
+
 In `:rational_exact` mode `exact_tables` is a named tuple `(left = ..., right = ...,
 composite = ...)`, each keyed by its own diagram's part ids. The fixtures in
 `proofs/composition-fixtures/` (written by `scripts/write_certificate_fixtures.jl`, checked

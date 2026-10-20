@@ -270,7 +270,9 @@ influence-diagram schema); later loads are fast.
 - `proofs/.../Certificate/Fast.lean`: the checker's result stages accumulate a row of `K`
   and `W` per input state in one pass (`accRow`), proved equal to the cell-by-cell errors
   (`kErrorFast_eq`); keep `check` on the fast errors and `Accepted` on the slow ones.
-- Composition certificates (ADR 0023): `export_composition_certificate(A, B, kernels,
+- Composition and tensor certificates (ADR 0023; `export_tensor_certificate` for `otimes`,
+  `checkTensor`/`tensor_sound_K`/`_W`, `joinCoord` for side-by-side rows, read by the same
+  `check_composition` through `Json.readOperation`): `export_composition_certificate(A, B, kernels,
   utilities, σ; numeric_mode, exact_tables = (left, right, composite), no_forgetting, ...)` in
   `src/certificates.jl` writes three reward certificates under `left`, `right`, `composite`;
   `proofs/.../Certificate/Composition.lean` decodes them, checks each, the alignment

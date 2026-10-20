@@ -444,6 +444,16 @@ end
 #####################################
 
 const _COMPOSITION_CERTIFICATE_FORMAT = "OpenInfluence.CompositionCertificate/v1"
+const _TENSOR_CERTIFICATE_FORMAT = "OpenInfluence.TensorCertificate/v1"
+
+# The companions argument of an operation certificate, checked.
+function _operation_tables(f, exact_tables)
+    exact_tables === nothing && return (left=nothing, right=nothing, composite=nothing)
+    exact_tables isa NamedTuple &&
+    sort!(collect(keys(exact_tables))) == [:composite, :left, :right] ||
+        throw(ArgumentError("$f: exact_tables must be a named tuple (left = ..., right = ..., composite = ...) of companions"))
+    return exact_tables
+end
 
 """
     export_composition_certificate(A::OpenInfluenceDiagram, B::OpenInfluenceDiagram, kernels,
@@ -475,26 +485,56 @@ function export_composition_certificate(A::OpenInfluenceDiagram, B::OpenInfluenc
                                         σ::Strategy; numeric_mode=:binary64_exact,
                                         exact_tables=nothing, no_forgetting::Bool=true,
                                         description="", max_entries=1_000_000)
-    tables = if exact_tables === nothing
-        (left=nothing, right=nothing, composite=nothing)
-    else
-        exact_tables isa NamedTuple &&
-        sort!(collect(keys(exact_tables))) == [:composite, :left, :right] ||
-            throw(ArgumentError("export_composition_certificate: exact_tables must be a named tuple (left = ..., right = ..., composite = ...) of companions"))
-        exact_tables
-    end
+    tables = _operation_tables("export_composition_certificate", exact_tables)
     description isa AbstractString ||
         throw(ArgumentError("export_composition_certificate: description must be a string, not a $(typeof(description))"))
     C = compose(A, B; no_forgetting=no_forgetting)
+    return _operation_certificate(_COMPOSITION_CERTIFICATE_FORMAT, A, B, C, kernels, utilities,
+                                  σ, tables, numeric_mode, description, max_entries)
+end
+
+# The three reward certificates of an operation's parts and result, under `format`.
+function _operation_certificate(format, A, B, C, kernels, utilities, σ, tables, numeric_mode,
+                                description, max_entries)
     function part(o, t, name)
         text = isempty(description) ? name : "$(description) ($(name))"
         return export_reward_certificate(o, kernels, utilities, σ; numeric_mode=numeric_mode,
                                          exact_tables=t, description=text,
                                          max_entries=max_entries)
     end
-    return OrderedDict{String,Any}("format" => _COMPOSITION_CERTIFICATE_FORMAT,
+    return OrderedDict{String,Any}("format" => format,
                                    "left" => part(A, tables.left, "left"),
                                    "right" => part(B, tables.right, "right"),
                                    "composite" => part(C, tables.composite, "composite"))
+end
+
+"""
+    export_tensor_certificate(A::OpenInfluenceDiagram, B::OpenInfluenceDiagram, kernels,
+                              utilities, σ::Strategy; numeric_mode = :binary64_exact,
+                              exact_tables = nothing, no_forgetting = true,
+                              description = "", max_entries = 1_000_000)
+        -> OrderedDict{String,Any}
+
+The `OpenInfluence.TensorCertificate/v1` record of `A ⊗ B` (ADR 0023): the reward
+certificates of `A`, `B` and `otimes(A, B; no_forgetting)` under `"left"`, `"right"` and
+`"composite"`, as [`export_composition_certificate`](@ref) writes them for `compose`. `lake
+exe check_composition` reads either kind by its format string; for a tensor it checks that the
+composite's interfaces are the parts' side by side, `A`'s first, and that every recorded cell
+of the composite is within the tolerance of the product of the parts' cells (`K_A ⊗ K_B`, and
+`W_A ⊗ K_B + K_A ⊗ W_B` for the reward), and its soundness theorems bound the gap between the
+decoded composite's exact semantics and the tensor of the decoded parts'. The arguments and
+errors are those of `export_composition_certificate`, with `otimes`'s errors passing through.
+"""
+function export_tensor_certificate(A::OpenInfluenceDiagram, B::OpenInfluenceDiagram,
+                                   kernels::AbstractDict, utilities::AbstractDict,
+                                   σ::Strategy; numeric_mode=:binary64_exact,
+                                   exact_tables=nothing, no_forgetting::Bool=true,
+                                   description="", max_entries=1_000_000)
+    tables = _operation_tables("export_tensor_certificate", exact_tables)
+    description isa AbstractString ||
+        throw(ArgumentError("export_tensor_certificate: description must be a string, not a $(typeof(description))"))
+    C = otimes(A, B; no_forgetting=no_forgetting)
+    return _operation_certificate(_TENSOR_CERTIFICATE_FORMAT, A, B, C, kernels, utilities, σ,
+                                  tables, numeric_mode, description, max_entries)
 end
 

@@ -535,11 +535,26 @@ end
         # compose's errors pass through: the parts the wrong way round share names.
         @test_throws BayesianNetworks.DuplicateNameError export_composition_certificate(B, A, ks,
                                                                                        us, σc)
+        # Tensor certificates: the composite's cells are the products of the parts' cells.
+        R, rk, ru, rσ = certificate_relay()
+        tk, tu = merge(ks, rk), merge(us, ru)
+        tσ = merge_strategies(σc, rσ)
+        tc = export_tensor_certificate(B, R, tk, tu, tσ)
+        @test tc["format"] == "OpenInfluence.TensorCertificate/v1"
+        @test collect(keys(tc)) == ["format", "left", "right", "composite"]
+        rT = otimes(interpret(B, tk, tu, tσ), interpret(R, tk, tu, tσ))
+        @test cell_f64.(tc["composite"]["result"].K) ≈
+              cell_f64.(export_reward_certificate(otimes(B, R), tk, tu, tσ)["result"].K)
+        @test sum(cell_f64.(tc["composite"]["result"].W)) ≈ sum(reward(rT))
+        @test_throws ArgumentError export_tensor_certificate(B, R, tk, tu, tσ;
+                                                             exact_tables=(left=Dict(),))
+        @test_throws ArgumentError export_tensor_certificate(B, R, tk, tu, tσ; description=1)
         # The committed fixtures, byte for byte.
         fixtures = composition_fixtures()
         @test first.(fixtures) ==
               ["umbrella-rational.json", "two-stage-rational.json", "umbrella-binary64.json",
-               "swapped.bad.json", "strategy.bad.json"]
+               "swapped.bad.json", "strategy.bad.json", "tensor-rational.json",
+               "tensor-swapped.bad.json", "tensor-strategy.bad.json"]
         for (name, cert) in fixtures
             path = joinpath(COMPOSITION_FIXTURE_DIR, name)
             @test isfile(path)

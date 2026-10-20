@@ -6,9 +6,11 @@ every `*.json` file of this directory and compares the outcome with this table
 missing from the table, or a listed fixture that is missing, fails the target. For a
 rejection, the stage is the beginning of the reason the checker prints after `rejected:`.
 
-All five are written by `scripts/write_certificate_fixtures.jl` of the package
+All are written by `scripts/write_certificate_fixtures.jl` of the package
 (`composition_fixtures`). `swapped.bad.json` is `umbrella-rational.json` with its two parts
-exchanged; `strategy.bad.json` is it with the composite recorded under another strategy.
+exchanged; `strategy.bad.json` is it with the composite recorded under another strategy. The
+`tensor-*` fixtures are tensor certificates (`OpenInfluence.TensorCertificate/v1`) of the
+umbrella's decision part beside the relay, corrupted in the same two ways.
 
 | Fixture | Outcome | Stage |
 |---|---|---|
@@ -17,3 +19,6 @@ exchanged; `strategy.bad.json` is it with the composite recorded under another s
 | `umbrella-binary64.json` | rejected | left: exact row sums |
 | `swapped.bad.json` | rejected | alignment |
 | `strategy.bad.json` | rejected | composition W |
+| `tensor-rational.json` | accepted | |
+| `tensor-swapped.bad.json` | rejected | alignment |
+| `tensor-strategy.bad.json` | rejected | tensor W |

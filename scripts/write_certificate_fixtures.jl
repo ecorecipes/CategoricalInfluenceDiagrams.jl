@@ -274,7 +274,9 @@ end
 The composition certificates written to `proofs/composition-fixtures/`, by file name: the
 umbrella and oil-wildcatter splits with exact companions (accepted), the umbrella in binary64
 (rejected: its decimal rows are not exact), its parts swapped (rejected: alignment) and its
-composite recorded under another strategy (rejected: composition W).
+composite recorded under another strategy (rejected: composition W); and the tensor of the
+umbrella's decision part with the relay (accepted), with its parts swapped (rejected:
+alignment) and with its composite under another strategy (rejected: tensor W).
 """
 function composition_fixtures()
     um = InfluenceDiagrams.umbrella_model()
@@ -301,6 +303,32 @@ function composition_fixtures()
                                          "left" => umbrella["left"],
                                          "right" => umbrella["right"],
                                          "composite" => other)
+    # A tensor: the umbrella's decision part beside the relay, with distinct names.
+    R, rk, ru, rσ = certificate_relay()
+    tk = merge(uk, rk)
+    tu = merge(uu, ru)
+    tσ = merge_strategies(certificate_umbrella_strategy(), rσ)
+    TC = otimes(B, R)
+    relay_exact = certificate_relay_companions(R)
+    tensor_exact = (left=umbrella_exact.right, right=relay_exact,
+                    composite=merge(remap_companions(umbrella_exact.right, B, TC),
+                                    remap_companions(relay_exact, R, TC)))
+    tensor = export_tensor_certificate(B, R, tk, tu, tσ; numeric_mode=:rational_exact,
+                                       exact_tables=tensor_exact,
+                                       description="the umbrella decision beside the relay")
+    tensor_swapped = CategoricalInfluenceDiagrams.OrderedDict{String,Any}("format" => tensor["format"],
+                                                                         "left" => tensor["right"],
+                                                                         "right" => tensor["left"],
+                                                                         "composite" => tensor["composite"])
+    stop = merge_strategies(certificate_umbrella_strategy(),
+                            Strategy(:Act => ConstantPolicy(:stop)))
+    tensor_other = export_reward_certificate(TC, tk, tu, stop; numeric_mode=:rational_exact,
+                                             exact_tables=tensor_exact.composite,
+                                             description="the umbrella decision beside the relay (composite, other strategy)")
+    tensor_mismatched = CategoricalInfluenceDiagrams.OrderedDict{String,Any}("format" => tensor["format"],
+                                                                            "left" => tensor["left"],
+                                                                            "right" => tensor["right"],
+                                                                            "composite" => tensor_other)
     return ["umbrella-rational.json" => umbrella,
             "two-stage-rational.json" => export_composition_certificate(T, D,
                                                                        certificate_kernels(om),
@@ -313,7 +341,10 @@ function composition_fixtures()
                                                                       certificate_umbrella_strategy();
                                                                       description="the umbrella split in binary64"),
             "swapped.bad.json" => swapped,
-            "strategy.bad.json" => mismatched]
+            "strategy.bad.json" => mismatched,
+            "tensor-rational.json" => tensor,
+            "tensor-swapped.bad.json" => tensor_swapped,
+            "tensor-strategy.bad.json" => tensor_mismatched]
 end
 
 """

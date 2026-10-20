@@ -90,7 +90,7 @@ which stays free of Catlab. The design is the workspace's ADR 0018,
   reward certificates of two parts and of their composite, and `lake exe check_composition`
   checks each and that the composite's recorded reward kernel is the composite of the parts'
   within the tolerance, which ties Julia's composite to the Lean composite of its parts,
-  cell by cell.
+  cell by cell. `export_tensor_certificate` does the same for `otimes`.
 - Every name of `CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl` is re-exported.
 
 
@@ -105,6 +105,7 @@ The Lean project in [`proofs/`](proofs/) builds on the proof projects of
 - In the bundle's witness, every pair of separately optimal components composes to expected utility 1, while the joint optimum is 4.
 - If the reward-certificate checker accepts a decoded certificate at tolerance `τ`, its network is valid, no decision of the decoded open influence diagram reads an input flagged hidden, and for every pair of boundary assignments `(x, y)` the recorded `K` and `W` cells at the flat index of `(x, y)`, which is a bijection onto the cells of `K`, are within `τ` of `interpret σ f` at `(x, y)`, for the decoded diagram `f` and strategy `σ`.
 - If the composition checker accepts a composition certificate at tolerance `τ`, its parts' interfaces line up and, for every input coordinate `x` of the left part and output coordinate `z` of the right part, the decoded composite's exact probability and reward at `(x, z)` are within an explicit bound, computed from `τ` and the recorded cells, of the composite in the category of reward kernels of the decoded parts' exact tables.
+- If the tensor checker accepts a tensor certificate at tolerance `τ`, the composite's interfaces are the parts' side by side and, for all coordinates of the two parts, the decoded composite's exact probability and reward at the joined coordinates are within an explicit bound, computed from `τ` and the recorded cells, of the tensor in the category of reward kernels of the decoded parts' exact tables.
 - The lens of a reward kernel, with the boundary law as its forward map and the value function as its backward map, sends serial composition with a normalised suffix to composition of lenses and the identity to the identity lens.
 - For two decision games, a pair of strategies is an equilibrium of their serial composite exactly when neither component can raise the composite's expected utility by changing its own strategy alone.
 - Every strategy that maximises expected utility in a context is an equilibrium there, for every game built from decision games and identities by serial composition.
@@ -118,10 +119,10 @@ The Lean project in [`proofs/`](proofs/) builds on the proof projects of
 - A mixture of reward kernels with nonnegative weights summing to one has expected utility at most that of one of its components, and, when masses are nonnegative and a component of zero mass has zero evidence-weighted value, conditional value at most that of one of its components of positive mass.
 - When two decisions share a policy, randomising can help: in the absent-minded driver, continuing with probability 2/3 at both junctions is worth 4/3, while either deterministic policy is worth at most 1; with a policy each, the deterministic pair that continues and then exits is worth 4 and no pair of probabilities does better.
 
-The two certificate results are about reward certificates (ADR 0019) and composition
-certificates (ADR 0023): `lake exe check_certificate` checks Julia's numbers for a recorded
-diagram against the Lean semantics, and `lake exe check_composition` checks that a recorded
-composite's semantics is the composite of its parts', which ties Julia's composite to the
+The three certificate results are about reward certificates (ADR 0019) and composition and
+tensor certificates (ADR 0023): `lake exe check_certificate` checks Julia's numbers for a
+recorded diagram against the Lean semantics, and `lake exe check_composition` checks that a
+recorded composite's semantics is the composite (or tensor) of its parts', which ties Julia's composite to the
 Lean composite of its parts for the semantics, though not for the syntax. The next six are
 about lenses and open games (ADR 0020), over the reward-kernel semantics: equilibria, the
 tensor of games (exact for product priors; for correlated priors no context of one factor
