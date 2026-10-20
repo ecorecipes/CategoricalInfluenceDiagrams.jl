@@ -410,6 +410,28 @@ assert_no_sorry OpenInfluence.RewardCertificate.Certificate.kErrorFast_le_iff
 assert_no_sorry OpenInfluence.RewardCertificate.Certificate.wErrorFast_le_iff
 assert_no_sorry OpenInfluence.RewardCertificate.Certificate.kErrorFast_eq
 assert_no_sorry OpenInfluence.RewardCertificate.Certificate.wErrorFast_eq
+assert_no_sorry OpenInfluence.RewardCertificate.rowAttrs
+assert_no_sorry OpenInfluence.RewardCertificate.length_of_rowAttrs
+assert_no_sorry OpenInfluence.RewardCertificate.attrs_of_rowAttrs
+assert_no_sorry OpenInfluence.RewardCertificate.recoord
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.Aligned
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.inC
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.outC
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.mid
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.kHat
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.wHat
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.compKError
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.compWError
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.check
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.firstFailure
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.abs_mul_sub_le
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.abs_sub_le_three
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.le_of_fold
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.accepted_of_check
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.composition_sound_K
+assert_no_sorry OpenInfluence.RewardCertificate.Composition.composition_sound_W
+assert_no_sorry OpenInfluence.RewardCertificate.Json.decodeComposition
+assert_no_sorry OpenInfluence.RewardCertificate.Json.readComposition
 
 #print axioms OpenInfluence.ObservedInterface.sum
 #print axioms OpenInfluence.ObservedInterface.empty
@@ -828,3 +850,25 @@ assert_no_sorry OpenInfluence.RewardCertificate.Certificate.wErrorFast_eq
 #print axioms OpenInfluence.RewardCertificate.Certificate.wErrorFast_le_iff
 #print axioms OpenInfluence.RewardCertificate.Certificate.kErrorFast_eq
 #print axioms OpenInfluence.RewardCertificate.Certificate.wErrorFast_eq
+#print axioms OpenInfluence.RewardCertificate.rowAttrs
+#print axioms OpenInfluence.RewardCertificate.length_of_rowAttrs
+#print axioms OpenInfluence.RewardCertificate.attrs_of_rowAttrs
+#print axioms OpenInfluence.RewardCertificate.recoord
+#print axioms OpenInfluence.RewardCertificate.Composition.Aligned
+#print axioms OpenInfluence.RewardCertificate.Composition.inC
+#print axioms OpenInfluence.RewardCertificate.Composition.outC
+#print axioms OpenInfluence.RewardCertificate.Composition.mid
+#print axioms OpenInfluence.RewardCertificate.Composition.kHat
+#print axioms OpenInfluence.RewardCertificate.Composition.wHat
+#print axioms OpenInfluence.RewardCertificate.Composition.compKError
+#print axioms OpenInfluence.RewardCertificate.Composition.compWError
+#print axioms OpenInfluence.RewardCertificate.Composition.check
+#print axioms OpenInfluence.RewardCertificate.Composition.firstFailure
+#print axioms OpenInfluence.RewardCertificate.Composition.abs_mul_sub_le
+#print axioms OpenInfluence.RewardCertificate.Composition.abs_sub_le_three
+#print axioms OpenInfluence.RewardCertificate.Composition.le_of_fold
+#print axioms OpenInfluence.RewardCertificate.Composition.accepted_of_check
+#print axioms OpenInfluence.RewardCertificate.Composition.composition_sound_K
+#print axioms OpenInfluence.RewardCertificate.Composition.composition_sound_W
+#print axioms OpenInfluence.RewardCertificate.Json.decodeComposition
+#print axioms OpenInfluence.RewardCertificate.Json.readComposition

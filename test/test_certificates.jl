@@ -505,4 +505,47 @@ end
                    rowsum(last(byname["umbrella-closed.json"]["chance_tables"]).cells,
                           3))
     end
+
+    @testset "composition certificates (ADR 0023)" begin
+        A, B = certificate_umbrella_chance(), certificate_umbrella_decision()
+        σc = certificate_umbrella_strategy()
+        cc = export_composition_certificate(A, B, ks, us, σc)
+        @test collect(keys(cc)) == ["format", "left", "right", "composite"]
+        @test cc["format"] == "OpenInfluence.CompositionCertificate/v1"
+        @test cc["left"]["network"] == export_reward_certificate(A, ks, us, σc)["network"]
+        @test cc["right"]["result"] == export_reward_certificate(B, ks, us, σc)["result"]
+        # The composite's recorded cells are the composite of the parts' recorded cells.
+        rA, rB = interpret(A, ks, us, σc), interpret(B, ks, us, σc)
+        rC = compose(rA, rB)
+        @test cell_f64(only(cc["composite"]["result"].K)) ≈ only(kernel(rC).table)
+        @test cell_f64(only(cc["composite"]["result"].W)) ≈ only(reward(rC))
+        lk = cell_f64.(cc["left"]["result"].K)
+        rk = cell_f64.(cc["right"]["result"].K)
+        rw = cell_f64.(cc["right"]["result"].W)
+        # Closed composite: Σ_y K_L(y) W_R(y) (the left part earns nothing).
+        @test sum(lk[i] * rw[i] for i in eachindex(lk)) ≈
+              cell_f64(only(cc["composite"]["result"].W))
+        @test sum(lk[i] * rk[i] for i in eachindex(lk)) ≈ 1
+        # Arguments.
+        @test_throws ArgumentError export_composition_certificate(A, B, ks, us, σc;
+                                                                  numeric_mode=:rational_exact,
+                                                                  exact_tables=Dict())
+        @test_throws ArgumentError export_composition_certificate(A, B, ks, us, σc;
+                                                                  description=:x)
+        # compose's errors pass through: the parts the wrong way round share names.
+        @test_throws BayesianNetworks.DuplicateNameError export_composition_certificate(B, A, ks,
+                                                                                       us, σc)
+        # The committed fixtures, byte for byte.
+        fixtures = composition_fixtures()
+        @test first.(fixtures) ==
+              ["umbrella-rational.json", "two-stage-rational.json", "umbrella-binary64.json",
+               "swapped.bad.json", "strategy.bad.json"]
+        for (name, cert) in fixtures
+            path = joinpath(COMPOSITION_FIXTURE_DIR, name)
+            @test isfile(path)
+            @test certificate_fixture_comparable(read(path, String)) ==
+                  certificate_fixture_comparable(certificate_fixture_bytes(cert))
+        end
+    end
+
 end

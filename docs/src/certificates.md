@@ -209,5 +209,36 @@ produced it (ADR 0019). These steps are trusted, not proved:
 
 A certificate certifies the diagram it records, not the operations that built it. A
 certificate of a composite shows that Julia's numbers match the Lean semantics for the
-composite as recorded; it does not show that Julia's composite is the Lean composite of
-its parts. Contextual values and contextual optimisation are not covered by version 1.
+composite as recorded; on its own it does not show that Julia's composite is the Lean
+composite of its parts. Composition certificates, below, add that, for the semantics.
+Contextual values and contextual optimisation are not covered by version 1.
+
+## Composition certificates
+
+[`export_composition_certificate`](@ref) writes an `OpenInfluence.CompositionCertificate/v1`
+record (ADR 0023): the reward certificates of two parts `A` and `B` and of
+`compose(A, B)`, under one strategy. `lake exe check_composition` accepts it when
+
+1. each of the three is accepted, as `check_certificate` would accept it;
+2. the interfaces line up: `A`'s output rows have the attributes of `B`'s input rows, the
+   composite's input rows those of `A`'s and its output rows those of `B`'s;
+3. every recorded cell of the composite is within the tolerance of the composite of the
+   parts' recorded cells: `K_C(x, z)` of `Σ_y K_A(x, y) K_B(y, z)` and `W_C(x, z)` of
+   `Σ_y (W_A(x, y) K_B(y, z) + K_A(x, y) W_B(y, z))`.
+
+The Lean theorems `composition_sound_K` and `composition_sound_W` then bound, at every
+`(x, z)`, the gap between the decoded composite's exact reward kernel and the composite of
+the decoded parts' exact reward kernels, by `2τ` plus `τ` times sums of recorded cells.
+Since each certificate's exact tables are the `interpret` of its decoded diagram, this ties
+Julia's composite to the Lean composite of its parts, for the semantics. The syntax of the
+composite, its net up to isomorphism, is not checked.
+
+```julia
+cc = export_composition_certificate(chance, decide, kernels(m), bound_utilities(m), σ)
+```
+
+In `:rational_exact` mode `exact_tables` is a named tuple `(left = ..., right = ...,
+composite = ...)`, each keyed by its own diagram's part ids. The fixtures in
+`proofs/composition-fixtures/` (written by `scripts/write_certificate_fixtures.jl`, checked
+by `make check-compositions`) hold two accepted compositions and three rejected at the
+part, alignment and composition stages.

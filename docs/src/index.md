@@ -124,5 +124,7 @@ test suite checks the same laws numerically.
 
 Behavioural (randomised) policies are interpreted like deterministic ones (ADR 0022); the
 search for an optimum stays over deterministic strategies, which suffice when every decision
-has its own policy. That a Julia composite is the Lean composite of its parts is not proved: a
-certificate checks the diagram it records, not the operation that built it.
+has its own policy. A reward certificate checks the diagram it records, not the operation that
+built it; a composition certificate (ADR 0023) checks that a composite's semantics is the
+composite of its parts', which ties Julia's composite to the Lean composite for the
+semantics, though not for the syntax.

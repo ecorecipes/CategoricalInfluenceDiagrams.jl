@@ -86,6 +86,11 @@ which stays free of Catlab. The design is the workspace's ADR 0018,
   `contextual_optimize` searches deterministic strategies, which suffice when every decision
   has its own policy; decisions that share a name share a policy, and then randomising can
   help (the absent-minded driver), so `contextual_optimize` refuses shared names.
+- Composition certificates (ADR 0023): `export_composition_certificate(A, B, ...)` writes the
+  reward certificates of two parts and of their composite, and `lake exe check_composition`
+  checks each and that the composite's recorded reward kernel is the composite of the parts'
+  within the tolerance, which ties Julia's composite to the Lean composite of its parts,
+  cell by cell.
 - Every name of `CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl` is re-exported.
 
 
@@ -99,32 +104,33 @@ The Lean project in [`proofs/`](proofs/) builds on the proof projects of
 - For reward kernels whose suffix has a normalised probability component, and so for all open influence diagrams under a fixed strategy, `EU_{f;g}(μ, c) = EU_f(μ, c_g) = L_f + EU_g(ν_f, c)`.
 - In the bundle's witness, every pair of separately optimal components composes to expected utility 1, while the joint optimum is 4.
 - If the reward-certificate checker accepts a decoded certificate at tolerance `τ`, its network is valid, no decision of the decoded open influence diagram reads an input flagged hidden, and for every pair of boundary assignments `(x, y)` the recorded `K` and `W` cells at the flat index of `(x, y)`, which is a bijection onto the cells of `K`, are within `τ` of `interpret σ f` at `(x, y)`, for the decoded diagram `f` and strategy `σ`.
+- If the composition checker accepts a composition certificate at tolerance `τ`, its parts' interfaces line up and, for every input coordinate `x` of the left part and output coordinate `z` of the right part, the decoded composite's exact probability and reward at `(x, z)` are within an explicit bound, computed from `τ` and the recorded cells, of the composite in the category of reward kernels of the decoded parts' exact tables.
 - The lens of a reward kernel, with the boundary law as its forward map and the value function as its backward map, sends serial composition with a normalised suffix to composition of lenses and the identity to the identity lens.
 - For two decision games, a pair of strategies is an equilibrium of their serial composite exactly when neither component can raise the composite's expected utility by changing its own strategy alone.
 - Every strategy that maximises expected utility in a context is an equilibrium there, for every game built from decision games and identities by serial composition.
 - An equilibrium need not be optimal: in a witness of two decisions that must agree, the later not observing the earlier, an equilibrium is worth 1 where the optimum is 2.
+- For two decision games and a prior that is a product of probability vectors, a pair of strategies is an equilibrium of their tensor exactly when neither factor can raise the composite's expected utility by changing its own strategy alone.
+- A strategy that maximises the value from every input state is a best response under every nonnegative prior, and a strategy of two such perfect games in series is an equilibrium exactly when, by backward induction, the suffix is perfect against the continuation and the prefix against the suffix's value function.
 - Evidence composes: weighting the fixed-strategy interpretation of open influence diagrams by a likelihood on the values of the generators sends serial composition to composition of reward kernels and tensor to the tensor of reward kernels, and the likelihood one gives back the unweighted interpretation.
 - Carrying the evidence mass, the backward action of reward kernels on effects and the forward action on states are functorial with no normalisation hypothesis, and the evidence mass and the evidence-weighted value of a state against an effect are the same on either side of a reward kernel.
 - Normalising each component on its own evidence before composing is not sound: with a uniform binary state worth 1 when true and evidence nine times likelier when it is true, the conditional value is 9/10, while the components normalised one by one give 1/2.
 - For a behavioural strategy, which gives every decision a table of action probabilities, the interpretation of open influence diagrams sends serial composition to composition of reward kernels, identities to `(id, 0)` and tensor to the tensor of reward kernels, and a deterministic strategy has the interpretation of its point masses.
 - A mixture of reward kernels with nonnegative weights summing to one has expected utility at most that of one of its components, and, when masses are nonnegative and a component of zero mass has zero evidence-weighted value, conditional value at most that of one of its components of positive mass.
-- For two decision games and a prior that is a product of probability vectors, a pair of strategies is an equilibrium of their tensor exactly when neither factor can raise the composite's expected utility by changing its own strategy alone.
-- A strategy that maximises the value from every input state is a best response under every nonnegative prior, and a strategy of two such perfect games in series is an equilibrium exactly when, by backward induction, the suffix is perfect against the continuation and the prefix against the suffix's value function.
 - When two decisions share a policy, randomising can help: in the absent-minded driver, continuing with probability 2/3 at both junctions is worth 4/3, while either deterministic policy is worth at most 1; with a policy each, the deterministic pair that continues and then exits is worth 4 and no pair of probabilities does better.
 
-The certificate result is about reward certificates (ADR 0019): `lake exe check_certificate`
-decodes a certificate written by `export_reward_certificate` and checks it, so Julia's
-numbers for a recorded diagram are checked against the Lean semantics. The four after it
-are about lenses and open games (ADR 0020), over the reward-kernel semantics, with the tensor of
-games after them: exact for product priors, and for correlated priors not expressible
-through a context of one factor. The next three are about evidence (ADR 0021): the evidence-weighted
-interpretation is proved functorial for serial composition and tensor, and the
-binary64 rules of `conditional_value` are Julia's. The last three are about behavioural
-strategies (ADR 0022). The syntax is not
-quotiented by isomorphism, the semantics does not read observability flags, and nothing is
-proved about arbitrary gluing, or whether a Julia composite is the Lean composite
-of its parts; [`proofs/README.md`](proofs/README.md) lists every theorem and these
-restrictions.
+The two certificate results are about reward certificates (ADR 0019) and composition
+certificates (ADR 0023): `lake exe check_certificate` checks Julia's numbers for a recorded
+diagram against the Lean semantics, and `lake exe check_composition` checks that a recorded
+composite's semantics is the composite of its parts', which ties Julia's composite to the
+Lean composite of its parts for the semantics, though not for the syntax. The next six are
+about lenses and open games (ADR 0020), over the reward-kernel semantics: equilibria, the
+tensor of games (exact for product priors; for correlated priors no context of one factor
+suffices) and perfect equilibria. The three after them are about evidence (ADR 0021): the
+evidence-weighted interpretation is proved functorial for serial composition and tensor,
+and the binary64 rules of `conditional_value` are Julia's. The last three are about
+behavioural strategies (ADR 0022). The syntax is not quotiented by isomorphism, the
+semantics does not read observability flags, and nothing is proved about arbitrary gluing;
+[`proofs/README.md`](proofs/README.md) lists every theorem and these restrictions.
 Each sentence above is checked against its Lean statement by the workspace's SA-Pass
 harness. The Julia test suite checks the same laws numerically.
 

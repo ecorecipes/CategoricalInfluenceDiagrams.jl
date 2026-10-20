@@ -1,6 +1,8 @@
-"""Run the reward-certificate checker on every fixture and compare with EXPECTED.md.
+"""Run a certificate checker on every fixture of a directory and compare with its EXPECTED.md.
 
-Run from proofs/ after `lake build check_certificate`: python3 scripts/check_certificates.py
+Run from proofs/ after `lake build`:
+    python3 scripts/check_certificates.py                                   (reward certificates)
+    python3 scripts/check_certificates.py composition-fixtures check_composition
 """
 
 from pathlib import Path
@@ -8,8 +10,8 @@ import re
 import subprocess
 import sys
 
-FIXTURES = Path("certificate-fixtures")
-CHECKER = Path(".lake/build/bin/check_certificate")
+FIXTURES = Path(sys.argv[1] if len(sys.argv) > 1 else "certificate-fixtures")
+CHECKER = Path(".lake/build/bin") / (sys.argv[2] if len(sys.argv) > 2 else "check_certificate")
 
 expected = {}
 for line in (FIXTURES / "EXPECTED.md").read_text().splitlines():
@@ -41,5 +43,5 @@ for name in files:
         sys.stdout.write(run.stdout + run.stderr)
 
 if failures:
-    sys.exit("check-certificates failed:\n" + "\n".join(failures))
-print(f"PASS: {len(files)} certificate fixtures behave as EXPECTED.md states")
+    sys.exit(f"{CHECKER.name} failed:\n" + "\n".join(failures))
+print(f"PASS: {len(files)} {FIXTURES.name} behave as EXPECTED.md states")

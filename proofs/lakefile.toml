@@ -1,5 +1,5 @@
 name = "categorical_influence_diagrams_proofs"
-defaultTargets = ["CategoricalInfluenceDiagramsProofs", "check_certificate"]
+defaultTargets = ["CategoricalInfluenceDiagramsProofs", "check_certificate", "check_composition"]
 # Share one dependency checkout across the ecosystem's proofs/ projects. See ADR 0005.
 packagesDir = "../../.lake-packages"
 
@@ -34,6 +34,12 @@ path = "../../InfluenceDiagrams.jl/proofs"
 [[lean_exe]]
 name = "check_certificate"
 root = "CertificateMain"
+
+# `lake exe check_composition PATH [--tol τ]`: decode and check an
+# `OpenInfluence.CompositionCertificate/v1` file (ADR 0023; `Certificate/Composition.lean`).
+[[lean_exe]]
+name = "check_composition"
+root = "CompositionMain"
 
 # SA-Pass shadow modules (conformance/sapass), built by the runner, not by default.
 [[lean_lib]]

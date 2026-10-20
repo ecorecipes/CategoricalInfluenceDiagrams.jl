@@ -117,7 +117,7 @@ export contextual_value, contextual_optimize, continuation_value, boundary_law,
 # games.jl
 export component_contexts, regrets, is_equilibrium, best_response_dynamics
 # certificates.jl
-export export_reward_certificate
+export export_reward_certificate, export_composition_certificate
 
 include("errors.jl")
 include("open.jl")

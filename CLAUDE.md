@@ -270,6 +270,16 @@ influence-diagram schema); later loads are fast.
 - `proofs/.../Certificate/Fast.lean`: the checker's result stages accumulate a row of `K`
   and `W` per input state in one pass (`accRow`), proved equal to the cell-by-cell errors
   (`kErrorFast_eq`); keep `check` on the fast errors and `Accepted` on the slow ones.
+- Composition certificates (ADR 0023): `export_composition_certificate(A, B, kernels,
+  utilities, σ; numeric_mode, exact_tables = (left, right, composite), no_forgetting, ...)` in
+  `src/certificates.jl` writes three reward certificates under `left`, `right`, `composite`;
+  `proofs/.../Certificate/Composition.lean` decodes them, checks each, the alignment
+  (`rowAttrs`) and the composite's recorded cells against the composite of the parts'
+  (`compKError`, `compWError`), and proves `composition_sound_K`/`_W`; `lake exe
+  check_composition` and `make check-compositions` (fixtures in `proofs/composition-fixtures/`,
+  written by `composition_fixtures()` of `scripts/write_certificate_fixtures.jl`, which also
+  remaps companions by name, `remap_companions`). Shared CLI helpers are in
+  `Certificate/Cli.lean`.
 - `src/certificates.jl` (ADR 0019): `export_reward_certificate(o, kernels, utilities, σ;
   numeric_mode, exact_tables, description, max_entries)` and the model form, writing
   `OpenInfluence.RewardCertificate/v1`. The format section of the workspace plan

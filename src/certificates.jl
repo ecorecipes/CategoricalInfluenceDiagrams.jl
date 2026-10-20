@@ -439,3 +439,62 @@ function export_reward_certificate(o::OpenInfluenceDiagram, m::InfluenceDiagramM
         throw(ArgumentError("export_reward_certificate: the model has evidence on $(sort!(collect(keys(evidence(m))))); evidence composition is outside ADR 0018's first release"))
     return export_reward_certificate(o, kernels(m), bound_utilities(m), σ; kw...)
 end
+
+# Composition certificates (ADR 0023)
+#####################################
+
+const _COMPOSITION_CERTIFICATE_FORMAT = "OpenInfluence.CompositionCertificate/v1"
+
+"""
+    export_composition_certificate(A::OpenInfluenceDiagram, B::OpenInfluenceDiagram, kernels,
+                                   utilities, σ::Strategy; numeric_mode = :binary64_exact,
+                                   exact_tables = nothing, no_forgetting = true,
+                                   description = "", max_entries = 1_000_000)
+        -> OrderedDict{String,Any}
+
+The `OpenInfluence.CompositionCertificate/v1` record of the serial composite `A ⋅ B` (ADR
+0023): three reward certificates ([`export_reward_certificate`](@ref)), under `"left"` for
+`A`, `"right"` for `B` and `"composite"` for `compose(A, B; no_forgetting)`, each under the
+strategy `σ` (policies for decisions a diagram does not have are ignored). The Lean checker
+`lake exe check_composition` accepts it when each certificate is accepted, the interfaces line
+up, and every recorded cell of the composite's reward kernel is within the tolerance of the
+composite, in the expectation semiring, of the parts' recorded cells. Its soundness theorems
+then bound, cell by cell, the gap between the decoded composite's exact semantics and the
+composite of the decoded parts', which is what ties Julia's composite to the Lean composite
+of its parts.
+
+`numeric_mode`, `description` and `max_entries` are passed to each certificate (the
+description gaining the part's name). In `:rational_exact` mode `exact_tables` is a named
+tuple `(left = ..., right = ..., composite = ...)` of the three certificates' companions, each
+keyed by its own diagram's part ids, as `export_reward_certificate` wants them; anything else
+raises `ArgumentError`. The errors of `compose` and of `export_reward_certificate` pass
+through.
+"""
+function export_composition_certificate(A::OpenInfluenceDiagram, B::OpenInfluenceDiagram,
+                                        kernels::AbstractDict, utilities::AbstractDict,
+                                        σ::Strategy; numeric_mode=:binary64_exact,
+                                        exact_tables=nothing, no_forgetting::Bool=true,
+                                        description="", max_entries=1_000_000)
+    tables = if exact_tables === nothing
+        (left=nothing, right=nothing, composite=nothing)
+    else
+        exact_tables isa NamedTuple &&
+        sort!(collect(keys(exact_tables))) == [:composite, :left, :right] ||
+            throw(ArgumentError("export_composition_certificate: exact_tables must be a named tuple (left = ..., right = ..., composite = ...) of companions"))
+        exact_tables
+    end
+    description isa AbstractString ||
+        throw(ArgumentError("export_composition_certificate: description must be a string, not a $(typeof(description))"))
+    C = compose(A, B; no_forgetting=no_forgetting)
+    function part(o, t, name)
+        text = isempty(description) ? name : "$(description) ($(name))"
+        return export_reward_certificate(o, kernels, utilities, σ; numeric_mode=numeric_mode,
+                                         exact_tables=t, description=text,
+                                         max_entries=max_entries)
+    end
+    return OrderedDict{String,Any}("format" => _COMPOSITION_CERTIFICATE_FORMAT,
+                                   "left" => part(A, tables.left, "left"),
+                                   "right" => part(B, tables.right, "right"),
+                                   "composite" => part(C, tables.composite, "composite"))
+end
+

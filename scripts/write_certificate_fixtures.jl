@@ -19,6 +19,8 @@ using InfluenceDiagrams: InfluenceDiagrams
 
 const CERTIFICATE_FIXTURE_DIR = normpath(joinpath(@__DIR__, "..", "proofs",
                                                   "certificate-fixtures"))
+const COMPOSITION_FIXTURE_DIR = normpath(joinpath(@__DIR__, "..", "proofs",
+                                                  "composition-fixtures"))
 
 # Chance kernels keyed by target variable name, so that one table source serves the pieces
 # of a split and the composite.
@@ -240,6 +242,80 @@ function certificate_fixtures()
             end]
 end
 
+# The companions `exact` of the diagram `from` (keyed by its part ids), restricted and rekeyed
+# to the diagram `to` by mechanism target and utility name: the companions of a part, or of a
+# composite, from those of another diagram with the same tables.
+function remap_companions(exact, from::OpenInfluenceDiagram, to::OpenInfluenceDiagram)
+    fid, tid = apex(from), apex(to)
+    name(id, kind, p) = kind === :chance ? variable_name(id, subpart(id, p, :target)) :
+                        utility_name(id, p)
+    function find(id, kind, nm)
+        ps = kind === :chance ? parts(id, :Mechanism) : parts(id, :Utility)
+        return [p for p in ps if name(id, kind, p) === nm]
+    end
+    out = Dict{Any,Rational{Int}}()
+    for ((kind, p, coords), q) in exact
+        hit = find(tid, kind, name(fid, kind, p))
+        isempty(hit) || (out[(kind, only(hit), coords)] = q)
+    end
+    return out
+end
+
+# Three rational companions for a composition of `A` and `B`, from those of the composite.
+function composition_companions(A, B, exact_composite)
+    C = compose(A, B)
+    return (left=remap_companions(exact_composite, C, A),
+            right=remap_companions(exact_composite, C, B), composite=exact_composite)
+end
+
+"""
+    composition_fixtures() -> Vector{Pair{String,OrderedDict{String,Any}}}
+
+The composition certificates written to `proofs/composition-fixtures/`, by file name: the
+umbrella and oil-wildcatter splits with exact companions (accepted), the umbrella in binary64
+(rejected: its decimal rows are not exact), its parts swapped (rejected: alignment) and its
+composite recorded under another strategy (rejected: composition W).
+"""
+function composition_fixtures()
+    um = InfluenceDiagrams.umbrella_model()
+    uk, uu = certificate_kernels(um), bound_utilities(um)
+    A, B = certificate_umbrella_chance(), certificate_umbrella_decision()
+    closed = compose(A, B)
+    umbrella_exact = composition_companions(A, B, certificate_umbrella_companions(closed))
+    om = InfluenceDiagrams.two_stage_model()
+    T, D = certificate_two_stage_test(), certificate_two_stage_drill()
+    two_exact = composition_companions(T, D, certificate_two_stage_companions(compose(T, D)))
+    umbrella = export_composition_certificate(A, B, uk, uu, certificate_umbrella_strategy();
+                                              numeric_mode=:rational_exact,
+                                              exact_tables=umbrella_exact,
+                                              description="the umbrella split")
+    swapped = CategoricalInfluenceDiagrams.OrderedDict{String,Any}("format" => umbrella["format"],
+                                      "left" => umbrella["right"],
+                                      "right" => umbrella["left"],
+                                      "composite" => umbrella["composite"])
+    take = Strategy(:Umbrella => ConstantPolicy(:take))
+    other = export_reward_certificate(closed, uk, uu, take; numeric_mode=:rational_exact,
+                                      exact_tables=umbrella_exact.composite,
+                                      description="the umbrella split (composite, other strategy)")
+    mismatched = CategoricalInfluenceDiagrams.OrderedDict{String,Any}("format" => umbrella["format"],
+                                         "left" => umbrella["left"],
+                                         "right" => umbrella["right"],
+                                         "composite" => other)
+    return ["umbrella-rational.json" => umbrella,
+            "two-stage-rational.json" => export_composition_certificate(T, D,
+                                                                       certificate_kernels(om),
+                                                                       bound_utilities(om),
+                                                                       certificate_two_stage_strategy();
+                                                                       numeric_mode=:rational_exact,
+                                                                       exact_tables=two_exact,
+                                                                       description="the oil wildcatter split"),
+            "umbrella-binary64.json" => export_composition_certificate(A, B, uk, uu,
+                                                                      certificate_umbrella_strategy();
+                                                                      description="the umbrella split in binary64"),
+            "swapped.bad.json" => swapped,
+            "strategy.bad.json" => mismatched]
+end
+
 """
     certificate_fixture_bytes(certificate) -> String
 
@@ -259,9 +335,13 @@ end
 
 function write_certificate_fixtures(; check::Bool=false)
     mkpath(CERTIFICATE_FIXTURE_DIR)
+    mkpath(COMPOSITION_FIXTURE_DIR)
     stale = String[]
-    for (name, certificate) in certificate_fixtures()
-        path = joinpath(CERTIFICATE_FIXTURE_DIR, name)
+    for (dir, (name, certificate)) in vcat([CERTIFICATE_FIXTURE_DIR => f
+                                            for f in certificate_fixtures()],
+                                           [COMPOSITION_FIXTURE_DIR => f
+                                            for f in composition_fixtures()])
+        path = joinpath(dir, name)
         bytes = certificate_fixture_bytes(certificate)
         if check
             isfile(path) &&

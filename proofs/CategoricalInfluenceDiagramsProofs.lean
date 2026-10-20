@@ -16,3 +16,5 @@ import CategoricalInfluenceDiagramsProofs.Certificate.Exact
 import CategoricalInfluenceDiagramsProofs.Certificate.Fast
 import CategoricalInfluenceDiagramsProofs.Certificate.Check
 import CategoricalInfluenceDiagramsProofs.Certificate.Sound
+import CategoricalInfluenceDiagramsProofs.Certificate.Composition
+import CategoricalInfluenceDiagramsProofs.Certificate.Cli

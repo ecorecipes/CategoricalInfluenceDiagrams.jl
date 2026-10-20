@@ -75,6 +75,8 @@ Each sentence below is registered as an SA-Pass claim in `conformance/sapass/cla
     (`cid.perfect-equilibrium`)
 28. An equilibrium can rest on a choice at a state it never reaches: in a witness where acting first is worth 4 if the second decision cooperates, 0 if it does not and 1 without acting, not acting against a refusal is an equilibrium worth 1, while the perfect equilibria are exactly the strategies that act and cooperate, worth the optimum 4.
     (`cid.threat-witness`)
+29. If the composition checker accepts a composition certificate at tolerance `τ`, its parts' interfaces line up and, for every input coordinate `x` of the left part and output coordinate `z` of the right part, the decoded composite's exact probability and reward at `(x, z)` are within an explicit bound, computed from `τ` and the recorded cells, of the composite in the category of reward kernels of the decoded parts' exact tables.
+    (`cid.composition-certificate`)
 
 Here `EU_f(μ, c) = Σ_x μ x Σ_y (W x y + K x y · c y)` for a boundary prior `μ` and a terminal
 continuation `c`; `c_g y = Σ_z (W_g y z + K_g y z · c z)` is the suffix's value function,
@@ -156,11 +158,20 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
   masses, exact fallback, tolerated negative entries) are Julia's, not proved. That Julia's
   `boundary_state`, `continuation_effect`, `evidence_mass` and `conditional_value` compute
   these quantities is checked by the test suite against the closed-composite oracle.
+- **Composition certificates** (ADR 0023; module `Certificate/Composition`). `lake exe
+  check_composition` decodes three reward certificates, the two parts and their composite,
+  checks each, checks that the interfaces line up by attributes, and checks every recorded
+  cell of the composite against the composite of the parts' recorded cells. Soundness bounds
+  the gap between the decoded composite's exact tables and the composite of the decoded
+  parts' exact tables, cell by cell; with `interpret_K_eq` and `interpret_W_eq` these are the
+  decoded diagrams' `interpret`. It ties semantics, not syntax: that the composite's net is
+  `IDNet.comp` of the parts' (an isomorphism of nets) is not checked.
 - **Not proved:** a category of open influence diagrams with arbitrary gluing, and
   optimisation of composites beyond the contextual
   identity. Reward
   certificates check Julia's numbers for the diagram a certificate records against
-  `interpret`, but that the recorded diagram is the Julia composite of its parts, the
+  `interpret`, and composition certificates tie a composite's semantics to its parts', but
+  that the recorded composite's syntax is the composite of its parts' syntax, the full
   refinement of Julia's composition operations (ADR 0018, decision 6), is still unproved.
 
 ## Theorems
@@ -225,6 +236,8 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
 | `flatIndex`, `flatIndex_lt`, `flatIndex_append`, `flatIndex_injective` | The lexicographic cell index, last axis fastest: in range, a chance table is a list of rows, distinct coordinates have distinct cells |
 | `Certificate.exactK`, `exactW`, `resultIndex`, `resultCell_bijective` | The reward kernel of the certificate's numbers over `ℚ` by enumeration; the result layout is a bijection onto the cells |
 | `Certificate.readOut?`, `reads_iff`, `outIndex`, `outIndex_injective`, `accRow`, `accRow_getD`, `kErrorFast`, `wErrorFast`, `kErrorFast_le_iff`, `wErrorFast_le_iff`, `kErrorFast_eq`, `wErrorFast_eq` | One pass over the generator states per input state gives the row of `K` and `W`; the fast errors are the errors, so the checker uses them |
+| `Composition`, `rowAttrs`, `recoord`, `Composition.Aligned`, `inC`, `outC`, `mid`, `kHat`, `wHat`, `compKError`, `compWError`, `check`, `firstFailure`, `accepted_of_check` | Composition certificates (ADR 0023): three reward certificates, aligned interfaces, and the composite's recorded cells against the composite of the parts' |
+| `Composition.abs_mul_sub_le`, `abs_sub_le_three`, `composition_sound_K`, `composition_sound_W`, `Json.decodeComposition`, `Json.readComposition` | On acceptance the decoded composite's exact `K` and `W` are within an explicit bound of the composite of the decoded parts' exact tables |
 | `Certificate.check`, `stages`, `firstFailure`, `check_iff_firstFailure`, `Accepted`, `check_iff_accepted` | The checker as sixteen ordered stages; acceptance is their conjunction, and the reported stage is the first that fails |
 | `Certificate.check_sound`, `InformationLocal` | Acceptance gives a valid network and information locality with the recorded flags |
 | `sig`, `Certificate.model`, `strategyOf`, `diagram`, `chanceEntry_normalized` | The decoded signature, `IDInterpretation` (normalised by the exact row sums), strategy and `IDNet` |

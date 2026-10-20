@@ -65,3 +65,6 @@ jobs:
       - name: Check the reward-certificate fixtures
         working-directory: CategoricalInfluenceDiagrams.jl/proofs
         run: make check-certificates
+      - name: Check the composition-certificate fixtures
+        working-directory: CategoricalInfluenceDiagrams.jl/proofs
+        run: make check-compositions

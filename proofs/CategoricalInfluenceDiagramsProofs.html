@@ -204,6 +204,18 @@ id="toc-the-bridge-interpret-is-the-exact-enumeration">The bridge:
 <code>interpret</code> is the exact enumeration</a></li>
 <li><a href="#acceptance" id="toc-acceptance">Acceptance</a></li>
 </ul></li>
+<li><a
+href="#composition-certificates-the-julia-composite-against-the-lean-composite-adr-0023"
+id="toc-composition-certificates-the-julia-composite-against-the-lean-composite-adr-0023">Composition
+certificates: the Julia composite against the Lean composite (ADR
+0023)</a>
+<ul>
+<li><a href="#carrying-coordinates-across-aligned-rows"
+id="toc-carrying-coordinates-across-aligned-rows">Carrying coordinates
+across aligned rows</a></li>
+<li><a href="#soundness" id="toc-soundness">Soundness</a></li>
+<li><a href="#decoding" id="toc-decoding">Decoding</a></li>
+</ul></li>
 </ul>
 </nav>
 <!-- CategoricalInfluenceDiagramsProofs/Basic.lean -->
@@ -5878,5 +5890,312 @@ class="sourceCode lean"><code class="sourceCode lean"><span id="cb90-1"><a href=
 <span id="cb90-165"><a href="#cb90-165" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> Certificate</span>
 <span id="cb90-166"><a href="#cb90-166" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb90-167"><a href="#cb90-167" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> OpenInfluence.RewardCertificate</span></code></pre></div>
+<!-- CategoricalInfluenceDiagramsProofs/Certificate/Composition.lean -->
+<h1
+id="composition-certificates-the-julia-composite-against-the-lean-composite-adr-0023">Composition
+certificates: the Julia composite against the Lean composite (ADR
+0023)</h1>
+<div class="sourceCode" id="cb91"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb91-1"><a href="#cb91-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> CategoricalInfluenceDiagramsProofs.Certificate.Check</span>
+<span id="cb91-2"><a href="#cb91-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> CategoricalInfluenceDiagramsProofs.Certificate.Json</span></code></pre></div>
+<p>A reward certificate (ADR 0019) checks Julia’s numbers for one
+recorded diagram against the exact semantics of that diagram. It says
+nothing about how the diagram was built: that the diagram Julia composed
+from two parts behaves as the composite, in the category of reward
+kernels, of those parts. A <strong>composition certificate</strong>
+records three reward certificates, the <code>left</code> part, the
+<code>right</code> part and their <code>composite</code>, and the
+checker (<code>Composition.check</code>) accepts when</p>
+<ol type="1">
+<li>each of the three is accepted at tolerance <code>τ</code>
+(<code>Certificate.check</code>);</li>
+<li>the interfaces line up (<code>Aligned</code>): the left part’s
+output rows have the attributes of the right part’s input rows, the
+composite’s input rows those of the left part’s, and its output rows
+those of the right part’s, in order;</li>
+<li>every recorded cell of the composite is within <code>τ</code> of the
+composite of the parts’ recorded cells: <code>K_C(x, z)</code> of
+<code>Σ_y K_L(x, y) K_R(y, z)</code>, and <code>W_C(x, z)</code> of
+<code>Σ_y (W_L(x, y) K_R(y, z) + K_L(x, y) W_R(y, z))</code>
+(<code>compKError</code>, <code>compWError</code>), with the coordinates
+carried across by the alignment (<code>recoord</code>).</li>
+</ol>
+<p><strong>Soundness</strong> (<code>composition_sound_K</code>,
+<code>composition_sound_W</code>). On acceptance, for all input
+coordinates <code>x</code> of the left part and output coordinates
+<code>z</code> of the right part, the decoded composite’s exact
+probability <code>exactK</code> at <code>(x, z)</code> is within
+<code>2τ + τ Σ_y (|K̂_L(x, y)| + |K̂_R(y, z)| + τ)</code> of
+<code>Σ_y exactK_L(x, y) exactK_R(y, z)</code>, and its exact reward
+<code>exactW</code> within the corresponding bound of the
+expectation-semiring composite, the hats being the recorded cells. By
+<code>interpret_K_eq</code> and <code>interpret_W_eq</code>
+(<code>Sound.lean</code>), each certificate’s <code>exactK</code> and
+<code>exactW</code> are <code>interpret σ f</code> of its decoded
+diagram and strategy, so the decoded composite behaves, cell by cell and
+up to that bound, as the composite of the decoded parts in the category
+of reward kernels.</p>
+<p><strong>Not proved:</strong> that the composite’s syntax is
+<code>IDNet.comp</code> of the parts’ (an isomorphism of nets): the
+certificate ties the semantics, not the structure.</p>
+<div class="sourceCode" id="cb92"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb92-1"><a href="#cb92-1" aria-hidden="true" tabindex="-1"></a><span class="kw">set_option</span> autoImplicit false</span>
+<span id="cb92-2"><a href="#cb92-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb92-3"><a href="#cb92-3" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> OpenInfluence.RewardCertificate</span>
+<span id="cb92-4"><a href="#cb92-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb92-5"><a href="#cb92-5" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> OpenNet.RawCertificate</span>
+<span id="cb92-6"><a href="#cb92-6" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> InfluenceDiagramsProofs.DVECertificate (Value.toRat)</span>
+<span id="cb92-7"><a href="#cb92-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb92-8"><a href="#cb92-8" aria-hidden="true" tabindex="-1"></a><span class="do">/-- A decoded `OpenInfluence.CompositionCertificate/v1`: the two parts and their composite. -/</span></span>
+<span id="cb92-9"><a href="#cb92-9" aria-hidden="true" tabindex="-1"></a><span class="kw">structure</span> Composition <span class="kw">where</span></span>
+<span id="cb92-10"><a href="#cb92-10" aria-hidden="true" tabindex="-1"></a>  <span class="cf">left</span> : Certificate</span>
+<span id="cb92-11"><a href="#cb92-11" aria-hidden="true" tabindex="-1"></a>  <span class="cf">right</span> : Certificate</span>
+<span id="cb92-12"><a href="#cb92-12" aria-hidden="true" tabindex="-1"></a>  composite : Certificate</span>
+<span id="cb92-13"><a href="#cb92-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb92-14"><a href="#cb92-14" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The format string of version 1. -/</span></span>
+<span id="cb92-15"><a href="#cb92-15" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compositionFormatName : String := <span class="st">&quot;OpenInfluence.CompositionCertificate/v1&quot;</span></span></code></pre></div>
+<h2 id="carrying-coordinates-across-aligned-rows">Carrying coordinates
+across aligned rows</h2>
+<div class="sourceCode" id="cb93"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb93-1"><a href="#cb93-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The attributes of a list of boundary rows. -/</span></span>
+<span id="cb93-2"><a href="#cb93-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> rowAttrs {n : ℕ} (rows : List (BoundaryRow n)) : List VariableAttrs := rows.map (·.attrs)</span>
+<span id="cb93-3"><a href="#cb93-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-4"><a href="#cb93-4" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> length_of_rowAttrs {n m : ℕ} {A : List (BoundaryRow n)} {B : List (BoundaryRow m)}</span>
+<span id="cb93-5"><a href="#cb93-5" aria-hidden="true" tabindex="-1"></a>    (h : rowAttrs A = rowAttrs B) : A.length = B.length := <span class="kw">by</span></span>
+<span id="cb93-6"><a href="#cb93-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> := congrArg List.length h</span>
+<span id="cb93-7"><a href="#cb93-7" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simpa</span> [rowAttrs] <span class="kw">using</span> this</span>
+<span id="cb93-8"><a href="#cb93-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-9"><a href="#cb93-9" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> attrs_of_rowAttrs {n m : ℕ} {A : List (BoundaryRow n)} {B : List (BoundaryRow m)}</span>
+<span id="cb93-10"><a href="#cb93-10" aria-hidden="true" tabindex="-1"></a>    (h : rowAttrs A = rowAttrs B) (j : ℕ) (hA : j &lt; A.length) (hB : j &lt; B.length) :</span>
+<span id="cb93-11"><a href="#cb93-11" aria-hidden="true" tabindex="-1"></a>    A[j].attrs = B[j].attrs := <span class="kw">by</span></span>
+<span id="cb93-12"><a href="#cb93-12" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> := congrArg (<span class="kw">fun</span> l =&gt; l[j]?) h</span>
+<span id="cb93-13"><a href="#cb93-13" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [rowAttrs, List.getElem?_map, List.getElem?_eq_getElem hA,</span>
+<span id="cb93-14"><a href="#cb93-14" aria-hidden="true" tabindex="-1"></a>    List.getElem?_eq_getElem hB, Option.map_some, Option.some.injEq] <span class="kw">at</span> this</span>
+<span id="cb93-15"><a href="#cb93-15" aria-hidden="true" tabindex="-1"></a>  <span class="cf">exact</span> this</span>
+<span id="cb93-16"><a href="#cb93-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-17"><a href="#cb93-17" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Coordinates of rows `A` read as coordinates of rows `B` with the same attributes. -/</span></span>
+<span id="cb93-18"><a href="#cb93-18" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> recoord {n m : ℕ} (A : List (BoundaryRow n)) (B : List (BoundaryRow m))</span>
+<span id="cb93-19"><a href="#cb93-19" aria-hidden="true" tabindex="-1"></a>    (h : rowAttrs A = rowAttrs B)</span>
+<span id="cb93-20"><a href="#cb93-20" aria-hidden="true" tabindex="-1"></a>    (y : ∀ j : Fin A.length, Fin (dimension A[j].attrs)) :</span>
+<span id="cb93-21"><a href="#cb93-21" aria-hidden="true" tabindex="-1"></a>    ∀ j : Fin B.length, Fin (dimension B[j].attrs) := <span class="kw">fun</span> j =&gt;</span>
+<span id="cb93-22"><a href="#cb93-22" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hj : j.val &lt; A.length := (length_of_rowAttrs h).symm ▸ j.isLt</span>
+<span id="cb93-23"><a href="#cb93-23" aria-hidden="true" tabindex="-1"></a>  Fin.cast (congrArg dimension (attrs_of_rowAttrs h j.val hj j.isLt)) (y ⟨j.val, hj⟩)</span>
+<span id="cb93-24"><a href="#cb93-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-25"><a href="#cb93-25" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> Composition</span>
+<span id="cb93-26"><a href="#cb93-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-27"><a href="#cb93-27" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> (cc : Composition)</span>
+<span id="cb93-28"><a href="#cb93-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-29"><a href="#cb93-29" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The interfaces line up: the left part&#39;s outputs are the right part&#39;s inputs, the</span></span>
+<span id="cb93-30"><a href="#cb93-30" aria-hidden="true" tabindex="-1"></a><span class="do">composite&#39;s inputs the left part&#39;s and its outputs the right part&#39;s (by attributes, in</span></span>
+<span id="cb93-31"><a href="#cb93-31" aria-hidden="true" tabindex="-1"></a><span class="do">order). -/</span></span>
+<span id="cb93-32"><a href="#cb93-32" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> Aligned : <span class="kw">Prop</span> :=</span>
+<span id="cb93-33"><a href="#cb93-33" aria-hidden="true" tabindex="-1"></a>  rowAttrs cc.left.network.outputs = rowAttrs cc.right.network.inputs ∧</span>
+<span id="cb93-34"><a href="#cb93-34" aria-hidden="true" tabindex="-1"></a>    rowAttrs cc.left.network.inputs = rowAttrs cc.composite.network.inputs ∧</span>
+<span id="cb93-35"><a href="#cb93-35" aria-hidden="true" tabindex="-1"></a>    rowAttrs cc.right.network.outputs = rowAttrs cc.composite.network.outputs</span>
+<span id="cb93-36"><a href="#cb93-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-37"><a href="#cb93-37" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> : Decidable cc.Aligned := <span class="kw">by</span> <span class="cf">unfold</span> Aligned; <span class="cf">infer_instance</span></span>
+<span id="cb93-38"><a href="#cb93-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-39"><a href="#cb93-39" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> {cc}</span>
+<span id="cb93-40"><a href="#cb93-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-41"><a href="#cb93-41" aria-hidden="true" tabindex="-1"></a><span class="do">/-- A left input coordinate as a composite input coordinate. -/</span></span>
+<span id="cb93-42"><a href="#cb93-42" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> inC (h : cc.Aligned) (x : cc.left.InCoord) : cc.composite.InCoord :=</span>
+<span id="cb93-43"><a href="#cb93-43" aria-hidden="true" tabindex="-1"></a>  recoord _ _ h.<span class="fl">2.1</span> x</span>
+<span id="cb93-44"><a href="#cb93-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-45"><a href="#cb93-45" aria-hidden="true" tabindex="-1"></a><span class="do">/-- A right output coordinate as a composite output coordinate. -/</span></span>
+<span id="cb93-46"><a href="#cb93-46" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> outC (h : cc.Aligned) (z : cc.right.OutCoord) : cc.composite.OutCoord :=</span>
+<span id="cb93-47"><a href="#cb93-47" aria-hidden="true" tabindex="-1"></a>  recoord _ _ h.<span class="fl">2.2</span> z</span>
+<span id="cb93-48"><a href="#cb93-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-49"><a href="#cb93-49" aria-hidden="true" tabindex="-1"></a><span class="do">/-- A left output coordinate as a right input coordinate. -/</span></span>
+<span id="cb93-50"><a href="#cb93-50" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mid (h : cc.Aligned) (y : cc.left.OutCoord) : cc.right.InCoord :=</span>
+<span id="cb93-51"><a href="#cb93-51" aria-hidden="true" tabindex="-1"></a>  recoord _ _ h<span class="fl">.1</span> y</span>
+<span id="cb93-52"><a href="#cb93-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-53"><a href="#cb93-53" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The recorded probability cell of a certificate. -/</span></span>
+<span id="cb93-54"><a href="#cb93-54" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> kHat (c : Certificate) (x : c.InCoord) (y : c.OutCoord) : ℚ :=</span>
+<span id="cb93-55"><a href="#cb93-55" aria-hidden="true" tabindex="-1"></a>  cellQ c.result.K (c.resultIndex x y)</span>
+<span id="cb93-56"><a href="#cb93-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-57"><a href="#cb93-57" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The recorded reward cell of a certificate. -/</span></span>
+<span id="cb93-58"><a href="#cb93-58" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> wHat (c : Certificate) (x : c.InCoord) (y : c.OutCoord) : ℚ :=</span>
+<span id="cb93-59"><a href="#cb93-59" aria-hidden="true" tabindex="-1"></a>  cellQ c.result.W (c.resultIndex x y)</span>
+<span id="cb93-60"><a href="#cb93-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-61"><a href="#cb93-61" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The largest gap between the composite&#39;s recorded `K` and the composite of the parts&#39;. -/</span></span>
+<span id="cb93-62"><a href="#cb93-62" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compKError (h : cc.Aligned) : ℚ :=</span>
+<span id="cb93-63"><a href="#cb93-63" aria-hidden="true" tabindex="-1"></a>  (Finset.univ : Finset (cc.left.InCoord × cc.right.OutCoord)).fold max <span class="dv">0</span> <span class="kw">fun</span> p =&gt;</span>
+<span id="cb93-64"><a href="#cb93-64" aria-hidden="true" tabindex="-1"></a>    |kHat cc.composite (inC h p<span class="fl">.1</span>) (outC h p<span class="fl">.2</span>) -</span>
+<span id="cb93-65"><a href="#cb93-65" aria-hidden="true" tabindex="-1"></a>      ∑ y, kHat cc.left p<span class="fl">.1</span> y * kHat cc.right (mid h y) p<span class="fl">.2</span>|</span>
+<span id="cb93-66"><a href="#cb93-66" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-67"><a href="#cb93-67" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The largest gap between the composite&#39;s recorded `W` and the composite of the parts&#39;. -/</span></span>
+<span id="cb93-68"><a href="#cb93-68" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compWError (h : cc.Aligned) : ℚ :=</span>
+<span id="cb93-69"><a href="#cb93-69" aria-hidden="true" tabindex="-1"></a>  (Finset.univ : Finset (cc.left.InCoord × cc.right.OutCoord)).fold max <span class="dv">0</span> <span class="kw">fun</span> p =&gt;</span>
+<span id="cb93-70"><a href="#cb93-70" aria-hidden="true" tabindex="-1"></a>    |wHat cc.composite (inC h p<span class="fl">.1</span>) (outC h p<span class="fl">.2</span>) -</span>
+<span id="cb93-71"><a href="#cb93-71" aria-hidden="true" tabindex="-1"></a>      ∑ y, (wHat cc.left p<span class="fl">.1</span> y * kHat cc.right (mid h y) p<span class="fl">.2</span> +</span>
+<span id="cb93-72"><a href="#cb93-72" aria-hidden="true" tabindex="-1"></a>        kHat cc.left p<span class="fl">.1</span> y * wHat cc.right (mid h y) p<span class="fl">.2</span>)|</span>
+<span id="cb93-73"><a href="#cb93-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-74"><a href="#cb93-74" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> (cc)</span>
+<span id="cb93-75"><a href="#cb93-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-76"><a href="#cb93-76" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **The composition checker.** -/</span></span>
+<span id="cb93-77"><a href="#cb93-77" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> check (τ : ℚ) : Bool :=</span>
+<span id="cb93-78"><a href="#cb93-78" aria-hidden="true" tabindex="-1"></a>  cc.left.check τ &amp;&amp; cc.right.check τ &amp;&amp; cc.composite.check τ &amp;&amp;</span>
+<span id="cb93-79"><a href="#cb93-79" aria-hidden="true" tabindex="-1"></a>    <span class="kw">if</span> h : cc.Aligned <span class="kw">then</span> <span class="cf">decide</span> (compKError h ≤ τ) &amp;&amp; <span class="cf">decide</span> (compWError h ≤ τ) <span class="kw">else</span> false</span>
+<span id="cb93-80"><a href="#cb93-80" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-81"><a href="#cb93-81" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The name of the first failing stage, if any. -/</span></span>
+<span id="cb93-82"><a href="#cb93-82" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> firstFailure (τ : ℚ) : Option String :=</span>
+<span id="cb93-83"><a href="#cb93-83" aria-hidden="true" tabindex="-1"></a>  <span class="kw">if</span> !cc.left.check τ <span class="kw">then</span> some s!<span class="st">&quot;left: {(cc.left.firstFailure τ).getD &quot;</span>unknown stage<span class="st">&quot;}&quot;</span></span>
+<span id="cb93-84"><a href="#cb93-84" aria-hidden="true" tabindex="-1"></a>  <span class="kw">else</span> <span class="kw">if</span> !cc.right.check τ <span class="kw">then</span> some s!<span class="st">&quot;right: {(cc.right.firstFailure τ).getD &quot;</span>unknown stage<span class="st">&quot;}&quot;</span></span>
+<span id="cb93-85"><a href="#cb93-85" aria-hidden="true" tabindex="-1"></a>  <span class="kw">else</span> <span class="kw">if</span> !cc.composite.check τ <span class="kw">then</span></span>
+<span id="cb93-86"><a href="#cb93-86" aria-hidden="true" tabindex="-1"></a>    some s!<span class="st">&quot;composite: {(cc.composite.firstFailure τ).getD &quot;</span>unknown stage<span class="st">&quot;}&quot;</span></span>
+<span id="cb93-87"><a href="#cb93-87" aria-hidden="true" tabindex="-1"></a>  <span class="kw">else</span> <span class="kw">if</span> h : cc.Aligned <span class="kw">then</span></span>
+<span id="cb93-88"><a href="#cb93-88" aria-hidden="true" tabindex="-1"></a>    <span class="kw">if</span> !<span class="cf">decide</span> (compKError h ≤ τ) <span class="kw">then</span></span>
+<span id="cb93-89"><a href="#cb93-89" aria-hidden="true" tabindex="-1"></a>      some <span class="st">&quot;composition K (a composite cell is not within the tolerance of the parts&#39; composite)&quot;</span></span>
+<span id="cb93-90"><a href="#cb93-90" aria-hidden="true" tabindex="-1"></a>    <span class="kw">else</span> <span class="kw">if</span> !<span class="cf">decide</span> (compWError h ≤ τ) <span class="kw">then</span></span>
+<span id="cb93-91"><a href="#cb93-91" aria-hidden="true" tabindex="-1"></a>      some <span class="st">&quot;composition W (a composite cell is not within the tolerance of the parts&#39; composite)&quot;</span></span>
+<span id="cb93-92"><a href="#cb93-92" aria-hidden="true" tabindex="-1"></a>    <span class="kw">else</span> none</span>
+<span id="cb93-93"><a href="#cb93-93" aria-hidden="true" tabindex="-1"></a>  <span class="kw">else</span> some <span class="st">&quot;alignment (the interfaces of the parts and the composite do not line up)&quot;</span></span>
+<span id="cb93-94"><a href="#cb93-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-95"><a href="#cb93-95" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> {cc}</span></code></pre></div>
+<h2 id="soundness">Soundness</h2>
+<div class="sourceCode" id="cb94"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb94-1"><a href="#cb94-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The error of a product of approximations. -/</span></span>
+<span id="cb94-2"><a href="#cb94-2" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> abs_mul_sub_le {b B c C τ : ℚ} (hb : |b - B| ≤ τ) (hc : |c - C| ≤ τ) :</span>
+<span id="cb94-3"><a href="#cb94-3" aria-hidden="true" tabindex="-1"></a>    |b * c - B * C| ≤ τ * (|b| + |c| + τ) := <span class="kw">by</span></span>
+<span id="cb94-4"><a href="#cb94-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hτ : <span class="dv">0</span> ≤ τ := (abs_nonneg _).trans hb</span>
+<span id="cb94-5"><a href="#cb94-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hC : |C| ≤ |c| + τ := <span class="kw">by</span></span>
+<span id="cb94-6"><a href="#cb94-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> := abs_sub_abs_le_abs_sub C c</span>
+<span id="cb94-7"><a href="#cb94-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [abs_sub_comm] <span class="kw">at</span> hc</span>
+<span id="cb94-8"><a href="#cb94-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">linarith</span></span>
+<span id="cb94-9"><a href="#cb94-9" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> e : b * c - B * C = b * (c - C) + (b - B) * C := <span class="kw">by</span> <span class="cf">ring</span></span>
+<span id="cb94-10"><a href="#cb94-10" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [e]</span>
+<span id="cb94-11"><a href="#cb94-11" aria-hidden="true" tabindex="-1"></a>  <span class="kw">calc</span> |b * (c - C) + (b - B) * C| ≤ |b * (c - C)| + |(b - B) * C| := abs_add_le _ _</span>
+<span id="cb94-12"><a href="#cb94-12" aria-hidden="true" tabindex="-1"></a>    _ = |b| * |c - C| + |b - B| * |C| := <span class="kw">by</span> <span class="cf">rw</span> [abs_mul, abs_mul]</span>
+<span id="cb94-13"><a href="#cb94-13" aria-hidden="true" tabindex="-1"></a>    _ ≤ |b| * τ + τ * (|c| + τ) := <span class="kw">by</span></span>
+<span id="cb94-14"><a href="#cb94-14" aria-hidden="true" tabindex="-1"></a>        gcongr</span>
+<span id="cb94-15"><a href="#cb94-15" aria-hidden="true" tabindex="-1"></a>    _ = τ * (|b| + |c| + τ) := <span class="kw">by</span> <span class="cf">ring</span></span>
+<span id="cb94-16"><a href="#cb94-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb94-17"><a href="#cb94-17" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> abs_sub_le_three {A a S T τ₁ τ₂ τ₃ : ℚ} (h₁ : |A - a| ≤ τ₁) (h₂ : |a - S| ≤ τ₂)</span>
+<span id="cb94-18"><a href="#cb94-18" aria-hidden="true" tabindex="-1"></a>    (h₃ : |S - T| ≤ τ₃) : |A - T| ≤ τ₁ + τ₂ + τ₃ := <span class="kw">by</span></span>
+<span id="cb94-19"><a href="#cb94-19" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> e : A - T = (A - a) + (a - S) + (S - T) := <span class="kw">by</span> <span class="cf">ring</span></span>
+<span id="cb94-20"><a href="#cb94-20" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [e]</span>
+<span id="cb94-21"><a href="#cb94-21" aria-hidden="true" tabindex="-1"></a>  <span class="cf">exact</span> (abs_add_le _ _).trans (add_le_add ((abs_add_le _ _).trans (add_le_add h₁ h₂)) h₃)</span>
+<span id="cb94-22"><a href="#cb94-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb94-23"><a href="#cb94-23" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> le_of_fold {α : <span class="kw">Type</span>} [Fintype α] {f : α → ℚ} {τ : ℚ}</span>
+<span id="cb94-24"><a href="#cb94-24" aria-hidden="true" tabindex="-1"></a>    (h : (Finset.univ : Finset α).fold max <span class="dv">0</span> f ≤ τ) (a : α) : f a ≤ τ :=</span>
+<span id="cb94-25"><a href="#cb94-25" aria-hidden="true" tabindex="-1"></a>  ((Finset.fold_max_le _).<span class="dv">1</span> h).<span class="dv">2</span> a (Finset.mem_univ _)</span>
+<span id="cb94-26"><a href="#cb94-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb94-27"><a href="#cb94-27" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> accepted_of_check {τ : ℚ} (hc : cc.check τ = true) :</span>
+<span id="cb94-28"><a href="#cb94-28" aria-hidden="true" tabindex="-1"></a>    cc.left.Accepted τ ∧ cc.right.Accepted τ ∧ cc.composite.Accepted τ ∧</span>
+<span id="cb94-29"><a href="#cb94-29" aria-hidden="true" tabindex="-1"></a>      ∃ h : cc.Aligned, compKError h ≤ τ ∧ compWError h ≤ τ := <span class="kw">by</span></span>
+<span id="cb94-30"><a href="#cb94-30" aria-hidden="true" tabindex="-1"></a>  <span class="cf">unfold</span> check <span class="kw">at</span> hc</span>
+<span id="cb94-31"><a href="#cb94-31" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [Bool.and_eq_true] <span class="kw">at</span> hc</span>
+<span id="cb94-32"><a href="#cb94-32" aria-hidden="true" tabindex="-1"></a>  <span class="cf">obtain</span> ⟨⟨⟨hl, hr⟩, hco⟩, ha⟩ := hc</span>
+<span id="cb94-33"><a href="#cb94-33" aria-hidden="true" tabindex="-1"></a>  <span class="cf">refine</span> ⟨(Certificate.check_iff_accepted _ _).<span class="dv">1</span> hl, (Certificate.check_iff_accepted _ _).<span class="dv">1</span> hr,</span>
+<span id="cb94-34"><a href="#cb94-34" aria-hidden="true" tabindex="-1"></a>    (Certificate.check_iff_accepted _ _).<span class="dv">1</span> hco, ?_⟩</span>
+<span id="cb94-35"><a href="#cb94-35" aria-hidden="true" tabindex="-1"></a>  <span class="cf">by_cases</span> h : cc.Aligned</span>
+<span id="cb94-36"><a href="#cb94-36" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">rw</span> [dif_pos h] <span class="kw">at</span> ha</span>
+<span id="cb94-37"><a href="#cb94-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> only [Bool.and_eq_true, decide_eq_true_eq] <span class="kw">at</span> ha</span>
+<span id="cb94-38"><a href="#cb94-38" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> ⟨h, ha⟩</span>
+<span id="cb94-39"><a href="#cb94-39" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">rw</span> [dif_neg h] <span class="kw">at</span> ha</span>
+<span id="cb94-40"><a href="#cb94-40" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> absurd ha (<span class="kw">by</span> <span class="cf">simp</span>)</span>
+<span id="cb94-41"><a href="#cb94-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb94-42"><a href="#cb94-42" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **Soundness for `K`**: on acceptance, the decoded composite&#39;s exact probability at</span></span>
+<span id="cb94-43"><a href="#cb94-43" aria-hidden="true" tabindex="-1"></a><span class="do">`(x, z)` is within `2τ + τ Σ_y (|K̂_L(x, y)| + |K̂_R(y, z)| + τ)` of the composite of the</span></span>
+<span id="cb94-44"><a href="#cb94-44" aria-hidden="true" tabindex="-1"></a><span class="do">decoded parts&#39; exact probabilities. -/</span></span>
+<span id="cb94-45"><a href="#cb94-45" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> composition_sound_K {τ : ℚ} (hc : cc.check τ = true) :</span>
+<span id="cb94-46"><a href="#cb94-46" aria-hidden="true" tabindex="-1"></a>    ∃ h : cc.Aligned, ∀ (x : cc.left.InCoord) (z : cc.right.OutCoord),</span>
+<span id="cb94-47"><a href="#cb94-47" aria-hidden="true" tabindex="-1"></a>      |cc.composite.exactK (inC h x) (outC h z) -</span>
+<span id="cb94-48"><a href="#cb94-48" aria-hidden="true" tabindex="-1"></a>          ∑ y, cc.left.exactK x y * cc.right.exactK (mid h y) z| ≤</span>
+<span id="cb94-49"><a href="#cb94-49" aria-hidden="true" tabindex="-1"></a>        <span class="dv">2</span> * τ + τ * ∑ y, (|kHat cc.left x y| + |kHat cc.right (mid h y) z| + τ) := <span class="kw">by</span></span>
+<span id="cb94-50"><a href="#cb94-50" aria-hidden="true" tabindex="-1"></a>  <span class="cf">obtain</span> ⟨hl, hr, hco, h, hk, -⟩ := accepted_of_check hc</span>
+<span id="cb94-51"><a href="#cb94-51" aria-hidden="true" tabindex="-1"></a>  <span class="cf">refine</span> ⟨h, <span class="kw">fun</span> x z =&gt; ?_⟩</span>
+<span id="cb94-52"><a href="#cb94-52" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hCA : |cc.composite.exactK (inC h x) (outC h z) - kHat cc.composite (inC h x) (outC h z)|</span>
+<span id="cb94-53"><a href="#cb94-53" aria-hidden="true" tabindex="-1"></a>      ≤ τ := <span class="kw">by</span></span>
+<span id="cb94-54"><a href="#cb94-54" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [abs_sub_comm]</span>
+<span id="cb94-55"><a href="#cb94-55" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> Certificate.kError_le _ hco.kError (inC h x) (outC h z)</span>
+<span id="cb94-56"><a href="#cb94-56" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hcomp : |kHat cc.composite (inC h x) (outC h z) -</span>
+<span id="cb94-57"><a href="#cb94-57" aria-hidden="true" tabindex="-1"></a>      ∑ y, kHat cc.left x y * kHat cc.right (mid h y) z| ≤ τ := le_of_fold hk (x, z)</span>
+<span id="cb94-58"><a href="#cb94-58" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hsum : |∑ y, kHat cc.left x y * kHat cc.right (mid h y) z -</span>
+<span id="cb94-59"><a href="#cb94-59" aria-hidden="true" tabindex="-1"></a>      ∑ y, cc.left.exactK x y * cc.right.exactK (mid h y) z| ≤</span>
+<span id="cb94-60"><a href="#cb94-60" aria-hidden="true" tabindex="-1"></a>      τ * ∑ y, (|kHat cc.left x y| + |kHat cc.right (mid h y) z| + τ) := <span class="kw">by</span></span>
+<span id="cb94-61"><a href="#cb94-61" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [← Finset.sum_sub_distrib, Finset.mul_sum]</span>
+<span id="cb94-62"><a href="#cb94-62" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum <span class="kw">fun</span> y _ =&gt;</span>
+<span id="cb94-63"><a href="#cb94-63" aria-hidden="true" tabindex="-1"></a>      abs_mul_sub_le (Certificate.kError_le _ hl.kError x y)</span>
+<span id="cb94-64"><a href="#cb94-64" aria-hidden="true" tabindex="-1"></a>        (Certificate.kError_le _ hr.kError (mid h y) z))</span>
+<span id="cb94-65"><a href="#cb94-65" aria-hidden="true" tabindex="-1"></a>  <span class="cf">exact</span> (abs_sub_le_three hCA hcomp hsum).trans (le_of_eq (<span class="kw">by</span> <span class="cf">ring</span>))</span>
+<span id="cb94-66"><a href="#cb94-66" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb94-67"><a href="#cb94-67" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **Soundness for `W`**: on acceptance, the decoded composite&#39;s exact reward at `(x, z)` is</span></span>
+<span id="cb94-68"><a href="#cb94-68" aria-hidden="true" tabindex="-1"></a><span class="do">within `2τ + τ Σ_y (|Ŵ_L| + |K̂_R| + |K̂_L| + |Ŵ_R| + 2τ)` of the expectation-semiring</span></span>
+<span id="cb94-69"><a href="#cb94-69" aria-hidden="true" tabindex="-1"></a><span class="do">composite of the decoded parts&#39; exact tables. -/</span></span>
+<span id="cb94-70"><a href="#cb94-70" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> composition_sound_W {τ : ℚ} (hc : cc.check τ = true) :</span>
+<span id="cb94-71"><a href="#cb94-71" aria-hidden="true" tabindex="-1"></a>    ∃ h : cc.Aligned, ∀ (x : cc.left.InCoord) (z : cc.right.OutCoord),</span>
+<span id="cb94-72"><a href="#cb94-72" aria-hidden="true" tabindex="-1"></a>      |cc.composite.exactW (inC h x) (outC h z) -</span>
+<span id="cb94-73"><a href="#cb94-73" aria-hidden="true" tabindex="-1"></a>          ∑ y, (cc.left.exactW x y * cc.right.exactK (mid h y) z +</span>
+<span id="cb94-74"><a href="#cb94-74" aria-hidden="true" tabindex="-1"></a>            cc.left.exactK x y * cc.right.exactW (mid h y) z)| ≤</span>
+<span id="cb94-75"><a href="#cb94-75" aria-hidden="true" tabindex="-1"></a>        <span class="dv">2</span> * τ + τ * ∑ y, (|wHat cc.left x y| + |kHat cc.right (mid h y) z| +</span>
+<span id="cb94-76"><a href="#cb94-76" aria-hidden="true" tabindex="-1"></a>          |kHat cc.left x y| + |wHat cc.right (mid h y) z| + <span class="dv">2</span> * τ) := <span class="kw">by</span></span>
+<span id="cb94-77"><a href="#cb94-77" aria-hidden="true" tabindex="-1"></a>  <span class="cf">obtain</span> ⟨hl, hr, hco, h, -, hw⟩ := accepted_of_check hc</span>
+<span id="cb94-78"><a href="#cb94-78" aria-hidden="true" tabindex="-1"></a>  <span class="cf">refine</span> ⟨h, <span class="kw">fun</span> x z =&gt; ?_⟩</span>
+<span id="cb94-79"><a href="#cb94-79" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hCA : |cc.composite.exactW (inC h x) (outC h z) - wHat cc.composite (inC h x) (outC h z)|</span>
+<span id="cb94-80"><a href="#cb94-80" aria-hidden="true" tabindex="-1"></a>      ≤ τ := <span class="kw">by</span></span>
+<span id="cb94-81"><a href="#cb94-81" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [abs_sub_comm]</span>
+<span id="cb94-82"><a href="#cb94-82" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> Certificate.wError_le _ hco.wError (inC h x) (outC h z)</span>
+<span id="cb94-83"><a href="#cb94-83" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hcomp : |wHat cc.composite (inC h x) (outC h z) -</span>
+<span id="cb94-84"><a href="#cb94-84" aria-hidden="true" tabindex="-1"></a>      ∑ y, (wHat cc.left x y * kHat cc.right (mid h y) z +</span>
+<span id="cb94-85"><a href="#cb94-85" aria-hidden="true" tabindex="-1"></a>        kHat cc.left x y * wHat cc.right (mid h y) z)| ≤ τ := le_of_fold hw (x, z)</span>
+<span id="cb94-86"><a href="#cb94-86" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hterm : ∀ y, |(wHat cc.left x y * kHat cc.right (mid h y) z +</span>
+<span id="cb94-87"><a href="#cb94-87" aria-hidden="true" tabindex="-1"></a>        kHat cc.left x y * wHat cc.right (mid h y) z) -</span>
+<span id="cb94-88"><a href="#cb94-88" aria-hidden="true" tabindex="-1"></a>      (cc.left.exactW x y * cc.right.exactK (mid h y) z +</span>
+<span id="cb94-89"><a href="#cb94-89" aria-hidden="true" tabindex="-1"></a>        cc.left.exactK x y * cc.right.exactW (mid h y) z)| ≤</span>
+<span id="cb94-90"><a href="#cb94-90" aria-hidden="true" tabindex="-1"></a>      τ * (|wHat cc.left x y| + |kHat cc.right (mid h y) z| +</span>
+<span id="cb94-91"><a href="#cb94-91" aria-hidden="true" tabindex="-1"></a>        |kHat cc.left x y| + |wHat cc.right (mid h y) z| + <span class="dv">2</span> * τ) := <span class="kw">by</span></span>
+<span id="cb94-92"><a href="#cb94-92" aria-hidden="true" tabindex="-1"></a>    <span class="cf">intro</span> y</span>
+<span id="cb94-93"><a href="#cb94-93" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> h1 := abs_mul_sub_le (Certificate.wError_le _ hl.wError x y)</span>
+<span id="cb94-94"><a href="#cb94-94" aria-hidden="true" tabindex="-1"></a>      (Certificate.kError_le _ hr.kError (mid h y) z)</span>
+<span id="cb94-95"><a href="#cb94-95" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> h2 := abs_mul_sub_le (Certificate.kError_le _ hl.kError x y)</span>
+<span id="cb94-96"><a href="#cb94-96" aria-hidden="true" tabindex="-1"></a>      (Certificate.wError_le _ hr.wError (mid h y) z)</span>
+<span id="cb94-97"><a href="#cb94-97" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> e : (wHat cc.left x y * kHat cc.right (mid h y) z +</span>
+<span id="cb94-98"><a href="#cb94-98" aria-hidden="true" tabindex="-1"></a>          kHat cc.left x y * wHat cc.right (mid h y) z) -</span>
+<span id="cb94-99"><a href="#cb94-99" aria-hidden="true" tabindex="-1"></a>        (cc.left.exactW x y * cc.right.exactK (mid h y) z +</span>
+<span id="cb94-100"><a href="#cb94-100" aria-hidden="true" tabindex="-1"></a>          cc.left.exactK x y * cc.right.exactW (mid h y) z) =</span>
+<span id="cb94-101"><a href="#cb94-101" aria-hidden="true" tabindex="-1"></a>        (wHat cc.left x y * kHat cc.right (mid h y) z -</span>
+<span id="cb94-102"><a href="#cb94-102" aria-hidden="true" tabindex="-1"></a>          cc.left.exactW x y * cc.right.exactK (mid h y) z) +</span>
+<span id="cb94-103"><a href="#cb94-103" aria-hidden="true" tabindex="-1"></a>        (kHat cc.left x y * wHat cc.right (mid h y) z -</span>
+<span id="cb94-104"><a href="#cb94-104" aria-hidden="true" tabindex="-1"></a>          cc.left.exactK x y * cc.right.exactW (mid h y) z) := <span class="kw">by</span> <span class="cf">ring</span></span>
+<span id="cb94-105"><a href="#cb94-105" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [e]</span>
+<span id="cb94-106"><a href="#cb94-106" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> (abs_add_le _ _).trans ((add_le_add h1 h2).trans (le_of_eq (<span class="kw">by</span> <span class="cf">simp</span> only [kHat, wHat]; <span class="cf">ring</span>)))</span>
+<span id="cb94-107"><a href="#cb94-107" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hsum : |∑ y, (wHat cc.left x y * kHat cc.right (mid h y) z +</span>
+<span id="cb94-108"><a href="#cb94-108" aria-hidden="true" tabindex="-1"></a>        kHat cc.left x y * wHat cc.right (mid h y) z) -</span>
+<span id="cb94-109"><a href="#cb94-109" aria-hidden="true" tabindex="-1"></a>      ∑ y, (cc.left.exactW x y * cc.right.exactK (mid h y) z +</span>
+<span id="cb94-110"><a href="#cb94-110" aria-hidden="true" tabindex="-1"></a>        cc.left.exactK x y * cc.right.exactW (mid h y) z)| ≤</span>
+<span id="cb94-111"><a href="#cb94-111" aria-hidden="true" tabindex="-1"></a>      τ * ∑ y, (|wHat cc.left x y| + |kHat cc.right (mid h y) z| +</span>
+<span id="cb94-112"><a href="#cb94-112" aria-hidden="true" tabindex="-1"></a>        |kHat cc.left x y| + |wHat cc.right (mid h y) z| + <span class="dv">2</span> * τ) := <span class="kw">by</span></span>
+<span id="cb94-113"><a href="#cb94-113" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [← Finset.sum_sub_distrib, Finset.mul_sum]</span>
+<span id="cb94-114"><a href="#cb94-114" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum <span class="kw">fun</span> y _ =&gt; hterm y)</span>
+<span id="cb94-115"><a href="#cb94-115" aria-hidden="true" tabindex="-1"></a>  <span class="cf">exact</span> (abs_sub_le_three hCA hcomp hsum).trans (le_of_eq (<span class="kw">by</span> <span class="cf">ring</span>))</span>
+<span id="cb94-116"><a href="#cb94-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb94-117"><a href="#cb94-117" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> Composition</span></code></pre></div>
+<h2 id="decoding">Decoding</h2>
+<div class="sourceCode" id="cb95"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb95-1"><a href="#cb95-1" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> Json</span>
+<span id="cb95-2"><a href="#cb95-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-3"><a href="#cb95-3" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> Lean (Json)</span>
+<span id="cb95-4"><a href="#cb95-4" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> BayesianNetworksProofs.Raw (object)</span>
+<span id="cb95-5"><a href="#cb95-5" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> InfluenceDiagramsProofs.DVECertificate (get)</span>
+<span id="cb95-6"><a href="#cb95-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-7"><a href="#cb95-7" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Decode a composition certificate: exactly the keys `format`, `left`, `right` and</span></span>
+<span id="cb95-8"><a href="#cb95-8" aria-hidden="true" tabindex="-1"></a><span class="do">`composite`, the last three reward certificates. -/</span></span>
+<span id="cb95-9"><a href="#cb95-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> decodeComposition (j : Json) : Except String Composition := <span class="kw">do</span></span>
+<span id="cb95-10"><a href="#cb95-10" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> o ← object <span class="st">&quot;composition&quot;</span> <span class="dv">4</span> j</span>
+<span id="cb95-11"><a href="#cb95-11" aria-hidden="true" tabindex="-1"></a>  get o <span class="st">&quot;format&quot;</span> (constant compositionFormatName)</span>
+<span id="cb95-12"><a href="#cb95-12" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> l ← get o <span class="st">&quot;left&quot;</span> decodeCertificate</span>
+<span id="cb95-13"><a href="#cb95-13" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> r ← get o <span class="st">&quot;right&quot;</span> decodeCertificate</span>
+<span id="cb95-14"><a href="#cb95-14" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> c ← get o <span class="st">&quot;composite&quot;</span> decodeCertificate</span>
+<span id="cb95-15"><a href="#cb95-15" aria-hidden="true" tabindex="-1"></a>  pure ⟨l, r, c⟩</span>
+<span id="cb95-16"><a href="#cb95-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-17"><a href="#cb95-17" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Read a composition certificate from its text. -/</span></span>
+<span id="cb95-18"><a href="#cb95-18" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> readComposition (text : String) : Except String Composition := <span class="kw">do</span></span>
+<span id="cb95-19"><a href="#cb95-19" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> j ← OpenNet.CertificateSyntax.parse text</span>
+<span id="cb95-20"><a href="#cb95-20" aria-hidden="true" tabindex="-1"></a>  decodeComposition j</span>
+<span id="cb95-21"><a href="#cb95-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-22"><a href="#cb95-22" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> Json</span>
+<span id="cb95-23"><a href="#cb95-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-24"><a href="#cb95-24" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> OpenInfluence.RewardCertificate</span></code></pre></div>
 </body>
 </html>

@@ -1,4 +1,4 @@
-.PHONY: build cache audit check-certificates docs mdgen html pdf clean
+.PHONY: build cache audit check-certificates check-compositions docs mdgen html pdf clean
 
 LIB := CategoricalInfluenceDiagramsProofs
 TITLE := Open Influence Diagrams: Proofs
@@ -6,7 +6,7 @@ AUTHOR := Simon Frost
 # Modules in import (dependency) order, as in $(LIB).lean.
 MD_FILES := Basic.md RewardKernel.md Category.md Context.md Syntax.md Interpretation.md \
 	Obstruction.md Lens.md GameTensor.md Perfection.md Evidence.md Behaviour.md Certificate/Record.md Certificate/Json.md Certificate/Exact.md Certificate/Fast.md \
-	Certificate/Check.md Certificate/Sound.md
+	Certificate/Check.md Certificate/Sound.md Certificate/Composition.md
 JULIAMONO_DIR := $(abspath ../../fonts/JuliaMono)/
 PANDOC_COMMON := --toc --toc-depth=2 --syntax-definition=lean.xml --syntax-highlighting=tango \
 	--metadata title="$(TITLE)" --metadata author="$(AUTHOR)" --metadata date="2026-10-19"
@@ -33,6 +33,12 @@ audit:
 check-certificates:
 	lake build check_certificate --wfail
 	python3 scripts/check_certificates.py
+
+# Decode and check every composition-certificate fixture (ADR 0023) against
+# composition-fixtures/EXPECTED.md.
+check-compositions:
+	lake build check_composition --wfail
+	python3 scripts/check_certificates.py composition-fixtures check_composition
 
 # Documents: $(LIB).md (mdgen), $(LIB).html (pandoc) and $(LIB).pdf (pandoc + lualatex),
 # generated from the checked Lean source and committed. Fonts: STIX Two Text/Math and
