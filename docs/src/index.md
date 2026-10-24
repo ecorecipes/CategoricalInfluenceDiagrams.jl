@@ -125,8 +125,8 @@ fixed-strategy interpretation under serial composition and tensor, the contextua
 identity, the two obstructions of the research bundle, lenses and open-game equilibria
 (ADR 0020), the composition of evidence (ADR 0021), behavioural strategies with the value
 of randomising and Kuhn's theorem for the syntax (ADR 0022), the first-order condition for
-shared policies (ADR 0024), and the semantics as a functor on diagrams up to isomorphism
-(ADR 0025). Its checker for reward
+shared policies (ADR 0024), and the semantics as a braided strong monoidal functor on the
+symmetric monoidal category of diagrams up to isomorphism (ADR 0025). Its checker for reward
 certificates ties Julia's `interpret` of a recorded diagram to that interpretation, cell
 by cell (ADR 0019). `proofs/README.md` lists the theorems and their restrictions; the
 test suite checks the same laws numerically.

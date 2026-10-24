@@ -449,8 +449,8 @@ end
 
 """
     policy_regrets(components, kernels, utilities, σ::Strategy; shared = Vector{Symbol}[],
-                   prior = nothing, continuation = nothing, no_forgetting = true,
-                   max_states, atol) -> Dict{Symbol,Float64}
+                   prior = nothing, continuation = nothing, evidence = nothing,
+                   no_forgetting = true, max_states, atol) -> Dict{Symbol,Float64}
 
 The regrets of the policies of a chain whose components may share policies (ADR 0024).
 `shared` lists groups of decision names, possibly in different components, that share one
@@ -472,23 +472,53 @@ the policy table, so the largest sum is found row by row: the result is the sum,
 information states of the policy, of the largest, over actions, of the summed gains of
 moving that state to the action.
 
+Given evidence (`evidence`, or a chain context that carries it, as for [`regrets`](@ref)),
+the value is the chain's conditional value `V = N / Z`, and the gain of a use is the
+first-order change of `V` from changing that use alone, `(N_u - V Z_u) / Z`, where `N_u` and
+`Z_u` are the evidence-weighted value and the evidence mass with the use changed, in its
+component's context: the derivative of a ratio (`SharedPolicy.first_order_conditional`).
+A strategy under which the evidence is impossible raises `ImpossibleEvidenceError`, and a
+mass below binary64's normal range an `ArgumentError`, since the gains divide by it.
+
 Regrets are keyed by the first decision of each group. The chain is checked as for
-[`regrets`](@ref); no evidence is taken.
+[`regrets`](@ref).
 """
 function policy_regrets(components::AbstractVector{<:OpenInfluenceDiagram},
                         kernels::AbstractDict, utilities::AbstractDict, σ::Strategy;
                         shared=Vector{Symbol}[], prior=nothing, continuation=nothing,
-                        no_forgetting::Bool=true, atol::Real=DEFAULT_ATOL,
-                        max_states::Integer=DEFAULT_MAX_STATES)
+                        evidence=nothing, no_forgetting::Bool=true,
+                        atol::Real=DEFAULT_ATOL, max_states::Integer=DEFAULT_MAX_STATES)
     names = _check_chain(components, no_forgetting)
     groups, owner = _policy_groups(names, shared)
     spaces = _group_spaces(components, groups, owner)
     τ = _tied(σ, groups, spaces)
-    rs = [interpret(o, kernels, utilities, _restrict(τ, ds); atol=atol, max_states=max_states)
-          for (o, ds) in zip(components, names)]
-    ctx = _chain_contexts(rs, prior, continuation, atol)
-    value(i, r) = contextual_value(r; prior=ctx[i].prior, continuation=ctx[i].continuation,
-                                   atol=atol)
+    evs = _component_evidence(components, evidence)
+    conditional = _conditional_mode(evidence, prior, continuation)
+    interpret_part(i, strategy) = interpret(components[i], kernels, utilities, strategy;
+                                            evidence=evs[i], atol=atol,
+                                            max_states=max_states)
+    rs = [interpret_part(i, _restrict(τ, names[i])) for i in eachindex(components)]
+    ctx = _chain_contexts(rs, prior, continuation, atol; conditional=conditional)
+    if conditional
+        # The chain's conditional value and mass, the same in every component's context.
+        V = conditional_value(rs[1]; prior=ctx[1].prior, continuation=ctx[1].continuation,
+                              atol=atol)
+        function pairing(i, r)
+            ν, ρ = _state_vectors(ctx[i].prior, dom(r), atol)
+            m, c = _effect_vectors(ctx[i].continuation, codom(r), atol)
+            return _mass_and_value(r, ν, ρ, m, c)
+        end
+        Z = first(pairing(1, rs[1]))
+        _trusted_mass(Z) ||
+            throw(ArgumentError("policy_regrets: the evidence mass $Z is below binary64's normal range, so the gains cannot be divided by it"))
+        value = function (i, r)
+            Zi, Ni = pairing(i, r)
+            return (Ni - V * Zi) / Z
+        end
+    else
+        value = (i, r) -> contextual_value(r; prior=ctx[i].prior,
+                                           continuation=ctx[i].continuation, atol=atol)
+    end
     base = [value(i, rs[i]) for i in eachindex(rs)]
     out = Dict{Symbol,Float64}()
     for g in groups
@@ -501,9 +531,7 @@ function policy_regrets(components::AbstractVector{<:OpenInfluenceDiagram},
             rest = Dict{Symbol,AbstractPolicy}(policies(_restrict(τ, names[i])))
             for r in 1:length(I), a in 1:length(A)
                 rest[d] = _row_point_mass(d, k, spaces[d], r, a)
-                ri = interpret(components[i], kernels, utilities, Strategy(rest); atol=atol,
-                               max_states=max_states)
-                gains[a, r] += value(i, ri) - base[i]
+                gains[a, r] += value(i, interpret_part(i, Strategy(rest))) - base[i]
             end
         end
         out[first(g)] = sum(maximum(view(gains, :, r)) for r in axes(gains, 2))
@@ -545,13 +573,15 @@ end
 """
     shared_policy_search(components, kernels, utilities; shared = Vector{Symbol}[],
                          grid = 4, prior = nothing, continuation = nothing,
-                         no_forgetting = true, max_strategies = 100_000, max_states,
-                         atol) -> NamedTuple
+                         evidence = nothing, no_forgetting = true,
+                         max_strategies = 100_000, max_states, atol) -> NamedTuple
 
 Search the behavioural strategies of a chain whose components may share policies
 (`shared`, as for [`policy_regrets`](@ref)) on a grid: every policy draws, at every
 information state, an action distribution whose probabilities are multiples of `1 / grid`.
-The value of each is the chain's [`contextual_value`](@ref) on its composite. With shared
+The value of each is the chain's [`contextual_value`](@ref) on its composite, or given
+`evidence` (or a chain context that carries it) its [`conditional_value`](@ref), strategies
+under which the evidence is impossible being skipped. With shared
 policies the optimum can be randomised (the absent-minded driver: continuing with
 probability `2/3` at both junctions), so a search over deterministic strategies is not
 enough; the grid contains every deterministic strategy and, with `grid` a multiple of the
@@ -559,7 +589,9 @@ optimum's denominators, the optimum. The number of strategies is the product, ov
 policies, of `binomial(grid + |A| - 1, |A| - 1)` to the power of the number of information
 states; above `max_strategies` it raises `PolicySearchTooLargeError` before searching.
 
-Returns `(strategy, value, nstrategies)`: the first best strategy found (one
+If the evidence is impossible under every strategy of the grid, it raises
+`ImpossibleEvidenceError`. Returns `(strategy, value, nstrategies)`: the first best
+strategy found (one
 `StochasticPolicy` for the first decision of each group and for every other decision), its
 value and the number of strategies searched. `policy_regrets` at the result measures how far
 from the first-order condition the grid leaves it.
@@ -567,12 +599,14 @@ from the first-order condition the grid leaves it.
 function shared_policy_search(components::AbstractVector{<:OpenInfluenceDiagram},
                               kernels::AbstractDict, utilities::AbstractDict;
                               shared=Vector{Symbol}[], grid::Integer=4, prior=nothing,
-                              continuation=nothing, no_forgetting::Bool=true,
+                              continuation=nothing, evidence=nothing,
+                              no_forgetting::Bool=true,
                               max_strategies::Integer=100_000, atol::Real=DEFAULT_ATOL,
                               max_states::Integer=DEFAULT_MAX_STATES)
     grid >= 1 || throw(ArgumentError("grid must be positive, got $grid"))
     names = _check_chain(components, no_forgetting)
     whole = _chain_composite(components, no_forgetting)
+    conditional = _conditional_mode(evidence, prior, continuation)
     groups, owner = _policy_groups(names, shared)
     spaces = _group_spaces(components, groups, owner)
     heads = first.(groups)
@@ -592,12 +626,23 @@ function shared_policy_search(components::AbstractVector{<:OpenInfluenceDiagram}
                                                      check=false))
         end
         σ = Strategy(ps)
-        v = contextual_value(whole, kernels, utilities, _tied(σ, groups, spaces);
-                             prior=prior, continuation=continuation, atol=atol,
-                             max_states=max_states)
+        tied = _tied(σ, groups, spaces)
+        if conditional
+            iszero(evidence_mass(whole, kernels, utilities, tied; prior=prior,
+                                 continuation=continuation, evidence=evidence, atol=atol,
+                                 max_states=max_states)) && continue
+            v = conditional_value(whole, kernels, utilities, tied; prior=prior,
+                                  continuation=continuation, evidence=evidence, atol=atol,
+                                  max_states=max_states)
+        else
+            v = contextual_value(whole, kernels, utilities, tied; prior=prior,
+                                 continuation=continuation, atol=atol,
+                                 max_states=max_states)
+        end
         if v > best_value
             best, best_value = σ, v
         end
     end
+    best === nothing && throw(ImpossibleEvidenceError(_hard(_evidence(whole, evidence))))
     return (strategy=best, value=best_value, nstrategies=Int(total))
 end

@@ -542,6 +542,42 @@ assert_no_sorry OpenInfluence.RewardCertificate.Colimit.colimit_sound_W
 assert_no_sorry OpenInfluence.RewardCertificate.Json.decodeLeg
 assert_no_sorry OpenInfluence.RewardCertificate.Json.decodeColimit
 assert_no_sorry OpenInfluence.RewardCertificate.Json.readColimit
+assert_no_sorry OpenInfluence.IDNet.wire
+assert_no_sorry OpenInfluence.IDNet.Iso.tensor
+assert_no_sorry OpenInfluence.IDNet.interchange_iso
+assert_no_sorry OpenInfluence.IDNet.slide
+assert_no_sorry OpenInfluence.IDHom.tensor
+assert_no_sorry OpenInfluence.IDHom.tensor_comp
+assert_no_sorry OpenInfluence.IDHom.wire
+assert_no_sorry OpenInfluence.IDHom.wire_comp
+assert_no_sorry OpenInfluence.IDHom.wire_tensor
+assert_no_sorry OpenInfluence.IDHom.wire_slide
+assert_no_sorry OpenInfluence.IDCat.portIso
+assert_no_sorry OpenInfluence.IDCat.assocIso
+assert_no_sorry OpenInfluence.IDCat.leftIso
+assert_no_sorry OpenInfluence.IDCat.rightIso
+assert_no_sorry OpenInfluence.IDCat.swapIso
+assert_no_sorry OpenInfluence.IDCat.assoc_natural
+assert_no_sorry OpenInfluence.IDCat.left_natural
+assert_no_sorry OpenInfluence.IDCat.right_natural
+assert_no_sorry OpenInfluence.IDCat.swap_natural
+assert_no_sorry OpenInfluence.IDCat.tensor_id
+assert_no_sorry OpenInfluence.IDCat.monoidal
+assert_no_sorry OpenInfluence.IDCat.symmetric
+assert_no_sorry OpenInfluence.IDInterpretation.interpretB_wire
+assert_no_sorry OpenInfluence.IDInterpretation.map_wire
+assert_no_sorry OpenInfluence.IDInterpretation.interpretB_tensor_natural
+assert_no_sorry OpenInfluence.IDInterpretation.stateTensor
+assert_no_sorry OpenInfluence.IDInterpretation.stateUnit
+assert_no_sorry OpenInfluence.IDInterpretation.tensor_natural
+assert_no_sorry OpenInfluence.IDInterpretation.monoidalCore
+assert_no_sorry OpenInfluence.IDInterpretation.monoidalFunctor
+assert_no_sorry OpenInfluence.IDInterpretation.braidedFunctor
+assert_no_sorry OpenInfluence.RewardKernel.HasDeriv.mass
+assert_no_sorry OpenInfluence.RewardKernel.HasDeriv.value
+assert_no_sorry OpenInfluence.RewardKernel.first_order_conditional
+assert_no_sorry OpenInfluence.RewardKernel.mass_value_lin
+assert_no_sorry OpenInfluence.RewardKernel.shared_optimum_first_order_conditional
 #print axioms OpenInfluence.ObservedInterface.sum
 #print axioms OpenInfluence.ObservedInterface.empty
 #print axioms OpenInfluence.ObservedInterface.sum_flag_inl
@@ -1090,3 +1126,39 @@ assert_no_sorry OpenInfluence.RewardCertificate.Json.readColimit
 #print axioms OpenInfluence.RewardCertificate.Json.decodeLeg
 #print axioms OpenInfluence.RewardCertificate.Json.decodeColimit
 #print axioms OpenInfluence.RewardCertificate.Json.readColimit
+#print axioms OpenInfluence.IDNet.wire
+#print axioms OpenInfluence.IDNet.Iso.tensor
+#print axioms OpenInfluence.IDNet.interchange_iso
+#print axioms OpenInfluence.IDNet.slide
+#print axioms OpenInfluence.IDHom.tensor
+#print axioms OpenInfluence.IDHom.tensor_comp
+#print axioms OpenInfluence.IDHom.wire
+#print axioms OpenInfluence.IDHom.wire_comp
+#print axioms OpenInfluence.IDHom.wire_tensor
+#print axioms OpenInfluence.IDHom.wire_slide
+#print axioms OpenInfluence.IDCat.portIso
+#print axioms OpenInfluence.IDCat.assocIso
+#print axioms OpenInfluence.IDCat.leftIso
+#print axioms OpenInfluence.IDCat.rightIso
+#print axioms OpenInfluence.IDCat.swapIso
+#print axioms OpenInfluence.IDCat.assoc_natural
+#print axioms OpenInfluence.IDCat.left_natural
+#print axioms OpenInfluence.IDCat.right_natural
+#print axioms OpenInfluence.IDCat.swap_natural
+#print axioms OpenInfluence.IDCat.tensor_id
+#print axioms OpenInfluence.IDCat.monoidal
+#print axioms OpenInfluence.IDCat.symmetric
+#print axioms OpenInfluence.IDInterpretation.interpretB_wire
+#print axioms OpenInfluence.IDInterpretation.map_wire
+#print axioms OpenInfluence.IDInterpretation.interpretB_tensor_natural
+#print axioms OpenInfluence.IDInterpretation.stateTensor
+#print axioms OpenInfluence.IDInterpretation.stateUnit
+#print axioms OpenInfluence.IDInterpretation.tensor_natural
+#print axioms OpenInfluence.IDInterpretation.monoidalCore
+#print axioms OpenInfluence.IDInterpretation.monoidalFunctor
+#print axioms OpenInfluence.IDInterpretation.braidedFunctor
+#print axioms OpenInfluence.RewardKernel.HasDeriv.mass
+#print axioms OpenInfluence.RewardKernel.HasDeriv.value
+#print axioms OpenInfluence.RewardKernel.first_order_conditional
+#print axioms OpenInfluence.RewardKernel.mass_value_lin
+#print axioms OpenInfluence.RewardKernel.shared_optimum_first_order_conditional

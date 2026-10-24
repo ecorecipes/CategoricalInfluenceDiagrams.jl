@@ -269,7 +269,10 @@ influence-diagram schema); later loads are fast.
   decision's own spaces, position by position); a regret is the largest sum over a policy's
   uses of the gain from changing that use alone, found row by row (`_row_point_mass`), the
   first-order condition of `SharedPolicy.shared_optimum_first_order`; the search is a grid
-  over behavioural strategies (`_grid_columns`), valued on the composite. No evidence. This
+  over behavioural strategies (`_grid_columns`), valued on the composite. Given evidence (or a
+  state or effect context) a use's gain is `(N_u - V Z_u) / Z` from `_mass_and_value` in its
+  context, `V` the chain's conditional value (`SharedPolicy.first_order_conditional`); the
+  search skips zero-mass strategies. This
   is not the forbidden "optimise each component in isolation and compose": every best
   response is taken in the context the rest of the chain induces, and the result is
   documented as an equilibrium, which can be worse than `optimize`'s optimum (the Lean
@@ -409,14 +412,15 @@ deterministic one, in expected utility and in conditional value given evidence, 
 a time), `SharedPolicy` (ADR 0024: first-order terms of paths of reward kernels, the product
 rule, the first-order condition at a shared optimum, the driver's per-use gains),
 `SyntaxCategory` (ADR 0025: `IDNet.Iso`, invariance of `interpret`, the category `IDCat` of
-diagrams up to isomorphism and `interpretFunctor`), `Certificate/Colimit` (ADR 0025),
+diagrams up to isomorphism and `interpretFunctor`), `SyntaxMonoidal` (the tensor, wiring and
+slides on classes, `IDCat.monoidal`/`symmetric`, `interpretFunctor` braided strong monoidal), `Certificate/Colimit` (ADR 0025),
 and `Evidence` (ADR 0021: effects and states, their actions functorial without
 normalisation, the mass and value pairings invariant across a boundary, observation
 idempotent, the local-normalisation witness, the likelihood-weighted interpretation
 functorial under serial composition and tensor). The
 restrictions in `proofs/README.md` ("Scope and restrictions") are part of every claim:
-`IDNet` is quotiented by isomorphism for serial composition only (`SyntaxCategory`), the
-tensor staying an equation on representatives; the semantics does not read observability
+`IDNet` is quotiented by isomorphism, a symmetric monoidal category (`SyntaxCategory`,
+`SyntaxMonoidal`); the semantics does not read observability
 flags; colimit certificates check a composite's structure on the decoded records, not as an
 `IDNet.Iso`. Every theorem sentence in
 `proofs/README.md` is an SA-Pass claim (`cid.*` in the workspace

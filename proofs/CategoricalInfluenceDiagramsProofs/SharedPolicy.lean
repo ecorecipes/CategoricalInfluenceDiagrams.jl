@@ -1,6 +1,7 @@
 import CategoricalInfluenceDiagramsProofs.Behaviour
 import Mathlib.Analysis.Calculus.Deriv.Mul
 import Mathlib.Analysis.Calculus.Deriv.Slope
+import Mathlib.Analysis.Calculus.Deriv.Inv
 
 /-!
 # Shared policies: the first-order condition at an optimum (ADR 0024)
@@ -189,6 +190,102 @@ theorem shared_optimum_first_order (A₀ A₁ : RewardKernel X Y) (B₀ B₁ : R
   have h := first_order_optimum hd μ c (by simpa using hopt)
   simp only [segment_zero, eu_lin, lin_comp, comp_lin] at h
   linarith
+
+/-! ### Given evidence -/
+
+omit [Fintype Z] in
+/-- The evidence mass along a path has the mass of its first-order term as derivative. -/
+theorem HasDeriv.mass {F : ℝ → RewardKernel X Y} {D : RewardKernel X Y} (hF : HasDeriv F D)
+    (s : RewardKernel.State X) (e : RewardKernel.Effect Y) :
+    HasDerivAt (fun t => RewardKernel.mass s ((F t).pull e)) (RewardKernel.mass s (D.pull e))
+      0 := by
+  simp only [RewardKernel.mass, RewardKernel.pull]
+  exact HasDerivAt.fun_sum fun x _ =>
+    (HasDerivAt.fun_sum fun y _ => (hF x y).1.mul_const (e.m y)).const_mul (s.ν x)
+
+omit [Fintype Z] in
+/-- The evidence-weighted value along a path has the value of its first-order term as
+derivative. -/
+theorem HasDeriv.value {F : ℝ → RewardKernel X Y} {D : RewardKernel X Y} (hF : HasDeriv F D)
+    (s : RewardKernel.State X) (e : RewardKernel.Effect Y) :
+    HasDerivAt (fun t => RewardKernel.value s ((F t).pull e))
+      (RewardKernel.value s (D.pull e)) 0 := by
+  simp only [RewardKernel.value, RewardKernel.pull]
+  exact HasDerivAt.fun_sum fun x _ =>
+    ((HasDerivAt.fun_sum fun y _ => (hF x y).1.mul_const (e.m y)).const_mul (s.ρ x)).add
+      ((HasDerivAt.fun_sum fun y _ =>
+        ((hF x y).2.mul_const (e.m y)).add ((hF x y).1.mul_const (e.c y))).const_mul (s.ν x))
+
+omit [Fintype Z] in
+/-- **The first-order condition for a conditional value.** If the evidence has positive mass
+at `t = 0` and the conditional value along a path is largest there, the first-order term's
+evidence-weighted value, less the conditional value times its mass, is at most zero: the
+derivative of the ratio, times the mass. -/
+theorem first_order_conditional {F : ℝ → RewardKernel X Y} {D : RewardKernel X Y}
+    (hF : HasDeriv F D) (s : RewardKernel.State X) (e : RewardKernel.Effect Y)
+    (hpos : 0 < RewardKernel.mass s ((F 0).pull e))
+    (hmax : ∀ t ∈ Set.Ioo (0 : ℝ) 1, RewardKernel.conditionalValue s ((F t).pull e) ≤
+      RewardKernel.conditionalValue s ((F 0).pull e)) :
+    RewardKernel.value s (D.pull e) -
+      RewardKernel.conditionalValue s ((F 0).pull e) * RewardKernel.mass s (D.pull e) ≤ 0 := by
+  have hq := HasDerivAt.div (hF.value s e) (hF.mass s e) hpos.ne'
+  have h := deriv_nonpos_of_le hq hmax
+  have hD2 : 0 < RewardKernel.mass s ((F 0).pull e) ^ 2 := by positivity
+  have h1 := (div_le_iff₀ hD2).1 h
+  rw [zero_mul] at h1
+  have e1 : RewardKernel.value s (D.pull e) -
+      RewardKernel.conditionalValue s ((F 0).pull e) * RewardKernel.mass s (D.pull e) =
+      (RewardKernel.value s (D.pull e) * RewardKernel.mass s ((F 0).pull e) -
+        RewardKernel.value s ((F 0).pull e) * RewardKernel.mass s (D.pull e)) /
+        RewardKernel.mass s ((F 0).pull e) := by
+    unfold RewardKernel.conditionalValue
+    field_simp
+  rw [e1]
+  exact div_nonpos_iff.2 (Or.inr ⟨h1, hpos.le⟩)
+
+omit [Fintype Z] in
+theorem mass_value_lin (a : ℝ) (f : RewardKernel X Y) (b : ℝ) (g : RewardKernel X Y)
+    (s : RewardKernel.State X) (e : RewardKernel.Effect Y) :
+    RewardKernel.mass s ((lin a f b g).pull e) =
+        a * RewardKernel.mass s (f.pull e) + b * RewardKernel.mass s (g.pull e) ∧
+      RewardKernel.value s ((lin a f b g).pull e) =
+        a * RewardKernel.value s (f.pull e) + b * RewardKernel.value s (g.pull e) := by
+  rw [lin, (mass_value_mix _ _ s e).1, (mass_value_mix _ _ s e).2, Fintype.sum_bool,
+    Fintype.sum_bool]
+  simp
+
+/-- **Given evidence, the per-use first-order changes of a shared policy sum to at most zero
+at an optimum of the conditional value.** With positive evidence mass at `A₀ ; B₀` and `V` its
+conditional value, if no point of the joint change has a larger conditional value, then the
+first-order changes of the conditional value from changing each use alone, `(N_u - V Z_u)`
+divided by the mass, sum to at most zero; `N_u` and `Z_u` are the evidence-weighted value and
+the evidence mass with that use changed. -/
+theorem shared_optimum_first_order_conditional (A₀ A₁ : RewardKernel X Y)
+    (B₀ B₁ : RewardKernel Y Z) (s : RewardKernel.State X) (e : RewardKernel.Effect Z)
+    (hpos : 0 < RewardKernel.mass s ((A₀.comp B₀).pull e))
+    (hopt : ∀ t ∈ Set.Ioo (0 : ℝ) 1,
+      RewardKernel.conditionalValue s (((segment A₀ A₁ t).comp (segment B₀ B₁ t)).pull e) ≤
+        RewardKernel.conditionalValue s ((A₀.comp B₀).pull e)) :
+    (RewardKernel.value s ((A₁.comp B₀).pull e) -
+        RewardKernel.conditionalValue s ((A₀.comp B₀).pull e) *
+          RewardKernel.mass s ((A₁.comp B₀).pull e)) /
+        RewardKernel.mass s ((A₀.comp B₀).pull e) +
+      (RewardKernel.value s ((A₀.comp B₁).pull e) -
+        RewardKernel.conditionalValue s ((A₀.comp B₀).pull e) *
+          RewardKernel.mass s ((A₀.comp B₁).pull e)) /
+        RewardKernel.mass s ((A₀.comp B₀).pull e) ≤ 0 := by
+  have hd := (hasDeriv_segment A₀ A₁).comp (hasDeriv_segment B₀ B₁)
+  have h := first_order_conditional hd s e (by simpa using hpos) (by simpa using hopt)
+  simp only [segment_zero, lin_comp, comp_lin] at h
+  rw [(mass_value_lin _ _ _ _ s e).1, (mass_value_lin _ _ _ _ s e).2,
+    (mass_value_lin _ _ _ _ s e).1, (mass_value_lin _ _ _ _ s e).1,
+    (mass_value_lin _ _ _ _ s e).2, (mass_value_lin _ _ _ _ s e).2] at h
+  have hv : RewardKernel.conditionalValue s ((A₀.comp B₀).pull e) *
+      RewardKernel.mass s ((A₀.comp B₀).pull e) = RewardKernel.value s ((A₀.comp B₀).pull e) :=
+    div_mul_cancel₀ _ hpos.ne'
+  rw [← add_div]
+  refine div_nonpos_iff.2 (Or.inr ⟨?_, hpos.le⟩)
+  nlinarith [h, hv]
 
 end RewardKernel
 

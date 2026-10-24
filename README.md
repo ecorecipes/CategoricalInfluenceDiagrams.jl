@@ -91,8 +91,9 @@ which stays free of Catlab. The design is the workspace's ADR 0018,
   to one policy. `policy_regrets` and `is_policy_equilibrium` test the first-order condition
   that holds at every optimum of the shared policies (the multi-self consistency of
   Piccione and Rubinstein: changing a policy's uses one at a time, the gains sum to at most
-  zero), and `shared_policy_search` searches behavioural strategies on a grid, since the
-  optimum of a shared policy can be randomised.
+  zero; given evidence, the first-order changes of the conditional value), and
+  `shared_policy_search` searches behavioural strategies on a grid, since the optimum of a
+  shared policy can be randomised.
 - Composition certificates (ADR 0023): `export_composition_certificate(A, B, ...)` writes the
   reward certificates of two parts and of their composite, and `lake exe check_composition`
   checks each and that the composite's recorded reward kernel is the composite of the parts'
@@ -138,6 +139,8 @@ The Lean project in [`proofs/`](proofs/) builds on the proof projects of
 - At an optimum of a policy shared by two uses in series, separated by any fixed kernels, the gain from changing the first use alone towards another policy plus the gain from changing the second use alone is at most zero.
 - In the absent-minded driver, at the shared optimum of continuing with probability 2/3, continuing for sure at the first junction alone gains 2/3 and at the second junction alone loses 2/3.
 - If the colimit checker accepts a colimit certificate, then for all input and output coordinates of the composite, exactly, its decoded probability is the sum, over the boundary coordinates of the parts consistent with them, of the product of the parts' decoded probabilities, and its decoded reward is the corresponding sum of each part's reward times the other parts' probabilities.
+- Open influence diagrams up to isomorphism, with serial composition and the tensor, form a symmetric monoidal category, and for every behavioural strategy the semantics is a braided strong monoidal functor from it to `FinRew`.
+- Given evidence of positive mass, at an optimum of the conditional value of a policy shared by two uses in series, the first-order changes in conditional value from changing each use alone towards another policy sum to at most zero.
 
 The three certificate results are about reward certificates (ADR 0019) and composition and
 tensor certificates (ADR 0023): `lake exe check_certificate` checks Julia's numbers for a
@@ -149,13 +152,14 @@ tensor of games (exact for product priors; for correlated priors no context of o
 suffices) and perfect equilibria. The three after them are about evidence (ADR 0021): the
 evidence-weighted interpretation is proved functorial for serial composition and tensor,
 and the binary64 rules of `conditional_value` are Julia's. The last four are about
-behavioural strategies (ADR 0022). Of the last five, the first is Kuhn's theorem for the
+behavioural strategies (ADR 0022). Of the last seven, the first is Kuhn's theorem for the
 syntax (ADR 0022), the second makes the semantics a functor on diagrams up to isomorphism
-(ADR 0025), the next two are about shared policies (ADR 0024), and the last is about colimit
+(ADR 0025), the next two are about shared policies (ADR 0024), the fifth is about colimit
 certificates (ADR 0025), which check the composite's structure as Catlab's cocone and give
-its semantics exactly. The monoidal structure of the quotient is not developed, the
-semantics does not read observability flags, and the colimit certificates check structure on
-the decoded records rather than as an isomorphism of `IDNet`s;
+its semantics exactly, the sixth makes the semantics a symmetric monoidal functor (ADR 0025),
+and the last is the shared-policy condition given evidence (ADR 0024). The semantics does not
+read observability flags, and the colimit certificates check structure on the decoded
+records rather than as an isomorphism of `IDNet`s;
 [`proofs/README.md`](proofs/README.md) lists every theorem and these restrictions.
 Each sentence above is checked against its Lean statement by the workspace's SA-Pass
 harness. The Julia test suite checks the same laws numerically.

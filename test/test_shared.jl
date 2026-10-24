@@ -143,6 +143,73 @@ drive_regret(p) = max((1 - p) * (4 - 6p), -p * (4 - 6p))
         end
     end
 
+    @testset "given evidence, regrets are derivatives of the conditional value" begin
+        rng = Xoshiro(241)
+        ax(x) = FiniteAxis(x, [:a, :b])
+        first_part = Open(influence_diagram(:H => [:a, :b], :D1 => [:a, :b];
+                                            mechanisms=[:H => ()],
+                                            decisions=[:D1 => [:H]],
+                                            utilities=[:U1 => (:H, :D1)], closed=false);
+                          outputs=[:H, :D1], observed=[:H])
+        # The observed signal `O` depends on both decisions, so the evidence mass does too.
+        second_part = Open(influence_diagram(:H => [:a, :b], :D1 => [:a, :b],
+                                             :D2 => [:a, :b], :O => [:a, :b];
+                                             mechanisms=[:O => (:D1, :D2)],
+                                             decisions=[:D2 => [:H]],
+                                             utilities=[:U2 => (:H, :O)], closed=false);
+                           inputs=[:H, :D1], observed=[:H])
+        rchain = [first_part, second_part]
+        whole = compose(rchain...)
+        for _ in 1:5
+            p = rand(rng)
+            o = rand(rng, 2, 2)
+            rks = Dict{Symbol,FiniteKernel}(:H => state(FiniteSpace(:H, [:a, :b]), [p, 1 - p]),
+                                            :O => FiniteKernel(FiniteSpace([ax(:D1), ax(:D2)]),
+                                                               FiniteSpace(ax(:O)),
+                                                               permutedims(cat(o, 1 .- o;
+                                                                               dims=3),
+                                                                           (3, 1, 2))))
+            rus = Dict{Symbol,AbstractUtility}(:U1 => TabularUtility([ax(:H), ax(:D1)],
+                                                                     randn(rng, 2, 2)),
+                                               :U2 => TabularUtility([ax(:H), ax(:O)],
+                                                                     randn(rng, 2, 2)))
+            q = rand(rng, 2)
+            t0 = [q[1] 1-q[2]; 1-q[1] q[2]]
+            tied(t) = Strategy(:D1 => columns_policy(rchain[1], :D1, t),
+                               :D2 => columns_policy(rchain[2], :D2, t))
+            ev = :O => :a
+            cv(t) = conditional_value(whole, rks, rus, tied(t); evidence=ev)
+            h = 1e-6
+            derivs(πs) = maximum(map(πs) do π
+                                     (cv((1 - h) .* t0 .+ h .* π) - cv(t0)) / h
+                                 end)
+            vertices = vec([begin
+                                π = zeros(2, 2)
+                                π[a1, 1] = 1
+                                π[a2, 2] = 1
+                                π
+                            end for a1 in 1:2, a2 in 1:2])
+            r = policy_regrets(rchain, rks, rus,
+                               Strategy(:D1 => columns_policy(rchain[1], :D1, t0));
+                               shared=[[:D1, :D2]], evidence=ev)
+            @test r[:D1] ≈ max(0.0, derivs(vertices)) atol = 1e-4
+            # Untied, each decision's regret is the derivative along its own table.
+            ru = policy_regrets(rchain, rks, rus, tied(t0); evidence=ev)
+            for (d, part) in ((:D1, 1), (:D2, 2))
+                other = d === :D1 ? :D2 : :D1
+                cvd(t) = conditional_value(whole, rks, rus,
+                                           Strategy(d => columns_policy(rchain[part], d, t),
+                                                    other => tied(t0)[other]); evidence=ev)
+                fd = maximum((cvd((1 - h) .* t0 .+ h .* π) - cvd(t0)) / h for π in vertices)
+                @test ru[d] ≈ max(0.0, fd) atol = 1e-4
+            end
+            # The grid search given evidence never does worse than its deterministic points.
+            s = shared_policy_search(rchain, rks, rus; shared=[[:D1, :D2]], grid=2,
+                                     evidence=ev)
+            @test s.value >= maximum(cv(π) for π in vertices) - 1e-12
+        end
+    end
+
     @testset "errors" begin
         σ = continue_with(chain, 0.5)
         @test_throws ArgumentError policy_regrets(chain, ks, us, σ; shared=[[:X1, :Z]])

@@ -91,6 +91,10 @@ Each sentence below is registered as an SA-Pass claim in `conformance/sapass/cla
     (`cid.per-use-gains`)
 36. If the colimit checker accepts a colimit certificate, then for all input and output coordinates of the composite, exactly, its decoded probability is the sum, over the boundary coordinates of the parts consistent with them, of the product of the parts' decoded probabilities, and its decoded reward is the corresponding sum of each part's reward times the other parts' probabilities.
     (`cid.colimit-certificate`)
+37. Open influence diagrams up to isomorphism, with serial composition and the tensor, form a symmetric monoidal category, and for every behavioural strategy the semantics is a braided strong monoidal functor from it to `FinRew`.
+    (`cid.syntax-monoidal`)
+38. Given evidence of positive mass, at an optimum of the conditional value of a policy shared by two uses in series, the first-order changes in conditional value from changing each use alone towards another policy sum to at most zero.
+    (`cid.shared-first-order-conditional`)
 
 Here `EU_f(μ, c) = Σ_x μ x Σ_y (W x y + K x y · c y)` for a boundary prior `μ` and a terminal
 continuation `c`; `c_g y = Σ_z (W_g y z + K_g y z · c z)` is the suffix's value function,
@@ -111,9 +115,11 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
   isomorphism (`IDNet.Iso`: a bijection of generators and of utility generators preserving
   labels, ordered parents, outputs and scopes), proves `interpret` and `interpretB`
   invariant under it, and makes the semantics a Mathlib `Functor` from the resulting
-  category `IDCat` to `FinRew` (`interpretFunctor`). Only serial composition is quotiented:
-  the tensor (`interpret_tensor`) stays an equation on representatives, and the monoidal
-  structure of the quotient is not developed.
+  category `IDCat` to `FinRew` (`interpretFunctor`). Module `SyntaxMonoidal` adds the
+  tensor: `IDCat` is a symmetric monoidal category (the associator, unitors and symmetry are
+  wiring along bijections of ports, naturality is a slide through wiring), and
+  `interpretFunctor` is a braided strong monoidal functor, its comparison maps the canonical
+  bijections of boundary assignments.
 - **Strategies.** Policies are keyed by decision label (decisions with equal labels share
   one), as in the Julia package. A deterministic policy is a function of the values on the
   decision's information ports (its ordered parents); a behavioural policy (module
@@ -131,9 +137,11 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
   obey the product rule under serial composition (`HasDeriv.comp`), so at an optimum of a
   policy shared by two uses the per-use gains sum to at most zero
   (`shared_optimum_first_order`). The theorem is stated for two uses; more uses follow by
-  the same product rule, which is proved for any serial composite. That Julia's
-  `policy_regrets` computes these per-use gains is checked by the test suite against finite
-  differences, not proved.
+  the same product rule, which is proved for any serial composite. Given evidence, the
+  conditional value is a ratio, and at an optimum the per-use first-order changes of the
+  ratio sum to at most zero (`first_order_conditional`,
+  `shared_optimum_first_order_conditional`). That Julia's `policy_regrets` computes these
+  per-use gains is checked by the test suite against finite differences, not proved.
 - **Observability.** The fixed-strategy semantics does not read observability flags.
   Information locality (`InformationLocal`, rule 3) is a separate predicate on finite
   influence diagrams; the hidden-input obstruction states legality directly on its witness.
@@ -203,8 +211,8 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
   The witness is checked on the records; it is not turned into an `IDNet.Iso` between the
   decoded composite and `IDNet.comp` of the decoded parts, whose interfaces are distinct Lean
   terms.
-- **Not proved:** a monoidal category of open influence diagrams up to isomorphism,
-  gluing in the Lean syntax, and optimisation of composites beyond the contextual identity.
+- **Not proved:** gluing in the Lean syntax (beyond serial composition and the tensor), and
+  optimisation of composites beyond the contextual identity.
   Reward certificates check Julia's numbers for the diagram a certificate records against
   `interpret`; colimit certificates check, on the records, that Julia's composite is the
   colimit of its parts, and give its semantics exactly. The Julia operations themselves,
@@ -289,6 +297,10 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
 | `IDInterpretation.rewardB_iso`, `interpretB_iso`, `interpret_iso`, `IDCat`, `IDHom`, `IDCat.category`, `interpretClass`, `interpretFunctor`, `interpretFunctor_map`, `interpretFunctor_pointMass` | The semantics is invariant under isomorphism and a functor from the category of diagrams up to isomorphism to `FinRew` |
 | `RewardKernel.lin`, `lin_comp`, `comp_lin`, `eu_lin`, `HasDeriv`, `segment`, `hasDeriv_segment`, `hasDeriv_const`, `HasDeriv.comp`, `HasDeriv.eu`, `deriv_nonpos_of_le`, `first_order_optimum`, `shared_optimum_first_order` | Paths of reward kernels and their first-order terms; the product rule for serial composition; at an optimum of a shared policy the per-use gains sum to at most zero |
 | `AbsentMinded.per_use_gains` | At the driver's shared optimum the first junction alone gains `2/3` and the second alone loses `2/3` |
+| `IDNet.wire`, `IDNet.Iso.tensor`, `interchange_iso`, `slide`, `IDHom.tensor`, `tensor_comp`, `IDHom.wire`, `wire_comp`, `wire_tensor`, `wire_slide` | The tensor respects isomorphism and satisfies interchange up to it; wiring composes and tensors as functions on ports; diagrams slide through wiring |
+| `IDCat.portIso`, `assocIso`, `leftIso`, `rightIso`, `swapIso`, `assoc_natural`, `left_natural`, `right_natural`, `swap_natural`, `tensor_id`, `IDCat.monoidal`, `IDCat.symmetric` | Open influence diagrams up to isomorphism form a symmetric monoidal category |
+| `IDInterpretation.interpretB_wire`, `map_wire`, `interpretB_tensor_natural`, `stateTensor`, `stateUnit`, `tensor_natural`, `monoidalCore`, `monoidalFunctor`, `braidedFunctor` | The semantics is a braided strong monoidal functor to `FinRew` |
+| `RewardKernel.HasDeriv.mass`, `HasDeriv.value`, `first_order_conditional`, `mass_value_lin`, `shared_optimum_first_order_conditional` | Given evidence, at an optimum of a shared policy's conditional value the per-use first-order changes sum to at most zero |
 | `Leg`, `Colimit`, `Certificate.IsBoundary`, `policyActions`, `Colimit.Wired`, `Ports`, `Row`, `Consistent`, `Colimit.check`, `firstFailure` | Colimit certificates (ADR 0025): parts, composite and Catlab's cocone; the colimit-witness conditions and the checker |
 | `Colimit.split`, `split_bijective`, `valueP`, `weight_gm`, `joint_split`, `reward_split`, `consistent_tz_iff`, `ports_unique`, `sum_mul_prod_erase` | The composite's generator states split into the parts'; values, weights and rewards factor over the parts; the consistent boundary coordinates are unique |
 | `Colimit.colimit_exactK`, `colimit_exactW`, `colimit_sound_K`, `colimit_sound_W`, `Json.decodeLeg`, `Json.decodeColimit`, `Json.readColimit` | On acceptance the composite's exact `K` and `W` are the junction sums of the parts', exactly |

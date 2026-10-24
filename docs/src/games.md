@@ -108,6 +108,9 @@ product rule for serial composites, and gives the driver's per-use gains `2/3` a
   per-use gains over deterministic replacements: the first-order gain. For a policy used
   once it is exactly the gain of changing that decision alone.
 - [`is_policy_equilibrium`](@ref) tests that every such regret is at most `tol`.
+- Given `evidence` (or a chain context that carries it), the value is the chain's
+  conditional value `V = N / Z`, and a use's gain is the first-order change of the ratio,
+  `(N_u - V Z_u) / Z` (`first_order_conditional` in Lean).
 - [`shared_policy_search`](@ref) searches behavioural strategies whose probabilities are
   multiples of `1 / grid`, valuing each on the composite; the grid contains the deterministic
   strategies and, for a suitable `grid`, the randomised optimum.
