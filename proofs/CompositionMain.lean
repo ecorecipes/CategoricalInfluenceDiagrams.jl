@@ -1,14 +1,17 @@
 import CategoricalInfluenceDiagramsProofs.Certificate.Composition
+import CategoricalInfluenceDiagramsProofs.Certificate.Colimit
 import CategoricalInfluenceDiagramsProofs.Certificate.Cli
 
 /-!
 # `lake exe check_composition PATH [--tol τ]`
 
-Reads an `OpenInfluence.CompositionCertificate/v1` or `OpenInfluence.TensorCertificate/v1`
-file (by its format string), decodes its three reward certificates with the decoder of
-`Certificate/Json.lean`, and decides `Composition.check τ` or `Composition.checkTensor τ` of
-`Certificate/Composition.lean`, whose acceptance `composition_sound_K`/`_W` and
-`tensor_sound_K`/`_W` prove sound. Exit status and tolerance as for `check_certificate`.
+Reads an `OpenInfluence.CompositionCertificate/v1`, `OpenInfluence.TensorCertificate/v1` or
+`OpenInfluence.ColimitCertificate/v1` file (by its format string), decodes its reward
+certificates with the decoder of `Certificate/Json.lean`, and decides `Composition.check τ`
+or `Composition.checkTensor τ` of `Certificate/Composition.lean`, whose acceptance
+`composition_sound_K`/`_W` and `tensor_sound_K`/`_W` prove sound, or `Colimit.check τ` of
+`Certificate/Colimit.lean`, whose acceptance `colimit_sound_K`/`_W` prove exact. Exit status
+and tolerance as for `check_certificate`.
 -/
 
 open OpenInfluence.RewardCertificate OpenInfluence.RewardCertificate.Cli
@@ -22,9 +25,27 @@ def compositionMain (args : List String) : IO UInt32 := do
   | some (path, τ) =>
     try
       let text ← IO.FS.readFile path
+      let colimitError ← match Json.readColimit text with
+      | .error e => pure e
+      | .ok cc => do
+        IO.println s!"{colimitFormatName} ({cc.operation}): tolerance {showQ τ}"
+        for (c, k) in cc.parts.zipIdx do
+          IO.println s!"  part {k}: input rows {c.network.inputs.length}, output rows \
+            {c.network.outputs.length}, {if c.check τ then "accepted" else "rejected"}"
+        IO.println s!"  composite: input rows {cc.composite.network.inputs.length}, output \
+          rows {cc.composite.network.outputs.length}, \
+          {if cc.composite.check τ then "accepted" else "rejected"}"
+        IO.println s!"  legs a colimit witness: {decide cc.Wired}"
+        match cc.firstFailure τ with
+        | none =>
+          IO.println "accepted"
+          return (0 : UInt32)
+        | some stage =>
+          IO.println s!"rejected: {stage}"
+          return (1 : UInt32)
       match Json.readOperation text with
       | .error message =>
-        IO.println s!"rejected: decode ({message})"
+        IO.println s!"rejected: decode ({message}; nor a colimit certificate: {colimitError})"
         return (1 : UInt32)
       | .ok (isTensor, cc) =>
         let name := if isTensor then tensorFormatName else compositionFormatName

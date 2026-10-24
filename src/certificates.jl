@@ -538,3 +538,114 @@ function export_tensor_certificate(A::OpenInfluenceDiagram, B::OpenInfluenceDiag
                                   tables, numeric_mode, description, max_entries)
 end
 
+
+# Colimit certificates (ADR 0025)
+#################################
+
+const _COLIMIT_CERTIFICATE_FORMAT = "OpenInfluence.ColimitCertificate/v1"
+
+"""
+    export_colimit_certificate(op::Symbol, A::OpenInfluenceDiagram, B::OpenInfluenceDiagram,
+                               kernels, utilities, σ::Strategy; along = nothing,
+                               no_forgetting = true, numeric_mode = :binary64_exact,
+                               exact_tables = nothing, description = "",
+                               max_entries = 1_000_000) -> OrderedDict{String,Any}
+    export_colimit_certificate(uwd::UndirectedWiringDiagram, diagrams, kernels, utilities,
+                               σ::Strategy; kwargs...) -> OrderedDict{String,Any}
+
+The `OpenInfluence.ColimitCertificate/v1` record of a composite (ADR 0025): the reward
+certificates ([`export_reward_certificate`](@ref)) of the parts under `"parts"` and of the
+composite under `"composite"`, all under the strategy `σ`, with the operation's name under
+`"operation"` and Catlab's cocone under `"legs"`: for each part, the 0-based index in the
+composite's certificate of each of its variables, generators (chance mechanisms, then
+decisions, as the reward certificate numbers them) and utilities. `op` is `:compose`,
+`:otimes` or `:glue` (which needs `along`, as for `glue`); the second form is `oapply` on the
+undirected wiring diagram `uwd`. For `glue` the second part is recorded as glued: its glued
+inputs carry the names of their partners in `A`, as in the composite.
+
+`lake exe check_composition` accepts the certificate when every reward certificate is
+accepted and the legs are a colimit witness: bijective on generators and utilities,
+preserving attributes, labels, targets, parents, tables, policies and scopes, identifying
+only boundary variables, and covering the composite's outputs. Its soundness theorems then
+give, exactly and with no tolerance, the composite's semantics as the junction sum of the
+parts' in the expectation semiring: the structure of the composite, not only its numbers,
+is checked.
+
+In `:rational_exact` mode `exact_tables` is a named tuple `(parts = [...], composite = ...)`
+of companions, one per part and one for the composite, each keyed by its own diagram's part
+ids; anything else raises `ArgumentError`, as does an unknown `op` or `along` given to any
+operation but `:glue`. The errors of the operation and of `export_reward_certificate` pass
+through.
+"""
+function export_colimit_certificate(op::Symbol, A::OpenInfluenceDiagram,
+                                    B::OpenInfluenceDiagram, kernels::AbstractDict,
+                                    utilities::AbstractDict, σ::Strategy; along=nothing,
+                                    no_forgetting::Bool=true, kw...)
+    op === :glue || along === nothing ||
+        throw(ArgumentError("export_colimit_certificate: along is for :glue only, not :$op"))
+    if op === :compose
+        C, cocone = _compose_cocone(A, B; no_forgetting=no_forgetting)
+        pieces = [A, B]
+    elseif op === :otimes
+        C, cocone = _otimes_cocone(A, B; no_forgetting=no_forgetting)
+        pieces = [A, B]
+    elseif op === :glue
+        along === nothing &&
+            throw(ArgumentError("export_colimit_certificate: :glue needs along"))
+        C, cocone, pieces = _glue_cocone(A, B; along=along, no_forgetting=no_forgetting)
+    else
+        throw(ArgumentError("export_colimit_certificate: op must be :compose, :otimes or :glue, not :$op"))
+    end
+    return _colimit_certificate(String(op), pieces, C, cocone, kernels, utilities, σ; kw...)
+end
+
+function export_colimit_certificate(uwd::UndirectedWiringDiagram,
+                                    diagrams::AbstractVector{<:OpenInfluenceDiagram},
+                                    kernels::AbstractDict, utilities::AbstractDict,
+                                    σ::Strategy; no_forgetting::Bool=true, kw...)
+    C, cocone = _oapply_cocone(uwd, diagrams; no_forgetting=no_forgetting)
+    return _colimit_certificate("oapply", collect(diagrams), C, cocone, kernels, utilities, σ;
+                                kw...)
+end
+
+# The leg record of the cocone map `f` from the apex of `piece` into the apex `P` of the
+# composite, in the reward certificates' numbering.
+function _colimit_leg(piece::OpenInfluenceDiagram, f, P)
+    id = apex(piece)
+    nm = nparts(P, :Mechanism)
+    return (variables=[f.Variable[v] - 1 for v in parts(id, :Variable)],
+            generators=vcat([f.Mechanism[m] - 1 for m in parts(id, :Mechanism)],
+                            [nm + f.Decision[d] - 1 for d in parts(id, :Decision)]),
+            utilities=[f.Utility[u] - 1 for u in parts(id, :Utility)])
+end
+
+function _colimit_certificate(op::String, pieces, C, cocone, kernels, utilities, σ;
+                              numeric_mode=:binary64_exact, exact_tables=nothing,
+                              description="", max_entries=1_000_000)
+    description isa AbstractString ||
+        throw(ArgumentError("export_colimit_certificate: description must be a string, not a $(typeof(description))"))
+    if exact_tables === nothing
+        tables = (parts=fill(nothing, length(pieces)), composite=nothing)
+    else
+        exact_tables isa NamedTuple &&
+        sort!(collect(keys(exact_tables))) == [:composite, :parts] &&
+        length(exact_tables.parts) == length(pieces) ||
+            throw(ArgumentError("export_colimit_certificate: exact_tables must be a named tuple (parts = [...], composite = ...) with one companion table per part"))
+        tables = exact_tables
+    end
+    function certificate(o, t, name)
+        text = isempty(description) ? name : "$(description) ($(name))"
+        return export_reward_certificate(o, kernels, utilities, σ; numeric_mode=numeric_mode,
+                                         exact_tables=t, description=text,
+                                         max_entries=max_entries)
+    end
+    return OrderedDict{String,Any}("format" => _COLIMIT_CERTIFICATE_FORMAT,
+                                   "operation" => op,
+                                   "parts" => [certificate(o, t, "part $k")
+                                               for (k, (o, t)) in
+                                               enumerate(zip(pieces, tables.parts))],
+                                   "composite" => certificate(C, tables.composite,
+                                                              "composite"),
+                                   "legs" => [_colimit_leg(o, f, apex(C))
+                                              for (o, f) in zip(pieces, cocone)])
+end

@@ -10,7 +10,12 @@ All are written by `scripts/write_certificate_fixtures.jl` of the package
 (`composition_fixtures`). `swapped.bad.json` is `umbrella-rational.json` with its two parts
 exchanged; `strategy.bad.json` is it with the composite recorded under another strategy. The
 `tensor-*` fixtures are tensor certificates (`OpenInfluence.TensorCertificate/v1`) of the
-umbrella's decision part beside the relay, corrupted in the same two ways.
+umbrella's decision part beside the relay, corrupted in the same two ways. The `colimit-*`
+fixtures are colimit certificates (`OpenInfluence.ColimitCertificate/v1`, ADR 0025, written by
+`colimit_fixtures`): the umbrella split under `compose`, `glue` and `oapply` and the decision
+part beside the relay under `otimes`; the `compose` one with a leg sending a generator to the
+wrong generator (`legs.bad`), with its composite under another strategy (`policy.bad`, whose
+recorded policy no longer matches the part's) and in binary64.
 
 | Fixture | Outcome | Stage |
 |---|---|---|
@@ -22,3 +27,10 @@ umbrella's decision part beside the relay, corrupted in the same two ways.
 | `tensor-rational.json` | accepted | |
 | `tensor-swapped.bad.json` | rejected | alignment |
 | `tensor-strategy.bad.json` | rejected | tensor W |
+| `colimit-compose.json` | accepted | |
+| `colimit-glue.json` | accepted | |
+| `colimit-oapply.json` | accepted | |
+| `colimit-otimes.json` | accepted | |
+| `colimit-legs.bad.json` | rejected | structure |
+| `colimit-policy.bad.json` | rejected | structure |
+| `colimit-binary64.json` | rejected | part 0: exact row sums |

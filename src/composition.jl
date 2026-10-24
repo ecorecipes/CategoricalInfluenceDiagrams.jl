@@ -192,20 +192,37 @@ Unset references, `utility_ref` included, survive the pushout unchanged.
 """
 function compose(A::OpenInfluenceDiagram, B::OpenInfluenceDiagram;
                  no_forgetting::Bool=true)
+    return first(_compose_cocone(A, B; no_forgetting=no_forgetting))
+end
+
+# `compose` with the cocone of its pushout: the composite and, for each operand, the map of
+# its apex into the composite's (`_cocone_leg`), the witness of a colimit certificate.
+function _compose_cocone(A::OpenInfluenceDiagram, B::OpenInfluenceDiagram;
+                         no_forgetting::Bool=true)
     validate(A)
     validate(B)
     _check_interfaces(output_space(A), A.output_observability, input_space(B),
                       B.input_observability, "compose: outputs(A) vs inputs(B)")
+    cocone = Ref{Any}(nothing)
     C = _with_unset_refs_held(A.cospan, B.cospan) do a, b
         P, ia, ib = _pushout_along_maps(apex(a), _variable_component(right(a)), apex(b),
                                         _variable_component(left(b)))
+        cocone[] = (ia, ib)
         cat = infer_acset_cat(P)
         cospan = Cospan(P, compose[cat](left(a), ia), compose[cat](right(b), ib))
         return force(_IDCospan(cospan, dom(a), codom(b)))
     end
     o = OpenInfluenceDiagram(C, A.input_observability, B.output_observability)
     _validate_composite(o, (A, B); no_forgetting=no_forgetting)
-    return o
+    return o, [_cocone_leg(f) for f in cocone[]]
+end
+
+# The components of a cocone map on the parts that carry a semantics.
+function _cocone_leg(f)
+    c = components(f)
+    part(x) = Vector{Int}(collect(c[x]))
+    return (Variable=part(:Variable), Mechanism=part(:Mechanism),
+            Decision=part(:Decision), Utility=part(:Utility))
 end
 
 ⋅(A::OpenInfluenceDiagram, B::OpenInfluenceDiagram) = compose(A, B)
@@ -236,6 +253,14 @@ on the composite.
 """
 function glue(A::OpenInfluenceDiagram, B::OpenInfluenceDiagram;
               along::AbstractVector{<:Pair{Symbol,Symbol}}, no_forgetting::Bool=true)
+    return first(_glue_cocone(A, B; along=along, no_forgetting=no_forgetting))
+end
+
+# `glue` with the cocone of its pushout and the operands as glued: `B` with its glued inputs
+# renamed after their partners in `A` (`B` itself when nothing is renamed), whose apex the
+# second map leaves.
+function _glue_cocone(A::OpenInfluenceDiagram, B::OpenInfluenceDiagram;
+                      along::AbstractVector{<:Pair{Symbol,Symbol}}, no_forgetting::Bool=true)
     validate(A)
     validate(B)
     foreach(_require_attributes, (output_space(A), input_space(B)))
@@ -287,10 +312,15 @@ function glue(A::OpenInfluenceDiagram, B::OpenInfluenceDiagram;
             set_subpart!(apB, v, :variable_name, name)
         end
     end
+    cocone = Ref{Any}(nothing)
     P, mapA, mapB = _with_unset_refs_held(apex(A), apB) do a, b
         P, fa, fb = _pushout_along_maps(a, VA_out[ia], b, VB_in[ib])
+        cocone[] = (fa, fb)
         return P, _variable_component(fa), _variable_component(fb)
     end
+    B′ = apB === apex(B) ? B :
+         OpenInfluenceDiagram(_cospan(apB, input_variables(B), output_variables(B)),
+                              B.input_observability, B.output_observability)
     keep_a = setdiff(eachindex(outA), ia)
     keep_b = setdiff(eachindex(inB), ib)
     in_ids = vcat(mapA[input_variables(A)], mapB[VB_in[keep_b]])
@@ -299,7 +329,7 @@ function glue(A::OpenInfluenceDiagram, B::OpenInfluenceDiagram;
                              vcat(A.input_observability, B.input_observability[keep_b]),
                              vcat(A.output_observability[keep_a], B.output_observability))
     _validate_composite(o, (A, B); no_forgetting=no_forgetting)
-    return o
+    return o, [_cocone_leg(f) for f in cocone[]], [A, B′]
 end
 
 # Tensor
@@ -316,12 +346,20 @@ kept, so tensoring a diagram with itself repeats them; the result is validated w
 one of `B`, so neither has anything to remember of the other.
 """
 function otimes(A::OpenInfluenceDiagram, B::OpenInfluenceDiagram; no_forgetting::Bool=true)
+    return first(_otimes_cocone(A, B; no_forgetting=no_forgetting))
+end
+
+# `otimes` with the cocone of its coproduct.
+function _otimes_cocone(A::OpenInfluenceDiagram, B::OpenInfluenceDiagram;
+                        no_forgetting::Bool=true)
     validate(A)
     validate(B)
+    cocone = Ref{Any}(nothing)
     C = _with_unset_refs_held(A.cospan, B.cospan) do a, b
         cat = infer_acset_cat(apex(a))
         cp = coproduct[cat](apex(a), apex(b))
         ia, ib = legs(cp)
+        cocone[] = (ia, ib)
         input_sum = coproduct[cat](dom(left(a)), dom(left(b)))
         output_sum = coproduct[cat](dom(right(a)), dom(right(b)))
         input_leg = copair[cat](input_sum, compose[cat](left(a), ia),
@@ -334,7 +372,7 @@ function otimes(A::OpenInfluenceDiagram, B::OpenInfluenceDiagram; no_forgetting:
     o = OpenInfluenceDiagram(C, vcat(A.input_observability, B.input_observability),
                              vcat(A.output_observability, B.output_observability))
     _validate_composite(o, (A, B); unique=false, no_forgetting=no_forgetting)
-    return o
+    return o, [_cocone_leg(f) for f in cocone[]]
 end
 
 ⊗(A::OpenInfluenceDiagram, B::OpenInfluenceDiagram) = otimes(A, B)
@@ -431,6 +469,15 @@ an information arc, InfluenceDiagrams' `InvalidInformationSetError`.
 function oapply(uwd::UndirectedWiringDiagram,
                 diagrams::AbstractVector{<:OpenInfluenceDiagram};
                 validate::Bool=true, no_forgetting::Bool=true)
+    return first(_oapply_cocone(uwd, diagrams; validate=validate,
+                                no_forgetting=no_forgetting))
+end
+
+# `oapply` with the cocone of Catlab's colimit: the map of each box's apex into the
+# composite's.
+function _oapply_cocone(uwd::UndirectedWiringDiagram,
+                        diagrams::AbstractVector{<:OpenInfluenceDiagram};
+                        validate::Bool=true, no_forgetting::Bool=true)
     nboxes(uwd) == length(diagrams) ||
         throw(ArgumentError("oapply: the diagram has $(nboxes(uwd)) boxes but $(length(diagrams)) influence diagrams were given"))
     # The keyword `validate` shadows the function. Each diagram is validated as `compose`
@@ -470,14 +517,19 @@ function oapply(uwd::UndirectedWiringDiagram,
                                          "oapply: outer port $p is wired to junction $j$(_junction_suffix(uwd, j)), which no box touches"))
         push!(outer_flags, junction_flags[j])
     end
-    R = _with_unset_refs_held(us -> oapply(uwd, us, nothing), map(first, unbundled))
+    cocone = Ref{Any}(nothing)
+    R = _with_unset_refs_held(map(first, unbundled)) do us
+        R, colim = oapply(uwd, us, nothing; return_colimit=true)
+        cocone[] = legs(colim)[1:nboxes(uwd)]
+        return R
+    end
     P = apex(R)
     outer = Int[only(_variable_component(leg)) for leg in legs(R)]
     is_input = [!_has_generator(P, v) for v in outer]
     o = OpenInfluenceDiagram(_cospan(P, outer[is_input], outer[.!is_input]),
                              outer_flags[is_input], outer_flags[.!is_input])
     validate && _validate_composite(o, diagrams; unique=false, no_forgetting=no_forgetting)
-    return o
+    return o, [_cocone_leg(f) for f in cocone[]]
 end
 
 function oapply(uwd::UndirectedWiringDiagram,

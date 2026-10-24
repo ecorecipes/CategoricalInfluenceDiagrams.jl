@@ -457,6 +457,91 @@ assert_no_sorry OpenInfluence.RewardCertificate.Composition.tensor_sound_W
 assert_no_sorry OpenInfluence.RewardCertificate.Json.decodeTensor
 assert_no_sorry OpenInfluence.RewardCertificate.Json.readOperation
 
+assert_no_sorry OpenInfluence.RewardKernel.eu_reindex
+assert_no_sorry OpenInfluence.RewardKernel.mass_value_reindex
+assert_no_sorry OpenInfluence.RewardKernel.mass_pull_nonneg
+assert_no_sorry OpenInfluence.RewardKernel.value_pull_eq_zero
+assert_no_sorry OpenInfluence.IDInterpretation.setRow
+assert_no_sorry OpenInfluence.IDInterpretation.weight_setRow
+assert_no_sorry OpenInfluence.IDInterpretation.recast
+assert_no_sorry OpenInfluence.IDInterpretation.jointAt
+assert_no_sorry OpenInfluence.IDInterpretation.likAt
+assert_no_sorry OpenInfluence.IDInterpretation.kernelAt
+assert_no_sorry OpenInfluence.IDInterpretation.kernelAt_congr
+assert_no_sorry OpenInfluence.IDInterpretation.kernelAt_K_nonneg
+assert_no_sorry OpenInfluence.IDInterpretation.kernelAt_W_eq_zero
+assert_no_sorry OpenInfluence.IDInterpretation.interpretBE
+assert_no_sorry OpenInfluence.IDInterpretation.interpretBE_one
+assert_no_sorry OpenInfluence.IDInterpretation.interpretBE_pointMass
+assert_no_sorry OpenInfluence.IDInterpretation.kernelAt_recast
+assert_no_sorry OpenInfluence.IDInterpretation.DistinctDecisions
+assert_no_sorry OpenInfluence.IDInterpretation.jointAt_affine
+assert_no_sorry OpenInfluence.IDInterpretation.kernelAt_eq_mix
+assert_no_sorry OpenInfluence.IDInterpretation.rows
+assert_no_sorry OpenInfluence.IDInterpretation.DetAt
+assert_no_sorry OpenInfluence.IDInterpretation.det_joint
+assert_no_sorry OpenInfluence.IDInterpretation.kuhn_induction
+assert_no_sorry OpenInfluence.IDInterpretation.kuhn_eu
+assert_no_sorry OpenInfluence.IDInterpretation.kuhn_conditional
+assert_no_sorry OpenInfluence.IDNet.Iso
+assert_no_sorry OpenInfluence.IDNet.Iso.refl
+assert_no_sorry OpenInfluence.IDNet.Iso.trans
+assert_no_sorry OpenInfluence.IDNet.Iso.symm
+assert_no_sorry OpenInfluence.IDNet.Iso.comp
+assert_no_sorry OpenInfluence.IDNet.id_comp_iso
+assert_no_sorry OpenInfluence.IDNet.comp_id_iso
+assert_no_sorry OpenInfluence.IDNet.assoc_iso
+assert_no_sorry OpenInfluence.IDInterpretation.rewardB_iso
+assert_no_sorry OpenInfluence.IDInterpretation.interpretB_iso
+assert_no_sorry OpenInfluence.IDInterpretation.interpret_iso
+assert_no_sorry OpenInfluence.IDCat.category
+assert_no_sorry OpenInfluence.IDInterpretation.interpretClass
+assert_no_sorry OpenInfluence.IDInterpretation.interpretFunctor
+assert_no_sorry OpenInfluence.IDInterpretation.interpretFunctor_map
+assert_no_sorry OpenInfluence.IDInterpretation.interpretFunctor_pointMass
+assert_no_sorry OpenInfluence.RewardKernel.lin
+assert_no_sorry OpenInfluence.RewardKernel.lin_comp
+assert_no_sorry OpenInfluence.RewardKernel.comp_lin
+assert_no_sorry OpenInfluence.RewardKernel.eu_lin
+assert_no_sorry OpenInfluence.RewardKernel.HasDeriv
+assert_no_sorry OpenInfluence.RewardKernel.hasDeriv_segment
+assert_no_sorry OpenInfluence.RewardKernel.hasDeriv_const
+assert_no_sorry OpenInfluence.RewardKernel.HasDeriv.comp
+assert_no_sorry OpenInfluence.RewardKernel.HasDeriv.eu
+assert_no_sorry OpenInfluence.RewardKernel.deriv_nonpos_of_le
+assert_no_sorry OpenInfluence.RewardKernel.first_order_optimum
+assert_no_sorry OpenInfluence.RewardKernel.shared_optimum_first_order
+assert_no_sorry OpenInfluence.AbsentMinded.per_use_gains
+assert_no_sorry OpenInfluence.RewardCertificate.Leg
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.IsBoundary
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.policyActions
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.rawAction_eq
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.actionOf_congr
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.value_input
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.value_target
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.value_lt
+assert_no_sorry OpenInfluence.RewardCertificate.Certificate.cellQ_congr
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit.Wired
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit.Consistent
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit.check
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit.firstFailure
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit.split
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit.split_bijective
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit.valueP
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit.weight_gm
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit.joint_split
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit.reward_split
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit.consistent_tz_iff
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit.ports_unique
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit.sum_mul_prod_erase
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit.colimit_exactK
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit.colimit_exactW
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit.colimit_sound_K
+assert_no_sorry OpenInfluence.RewardCertificate.Colimit.colimit_sound_W
+assert_no_sorry OpenInfluence.RewardCertificate.Json.decodeLeg
+assert_no_sorry OpenInfluence.RewardCertificate.Json.decodeColimit
+assert_no_sorry OpenInfluence.RewardCertificate.Json.readColimit
 #print axioms OpenInfluence.ObservedInterface.sum
 #print axioms OpenInfluence.ObservedInterface.empty
 #print axioms OpenInfluence.ObservedInterface.sum_flag_inl
@@ -920,3 +1005,88 @@ assert_no_sorry OpenInfluence.RewardCertificate.Json.readOperation
 #print axioms OpenInfluence.RewardCertificate.Composition.tensor_sound_W
 #print axioms OpenInfluence.RewardCertificate.Json.decodeTensor
 #print axioms OpenInfluence.RewardCertificate.Json.readOperation
+#print axioms OpenInfluence.RewardKernel.eu_reindex
+#print axioms OpenInfluence.RewardKernel.mass_value_reindex
+#print axioms OpenInfluence.RewardKernel.mass_pull_nonneg
+#print axioms OpenInfluence.RewardKernel.value_pull_eq_zero
+#print axioms OpenInfluence.IDInterpretation.setRow
+#print axioms OpenInfluence.IDInterpretation.weight_setRow
+#print axioms OpenInfluence.IDInterpretation.recast
+#print axioms OpenInfluence.IDInterpretation.jointAt
+#print axioms OpenInfluence.IDInterpretation.likAt
+#print axioms OpenInfluence.IDInterpretation.kernelAt
+#print axioms OpenInfluence.IDInterpretation.kernelAt_congr
+#print axioms OpenInfluence.IDInterpretation.kernelAt_K_nonneg
+#print axioms OpenInfluence.IDInterpretation.kernelAt_W_eq_zero
+#print axioms OpenInfluence.IDInterpretation.interpretBE
+#print axioms OpenInfluence.IDInterpretation.interpretBE_one
+#print axioms OpenInfluence.IDInterpretation.interpretBE_pointMass
+#print axioms OpenInfluence.IDInterpretation.kernelAt_recast
+#print axioms OpenInfluence.IDInterpretation.DistinctDecisions
+#print axioms OpenInfluence.IDInterpretation.jointAt_affine
+#print axioms OpenInfluence.IDInterpretation.kernelAt_eq_mix
+#print axioms OpenInfluence.IDInterpretation.rows
+#print axioms OpenInfluence.IDInterpretation.DetAt
+#print axioms OpenInfluence.IDInterpretation.det_joint
+#print axioms OpenInfluence.IDInterpretation.kuhn_induction
+#print axioms OpenInfluence.IDInterpretation.kuhn_eu
+#print axioms OpenInfluence.IDInterpretation.kuhn_conditional
+#print axioms OpenInfluence.IDNet.Iso
+#print axioms OpenInfluence.IDNet.Iso.refl
+#print axioms OpenInfluence.IDNet.Iso.trans
+#print axioms OpenInfluence.IDNet.Iso.symm
+#print axioms OpenInfluence.IDNet.Iso.comp
+#print axioms OpenInfluence.IDNet.id_comp_iso
+#print axioms OpenInfluence.IDNet.comp_id_iso
+#print axioms OpenInfluence.IDNet.assoc_iso
+#print axioms OpenInfluence.IDInterpretation.rewardB_iso
+#print axioms OpenInfluence.IDInterpretation.interpretB_iso
+#print axioms OpenInfluence.IDInterpretation.interpret_iso
+#print axioms OpenInfluence.IDCat.category
+#print axioms OpenInfluence.IDInterpretation.interpretClass
+#print axioms OpenInfluence.IDInterpretation.interpretFunctor
+#print axioms OpenInfluence.IDInterpretation.interpretFunctor_map
+#print axioms OpenInfluence.IDInterpretation.interpretFunctor_pointMass
+#print axioms OpenInfluence.RewardKernel.lin
+#print axioms OpenInfluence.RewardKernel.lin_comp
+#print axioms OpenInfluence.RewardKernel.comp_lin
+#print axioms OpenInfluence.RewardKernel.eu_lin
+#print axioms OpenInfluence.RewardKernel.HasDeriv
+#print axioms OpenInfluence.RewardKernel.hasDeriv_segment
+#print axioms OpenInfluence.RewardKernel.hasDeriv_const
+#print axioms OpenInfluence.RewardKernel.HasDeriv.comp
+#print axioms OpenInfluence.RewardKernel.HasDeriv.eu
+#print axioms OpenInfluence.RewardKernel.deriv_nonpos_of_le
+#print axioms OpenInfluence.RewardKernel.first_order_optimum
+#print axioms OpenInfluence.RewardKernel.shared_optimum_first_order
+#print axioms OpenInfluence.AbsentMinded.per_use_gains
+#print axioms OpenInfluence.RewardCertificate.Leg
+#print axioms OpenInfluence.RewardCertificate.Colimit
+#print axioms OpenInfluence.RewardCertificate.Certificate.IsBoundary
+#print axioms OpenInfluence.RewardCertificate.Certificate.policyActions
+#print axioms OpenInfluence.RewardCertificate.Certificate.rawAction_eq
+#print axioms OpenInfluence.RewardCertificate.Certificate.actionOf_congr
+#print axioms OpenInfluence.RewardCertificate.Certificate.value_input
+#print axioms OpenInfluence.RewardCertificate.Certificate.value_target
+#print axioms OpenInfluence.RewardCertificate.Certificate.value_lt
+#print axioms OpenInfluence.RewardCertificate.Certificate.cellQ_congr
+#print axioms OpenInfluence.RewardCertificate.Colimit.Wired
+#print axioms OpenInfluence.RewardCertificate.Colimit.Consistent
+#print axioms OpenInfluence.RewardCertificate.Colimit.check
+#print axioms OpenInfluence.RewardCertificate.Colimit.firstFailure
+#print axioms OpenInfluence.RewardCertificate.Colimit.split
+#print axioms OpenInfluence.RewardCertificate.Colimit.split_bijective
+#print axioms OpenInfluence.RewardCertificate.Colimit.valueP
+#print axioms OpenInfluence.RewardCertificate.Colimit.weight_gm
+#print axioms OpenInfluence.RewardCertificate.Colimit.joint_split
+#print axioms OpenInfluence.RewardCertificate.Colimit.reward_split
+#print axioms OpenInfluence.RewardCertificate.Colimit.consistent_tz_iff
+#print axioms OpenInfluence.RewardCertificate.Colimit.ports_unique
+#print axioms OpenInfluence.RewardCertificate.Colimit.sum_mul_prod_erase
+#print axioms OpenInfluence.RewardCertificate.Colimit.colimit_exactK
+#print axioms OpenInfluence.RewardCertificate.Colimit.colimit_exactW
+#print axioms OpenInfluence.RewardCertificate.Colimit.colimit_sound_K
+#print axioms OpenInfluence.RewardCertificate.Colimit.colimit_sound_W
+#print axioms OpenInfluence.RewardCertificate.Json.decodeLeg
+#print axioms OpenInfluence.RewardCertificate.Json.decodeColimit
+#print axioms OpenInfluence.RewardCertificate.Json.readColimit

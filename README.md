@@ -84,13 +84,27 @@ which stays free of Catlab. The design is the workspace's ADR 0018,
 - Behavioural strategies (ADR 0022): a `StochasticPolicy` draws a decision's action from a
   table given its information; `interpret` and every function built on it take them.
   `contextual_optimize` searches deterministic strategies, which suffice when every decision
-  has its own policy; decisions that share a name share a policy, and then randomising can
+  has its own policy (Kuhn's theorem, proved in Lean for open influence diagrams, with and
+  without evidence); decisions that share a name share a policy, and then randomising can
   help (the absent-minded driver), so `contextual_optimize` refuses shared names.
+- Shared policies (ADR 0024): along a chain, `shared` ties decisions of different components
+  to one policy. `policy_regrets` and `is_policy_equilibrium` test the first-order condition
+  that holds at every optimum of the shared policies (the multi-self consistency of
+  Piccione and Rubinstein: changing a policy's uses one at a time, the gains sum to at most
+  zero), and `shared_policy_search` searches behavioural strategies on a grid, since the
+  optimum of a shared policy can be randomised.
 - Composition certificates (ADR 0023): `export_composition_certificate(A, B, ...)` writes the
   reward certificates of two parts and of their composite, and `lake exe check_composition`
   checks each and that the composite's recorded reward kernel is the composite of the parts'
   within the tolerance, which ties Julia's composite to the Lean composite of its parts,
   cell by cell. `export_tensor_certificate` does the same for `otimes`.
+- Colimit certificates (ADR 0025): `export_colimit_certificate` records the parts and the
+  composite of `compose`, `otimes`, `glue` or `oapply` with Catlab's cocone maps, and
+  `lake exe check_composition` checks that the maps are a colimit witness (generators and
+  utilities matched one to one, labels, tables, parents and scopes kept, only boundary
+  variables joined); the composite's semantics is then exactly the junction sum of the
+  parts', with no tolerance: the structure of Julia's composite is checked, not only its
+  numbers.
 - Every name of `CategoricalBayesianNetworks.jl` and `InfluenceDiagrams.jl` is re-exported.
 
 
@@ -119,6 +133,11 @@ The Lean project in [`proofs/`](proofs/) builds on the proof projects of
 - A mixture of reward kernels with nonnegative weights summing to one has expected utility at most that of one of its components, and, when masses are nonnegative and a component of zero mass has zero evidence-weighted value, conditional value at most that of one of its components of positive mass.
 - Every stochastic kernel between finite spaces is the mixture of the deterministic kernels of its rules, each weighted by the probability of drawing it, so one randomised decision placed in a serial context, beside other wires, has expected utility at most that of some deterministic rule in its place.
 - When two decisions share a policy, randomising can help: in the absent-minded driver, continuing with probability 2/3 at both junctions is worth 4/3, while either deterministic policy is worth at most 1; with a policy each, the deterministic pair that continues and then exits is worth 4 and no pair of probabilities does better.
+- When no two decision generators of an open influence diagram share a label, every behavioural strategy is matched by a deterministic one: for every prior and continuation some deterministic strategy has at least its expected utility, and, with nonnegative likelihoods, a state whose reward vanishes where its mass does and an effect whose value vanishes where its likelihood does, if the evidence has positive mass some deterministic strategy gives it positive mass and at least the same conditional value.
+- Isomorphic open influence diagrams have the same semantics under every behavioural strategy, and so under every deterministic one, and the semantics is a functor to `FinRew` from the category of typed interfaces and open influence diagrams up to isomorphism under serial composition.
+- At an optimum of a policy shared by two uses in series, separated by any fixed kernels, the gain from changing the first use alone towards another policy plus the gain from changing the second use alone is at most zero.
+- In the absent-minded driver, at the shared optimum of continuing with probability 2/3, continuing for sure at the first junction alone gains 2/3 and at the second junction alone loses 2/3.
+- If the colimit checker accepts a colimit certificate, then for all input and output coordinates of the composite, exactly, its decoded probability is the sum, over the boundary coordinates of the parts consistent with them, of the product of the parts' decoded probabilities, and its decoded reward is the corresponding sum of each part's reward times the other parts' probabilities.
 
 The three certificate results are about reward certificates (ADR 0019) and composition and
 tensor certificates (ADR 0023): `lake exe check_certificate` checks Julia's numbers for a
@@ -130,8 +149,13 @@ tensor of games (exact for product priors; for correlated priors no context of o
 suffices) and perfect equilibria. The three after them are about evidence (ADR 0021): the
 evidence-weighted interpretation is proved functorial for serial composition and tensor,
 and the binary64 rules of `conditional_value` are Julia's. The last four are about
-behavioural strategies (ADR 0022). The syntax is not quotiented by isomorphism, the
-semantics does not read observability flags, and nothing is proved about arbitrary gluing;
+behavioural strategies (ADR 0022). Of the last five, the first is Kuhn's theorem for the
+syntax (ADR 0022), the second makes the semantics a functor on diagrams up to isomorphism
+(ADR 0025), the next two are about shared policies (ADR 0024), and the last is about colimit
+certificates (ADR 0025), which check the composite's structure as Catlab's cocone and give
+its semantics exactly. The monoidal structure of the quotient is not developed, the
+semantics does not read observability flags, and the colimit certificates check structure on
+the decoded records rather than as an isomorphism of `IDNet`s;
 [`proofs/README.md`](proofs/README.md) lists every theorem and these restrictions.
 Each sentence above is checked against its Lean statement by the workspace's SA-Pass
 harness. The Julia test suite checks the same laws numerically.

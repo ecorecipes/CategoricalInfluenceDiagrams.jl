@@ -249,3 +249,45 @@ composite = ...)`, each keyed by its own diagram's part ids. The fixtures in
 `proofs/composition-fixtures/` (written by `scripts/write_certificate_fixtures.jl`, checked
 by `make check-compositions`) hold two accepted compositions and three rejected at the
 part, alignment and composition stages.
+
+## Colimit certificates
+
+A composition certificate checks numbers; the structure of the composite, that it is the
+colimit Catlab says it is, stays trusted. [`export_colimit_certificate`](@ref) writes an
+`OpenInfluence.ColimitCertificate/v1` record (ADR 0025) that also records the structure: the
+reward certificates of the parts and of the composite, the operation's name, and Catlab's
+cocone maps as `legs`, one per part, giving the composite's index of each of the part's
+variables, generators and utilities. It covers every operation:
+
+```julia
+export_colimit_certificate(:compose, A, B, kernels, utilities, σ)
+export_colimit_certificate(:otimes, A, B, kernels, utilities, σ)
+export_colimit_certificate(:glue, A, B, kernels, utilities, σ; along = [:x => :x])
+export_colimit_certificate(uwd, [A, B, C], kernels, utilities, σ)   # oapply
+```
+
+`lake exe check_composition` reads it by its format string and accepts when every reward
+certificate is accepted and the legs are a colimit witness:
+
+- the parts' generators, and their utilities, land on the composite's one to one;
+- variables keep their attributes; generators their labels, targets, ordered parents,
+  chance tables and recorded policies; utilities their ordered scopes and tables;
+- two distinct part variables are joined only when both are boundary variables of their
+  parts;
+- every output of the composite is one of its inputs or a part's boundary variable.
+
+The Lean theorems `colimit_sound_K` and `colimit_sound_W` then give the composite's exact
+semantics, with no tolerance, as the junction sum of the parts': `K_C(x, y)` is the sum, over
+boundary coordinates of the parts that agree wherever their variables are joined and with
+`x` and `y`, of the product of the parts' `K`, and `W_C(x, y)` the corresponding sum of
+`W_i Π_{j≠i} K_j`. For `compose` this is the composite of reward kernels and for `otimes` the
+tensor. The witness is checked on the decoded records, not as an isomorphism of the Lean
+syntax; the Lean module `SyntaxCategory` proves separately that the semantics respects
+isomorphism of diagrams. For `glue` the second part is recorded as glued, with its glued
+inputs renamed after their partners.
+
+In `:rational_exact` mode `exact_tables` is a named tuple `(parts = [...], composite = ...)`,
+one companion table per part. The `colimit-*` fixtures of `proofs/composition-fixtures/`
+(written by `colimit_fixtures`) hold four accepted certificates, one per operation, and three
+rejected: a leg sending a generator to the wrong place, a composite whose recorded policy is
+not its part's, and binary64.

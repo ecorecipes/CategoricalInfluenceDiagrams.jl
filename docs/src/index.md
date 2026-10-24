@@ -100,14 +100,21 @@ Catlab out of the model layer (ADR 0009).
 - **Behavioural strategies** (ADR 0022). A `StochasticPolicy` draws a decision's action
   from a table given its information, and every function that takes a strategy takes one.
   Searches stay over deterministic strategies, which suffice when every decision has its
-  own policy (with or without evidence); decisions that share a name share a policy, and
-  then randomising can help, as in the absent-minded driver, so `contextual_optimize`
-  refuses shared names.
+  own policy (with or without evidence; Kuhn's theorem, proved in Lean); decisions that share
+  a name share a policy, and then randomising can help, as in the absent-minded driver, so
+  `contextual_optimize` refuses shared names.
+- **Shared policies** (ADR 0024). Along a chain, `shared` ties decisions of different
+  components to one policy; [`policy_regrets`](@ref) and [`is_policy_equilibrium`](@ref)
+  test the first-order condition that every optimum satisfies, and
+  [`shared_policy_search`](@ref) searches randomised strategies. See
+  [Lenses and equilibria](games.md).
 - **Reward certificates** (ADR 0019). [`export_reward_certificate`](@ref) writes a
   diagram, its flags and tables, a deterministic strategy and the reward kernel
   `interpret` computed for it as an `OpenInfluence.RewardCertificate/v1` record, for the
-  Lean checker in `proofs/` (`lake exe check_certificate`). See
-  [Reward certificates](certificates.md).
+  Lean checker in `proofs/` (`lake exe check_certificate`). Composition, tensor and colimit
+  certificates (ADRs 0023 and 0025) tie a composite to its parts; a colimit certificate
+  records Catlab's cocone, checks the composite's structure and gives its semantics exactly.
+  See [Reward certificates](certificates.md).
 
 ## Proofs, and what is not here
 
@@ -116,8 +123,10 @@ The Lean project in `proofs/` builds on the proof projects of
 reward-kernel category and its symmetric monoidal structure, the functoriality of the
 fixed-strategy interpretation under serial composition and tensor, the contextual
 identity, the two obstructions of the research bundle, lenses and open-game equilibria
-(ADR 0020), the composition of evidence (ADR 0021), and behavioural strategies with the
-value of randomising (ADR 0022). Its checker for reward
+(ADR 0020), the composition of evidence (ADR 0021), behavioural strategies with the value
+of randomising and Kuhn's theorem for the syntax (ADR 0022), the first-order condition for
+shared policies (ADR 0024), and the semantics as a functor on diagrams up to isomorphism
+(ADR 0025). Its checker for reward
 certificates ties Julia's `interpret` of a recorded diagram to that interpretation, cell
 by cell (ADR 0019). `proofs/README.md` lists the theorems and their restrictions; the
 test suite checks the same laws numerically.
@@ -126,5 +135,6 @@ Behavioural (randomised) policies are interpreted like deterministic ones (ADR 0
 search for an optimum stays over deterministic strategies, which suffice when every decision
 has its own policy. A reward certificate checks the diagram it records, not the operation that
 built it; a composition certificate (ADR 0023) checks that a composite's semantics is the
-composite of its parts', which ties Julia's composite to the Lean composite for the
-semantics, though not for the syntax.
+composite of its parts' within a tolerance, and a colimit certificate (ADR 0025) checks that
+the composite is the colimit of its parts, by Catlab's cocone maps, and gives its semantics
+exactly, for `compose`, `otimes`, `glue` and `oapply`.

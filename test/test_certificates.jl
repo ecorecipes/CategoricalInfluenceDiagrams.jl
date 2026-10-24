@@ -563,4 +563,57 @@ end
         end
     end
 
+    @testset "colimit certificates" begin
+        # The legs are Catlab's cocone, in the reward certificates' numbering: every part's
+        # variables, generators and utilities land on composite ones with the same names, the
+        # generators and utilities of the parts once each.
+        fixtures = colimit_fixtures()
+        @test first.(fixtures) ==
+              ["colimit-compose.json", "colimit-glue.json", "colimit-oapply.json",
+               "colimit-otimes.json", "colimit-legs.bad.json", "colimit-policy.bad.json",
+               "colimit-binary64.json"]
+        for (name, cert) in fixtures
+            path = joinpath(COMPOSITION_FIXTURE_DIR, name)
+            @test isfile(path)
+            @test certificate_fixture_comparable(read(path, String)) ==
+                  certificate_fixture_comparable(certificate_fixture_bytes(cert))
+            @test collect(keys(cert)) == ["format", "operation", "parts", "composite", "legs"]
+            @test cert["format"] == "OpenInfluence.ColimitCertificate/v1"
+            occursin("bad", name) && continue
+            C = cert["composite"]["network"]
+            gens = Int[]
+            utils = Int[]
+            for (part, leg) in zip(cert["parts"], cert["legs"])
+                N = part["network"]
+                @test length(leg.variables) == N.variableCount
+                for (v, w) in enumerate(leg.variables)
+                    @test C.variableData[w + 1].name == N.variableData[v].name
+                end
+                for (g, h) in enumerate(leg.generators)
+                    @test C.mechanisms[h + 1].name == N.mechanisms[g].name
+                    @test C.mechanisms[h + 1].target == leg.variables[N.mechanisms[g].target + 1]
+                end
+                append!(gens, leg.generators)
+                append!(utils, leg.utilities)
+            end
+            @test sort(gens) == 0:(length(C.mechanisms) - 1)
+            @test sort(utils) == 0:(length(cert["composite"]["utilities"]) - 1)
+        end
+        A, B = certificate_umbrella_chance(), certificate_umbrella_decision()
+        σc = certificate_umbrella_strategy()
+        @test_throws ArgumentError export_colimit_certificate(:swap, A, B, ks, us, σc)
+        @test_throws ArgumentError export_colimit_certificate(:glue, A, B, ks, us, σc)
+        @test_throws ArgumentError export_colimit_certificate(:compose, A, B, ks, us, σc;
+                                                              along=[:Weather => :Weather])
+        @test_throws ArgumentError export_colimit_certificate(:compose, A, B, ks, us, σc;
+                                                              exact_tables=(parts=[Dict()],
+                                                                            composite=Dict()))
+        @test_throws ArgumentError export_colimit_certificate(:compose, A, B, ks, us, σc;
+                                                              description=1)
+        # The composite is the operation's result: its reward kernel is `compose`'s.
+        c = export_colimit_certificate(:compose, A, B, ks, us, σc)
+        @test c["composite"]["result"] ==
+              export_reward_certificate(compose(A, B), ks, us, σc)["result"]
+    end
+
 end

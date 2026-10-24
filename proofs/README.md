@@ -81,6 +81,16 @@ Each sentence below is registered as an SA-Pass claim in `conformance/sapass/cla
     (`cid.tensor-certificate`)
 31. Every stochastic kernel between finite spaces is the mixture of the deterministic kernels of its rules, each weighted by the probability of drawing it, so one randomised decision placed in a serial context, beside other wires, has expected utility at most that of some deterministic rule in its place.
     (`cid.single-decision`)
+32. When no two decision generators of an open influence diagram share a label, every behavioural strategy is matched by a deterministic one: for every prior and continuation some deterministic strategy has at least its expected utility, and, with nonnegative likelihoods, a state whose reward vanishes where its mass does and an effect whose value vanishes where its likelihood does, if the evidence has positive mass some deterministic strategy gives it positive mass and at least the same conditional value.
+    (`cid.kuhn`)
+33. Isomorphic open influence diagrams have the same semantics under every behavioural strategy, and so under every deterministic one, and the semantics is a functor to `FinRew` from the category of typed interfaces and open influence diagrams up to isomorphism under serial composition.
+    (`cid.syntax-functor`)
+34. At an optimum of a policy shared by two uses in series, separated by any fixed kernels, the gain from changing the first use alone towards another policy plus the gain from changing the second use alone is at most zero.
+    (`cid.shared-first-order`)
+35. In the absent-minded driver, at the shared optimum of continuing with probability 2/3, continuing for sure at the first junction alone gains 2/3 and at the second junction alone loses 2/3.
+    (`cid.per-use-gains`)
+36. If the colimit checker accepts a colimit certificate, then for all input and output coordinates of the composite, exactly, its decoded probability is the sum, over the boundary coordinates of the parts consistent with them, of the product of the parts' decoded probabilities, and its decoded reward is the corresponding sum of each part's reward times the other parts' probabilities.
+    (`cid.colimit-certificate`)
 
 Here `EU_f(μ, c) = Σ_x μ x Σ_y (W x y + K x y · c y)` for a boundary prior `μ` and a terminal
 continuation `c`; `c_g y = Σ_z (W_g y z + K_g y z · c z)` is the suffix's value function,
@@ -97,21 +107,33 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
 - **Syntax.** Open influence diagrams (`IDNet X Y`) are ADR 0010's typed open nets
   (`OpenNet.Net X Y`) in full generality, whose generators are chance mechanisms or
   decisions according to their label, together with utility generators that read an
-  ordered, typed scope of the net's variables. They are **not quotiented** by structural
-  isomorphism, so functoriality is a set of equations on representatives
-  (`interpret_comp`, `interpret_identity`, `interpret_tensor`), not a Mathlib `Functor` out of
-  a syntax category. The isomorphism invariance of `interpret` is not proved.
+  ordered, typed scope of the net's variables. Module `SyntaxCategory` quotients them by
+  isomorphism (`IDNet.Iso`: a bijection of generators and of utility generators preserving
+  labels, ordered parents, outputs and scopes), proves `interpret` and `interpretB`
+  invariant under it, and makes the semantics a Mathlib `Functor` from the resulting
+  category `IDCat` to `FinRew` (`interpretFunctor`). Only serial composition is quotiented:
+  the tensor (`interpret_tensor`) stays an equation on representatives, and the monoidal
+  structure of the quotient is not developed.
 - **Strategies.** Policies are keyed by decision label (decisions with equal labels share
   one), as in the Julia package. A deterministic policy is a function of the values on the
   decision's information ports (its ordered parents); a behavioural policy (module
   `Behaviour`, ADR 0022) is a table of probabilities given those values, normalised on
   correctly typed rows, drawn from independently at every use. Deterministic sufficiency
-  is proved here for mixtures of reward kernels (`eu_mix_le`, `conditionalValue_mix_le`) and
-  for one randomised decision in a serial context beside other wires
-  (`single_decision_sufficiency`, through `kernel_eq_mix_ofFun`); that a behavioural strategy
-  of several decisions with distinct labels in an `IDNet` is such a mixture is
-  `InfluenceDiagrams.jl`'s `exists_deterministic_optimal_all`, proved there for its finite
-  model, not here for `IDNet`. With shared labels it fails (`AbsentMinded`).
+  is proved for mixtures of reward kernels (`eu_mix_le`, `conditionalValue_mix_le`), for one
+  randomised decision in a serial context beside other wires
+  (`single_decision_sufficiency`), and for every decision of an `IDNet` at once when no two
+  decision generators share a label (module `Kuhn`: `kuhn_eu`, and `kuhn_conditional` given
+  likelihood evidence and a state and an effect at the boundary), one row of the strategy at
+  a time (`kernelAt_eq_mix`). It needs every decision's result type to be inhabited, as a
+  deterministic strategy does. With shared labels it fails (`AbsentMinded`).
+- **Shared policies** (ADR 0024; module `SharedPolicy`). The first-order condition at an
+  optimum is proved for reward kernels: paths of reward kernels have first-order terms that
+  obey the product rule under serial composition (`HasDeriv.comp`), so at an optimum of a
+  policy shared by two uses the per-use gains sum to at most zero
+  (`shared_optimum_first_order`). The theorem is stated for two uses; more uses follow by
+  the same product rule, which is proved for any serial composite. That Julia's
+  `policy_regrets` computes these per-use gains is checked by the test suite against finite
+  differences, not proved.
 - **Observability.** The fixed-strategy semantics does not read observability flags.
   Information locality (`InformationLocal`, rule 3) is a separate predicate on finite
   influence diagrams; the hidden-input obstruction states legality directly on its witness.
@@ -171,16 +193,23 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
   the gap between the decoded composite's exact tables and the composite of the decoded
   parts' exact tables, cell by cell; with `interpret_K_eq` and `interpret_W_eq` these are the
   decoded diagrams' `interpret`. Tensor certificates do the same for `otimes`, the
-  composite's cells against the products of the parts'. It ties semantics, not syntax: that
-  the composite's net is `IDNet.comp` (or `IDNet.tensor`) of the parts' (an isomorphism of
-  nets) is not checked.
-- **Not proved:** a category of open influence diagrams with arbitrary gluing, and
-  optimisation of composites beyond the contextual
-  identity. Reward
-  certificates check Julia's numbers for the diagram a certificate records against
-  `interpret`, and composition certificates tie a composite's semantics to its parts', but
-  that the recorded composite's syntax is the composite of its parts' syntax, the full
-  refinement of Julia's composition operations (ADR 0018, decision 6), is still unproved.
+  composite's cells against the products of the parts'. It ties semantics, not syntax.
+- **Colimit certificates** (ADR 0025; module `Certificate/Colimit`). The same executable
+  reads `OpenInfluence.ColimitCertificate/v1`: reward certificates of any number of parts and
+  of their composite, and Catlab's cocone maps as legs. The checker verifies that the legs
+  are a colimit witness on the decoded records (`Wired`), and soundness gives the
+  composite's exact `K` and `W` as junction sums of the parts' (`colimit_exactK`,
+  `colimit_exactW`), with no tolerance, for `compose`, `otimes`, `glue` and `oapply` alike.
+  The witness is checked on the records; it is not turned into an `IDNet.Iso` between the
+  decoded composite and `IDNet.comp` of the decoded parts, whose interfaces are distinct Lean
+  terms.
+- **Not proved:** a monoidal category of open influence diagrams up to isomorphism,
+  gluing in the Lean syntax, and optimisation of composites beyond the contextual identity.
+  Reward certificates check Julia's numbers for the diagram a certificate records against
+  `interpret`; colimit certificates check, on the records, that Julia's composite is the
+  colimit of its parts, and give its semantics exactly. The Julia operations themselves,
+  Catlab's colimits and the exporter remain trusted: a certificate is checked for the
+  composite it records.
 
 ## Theorems
 
@@ -253,6 +282,16 @@ value `Σ (ρ m + ν c)`, and the conditional value is the ratio.
 | `sig`, `Certificate.model`, `strategyOf`, `diagram`, `chanceEntry_normalized` | The decoded signature, `IDInterpretation` (normalised by the exact row sums), strategy and `IDNet` |
 | `Certificate.interpret_K_eq`, `interpret_W_eq` | `interpret σ f` at the boundary assignments of coordinates `x`, `y` is exactly `exactK x y`, `exactW x y` |
 | `Certificate.reward_certificate_sound_K`, `reward_certificate_sound_W`, `boundaryIndex_bijective`, `diagram_informationLocal`, `semantics_stochastic` | On acceptance, every recorded cell is within `τ` of `interpret σ f` at the boundary assignment its flat index encodes, a bijection; no decision reads an input not flagged `observed` |
+| `IDInterpretation.setRow`, `weight_setRow`, `recast`, `jointAt`, `likAt`, `kernelAt`, `kernelAt_congr`, `interpretBE`, `interpretBE_one`, `interpretBE_pointMass`, `kernelAt_recast` | One row of a behavioural strategy replaced by a point mass; the likelihood-weighted behavioural semantics, read on any interpretation's assignments; the likelihood one gives `interpretB`, point masses give `interpretE` |
+| `IDInterpretation.DistinctDecisions`, `jointAt_affine`, `kernelAt_eq_mix`, `rows`, `DetAt`, `det_joint`, `kuhn_induction`, `kuhn_eu`, `kuhn_conditional` | Kuhn's theorem: with distinct decision labels the semantics is a mixture over each row read, so some deterministic strategy does as well, in expected utility and in conditional value given evidence |
+| `RewardKernel.eu_reindex`, `mass_value_reindex`, `mass_pull_nonneg`, `value_pull_eq_zero` | Expected utility, mass and value are invariant under reindexing the boundaries; zero evidence mass means zero evidence-weighted value for nonnegative data |
+| `IDNet.Iso`, `.refl`, `.trans`, `.symm`, `.comp`, `IDNet.setoid`, `id_comp_iso`, `comp_id_iso`, `assoc_iso` | Isomorphism of open influence diagrams, a congruence for serial composition, with the unit and associativity laws up to isomorphism |
+| `IDInterpretation.rewardB_iso`, `interpretB_iso`, `interpret_iso`, `IDCat`, `IDHom`, `IDCat.category`, `interpretClass`, `interpretFunctor`, `interpretFunctor_map`, `interpretFunctor_pointMass` | The semantics is invariant under isomorphism and a functor from the category of diagrams up to isomorphism to `FinRew` |
+| `RewardKernel.lin`, `lin_comp`, `comp_lin`, `eu_lin`, `HasDeriv`, `segment`, `hasDeriv_segment`, `hasDeriv_const`, `HasDeriv.comp`, `HasDeriv.eu`, `deriv_nonpos_of_le`, `first_order_optimum`, `shared_optimum_first_order` | Paths of reward kernels and their first-order terms; the product rule for serial composition; at an optimum of a shared policy the per-use gains sum to at most zero |
+| `AbsentMinded.per_use_gains` | At the driver's shared optimum the first junction alone gains `2/3` and the second alone loses `2/3` |
+| `Leg`, `Colimit`, `Certificate.IsBoundary`, `policyActions`, `Colimit.Wired`, `Ports`, `Row`, `Consistent`, `Colimit.check`, `firstFailure` | Colimit certificates (ADR 0025): parts, composite and Catlab's cocone; the colimit-witness conditions and the checker |
+| `Colimit.split`, `split_bijective`, `valueP`, `weight_gm`, `joint_split`, `reward_split`, `consistent_tz_iff`, `ports_unique`, `sum_mul_prod_erase` | The composite's generator states split into the parts'; values, weights and rewards factor over the parts; the consistent boundary coordinates are unique |
+| `Colimit.colimit_exactK`, `colimit_exactW`, `colimit_sound_K`, `colimit_sound_W`, `Json.decodeLeg`, `Json.decodeColimit`, `Json.readColimit` | On acceptance the composite's exact `K` and `W` are the junction sums of the parts', exactly |
 
 ## Build and inspect
 

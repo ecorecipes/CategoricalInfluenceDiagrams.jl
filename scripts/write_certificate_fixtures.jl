@@ -16,6 +16,7 @@
 
 using CategoricalInfluenceDiagrams
 using InfluenceDiagrams: InfluenceDiagrams
+using Catlab.Programs: @relation
 
 const CERTIFICATE_FIXTURE_DIR = normpath(joinpath(@__DIR__, "..", "proofs",
                                                   "certificate-fixtures"))
@@ -348,6 +349,81 @@ function composition_fixtures()
 end
 
 """
+    colimit_fixtures() -> Vector{Pair{String,OrderedDict{String,Any}}}
+
+The colimit certificates (ADR 0025) written to `proofs/composition-fixtures/`, by file name:
+the umbrella split under `compose`, `glue` and `oapply` (with the forecast as an outer port),
+and its decision part beside the relay under `otimes`, all with exact companions (accepted);
+the `compose` certificate with one generator of its first leg sent to the wrong generator
+(rejected: structure), with its composite under another strategy (rejected: structure, the
+recorded policies differ) and in binary64 (rejected: the first part's decimal rows are not
+exact).
+"""
+function colimit_fixtures()
+    um = InfluenceDiagrams.umbrella_model()
+    uk, uu = certificate_kernels(um), bound_utilities(um)
+    A, B = certificate_umbrella_chance(), certificate_umbrella_decision()
+    closed = compose(A, B)
+    exact = certificate_umbrella_companions(closed)
+    σ = certificate_umbrella_strategy()
+    tables(C) = (parts=[remap_companions(exact, closed, p) for p in (A, B)],
+                 composite=remap_companions(exact, closed, C))
+    along = [:Weather => :Weather, :Forecast => :Forecast]
+    composed = export_colimit_certificate(:compose, A, B, uk, uu, σ;
+                                          numeric_mode=:rational_exact,
+                                          exact_tables=tables(closed),
+                                          description="the umbrella split")
+    glued = export_colimit_certificate(:glue, A, B, uk, uu, σ; along=along,
+                                       numeric_mode=:rational_exact,
+                                       exact_tables=tables(glue(A, B; along=along)),
+                                       description="the umbrella split, glued")
+    uwd = @relation (forecast,) begin
+        chance(weather, forecast)
+        decide(weather, forecast)
+    end
+    applied = export_colimit_certificate(uwd, [A, B], uk, uu, σ;
+                                         numeric_mode=:rational_exact,
+                                         exact_tables=tables(oapply(uwd, [A, B])),
+                                         description="the umbrella split by a wiring diagram")
+    R, rk, ru, rσ = certificate_relay()
+    relay_exact = certificate_relay_companions(R)
+    bex = remap_companions(exact, closed, B)
+    TC = otimes(B, R)
+    tensor = export_colimit_certificate(:otimes, B, R, merge(uk, rk), merge(uu, ru),
+                                        merge_strategies(σ, rσ);
+                                        numeric_mode=:rational_exact,
+                                        exact_tables=(parts=[bex, relay_exact],
+                                                      composite=merge(remap_companions(bex,
+                                                                                       B,
+                                                                                       TC),
+                                                                      remap_companions(relay_exact,
+                                                                                       R,
+                                                                                       TC))),
+                                        description="the umbrella decision beside the relay")
+    # The first leg with its first generator sent where the second part's first goes.
+    leg = composed["legs"][1]
+    wrong = (variables=leg.variables,
+             generators=[composed["legs"][2].generators[1]; leg.generators[2:end]],
+             utilities=leg.utilities)
+    bad_legs = CategoricalInfluenceDiagrams.OrderedDict{String,Any}(k => v
+                                                                    for (k, v) in composed)
+    bad_legs["legs"] = [wrong, composed["legs"][2]]
+    take = Strategy(:Umbrella => ConstantPolicy(:take))
+    bad_policy = CategoricalInfluenceDiagrams.OrderedDict{String,Any}(k => v
+                                                                      for (k, v) in composed)
+    bad_policy["composite"] = export_reward_certificate(closed, uk, uu, take;
+                                                        numeric_mode=:rational_exact,
+                                                        exact_tables=tables(closed).composite,
+                                                        description="the umbrella split (composite, other strategy)")
+    binary = export_colimit_certificate(:compose, A, B, uk, uu, σ;
+                                        description="the umbrella split in binary64")
+    return ["colimit-compose.json" => composed, "colimit-glue.json" => glued,
+            "colimit-oapply.json" => applied, "colimit-otimes.json" => tensor,
+            "colimit-legs.bad.json" => bad_legs, "colimit-policy.bad.json" => bad_policy,
+            "colimit-binary64.json" => binary]
+end
+
+"""
     certificate_fixture_bytes(certificate) -> String
 
 The bytes of a fixture file: compact JSON in the certificate's key order and a newline.
@@ -371,7 +447,9 @@ function write_certificate_fixtures(; check::Bool=false)
     for (dir, (name, certificate)) in vcat([CERTIFICATE_FIXTURE_DIR => f
                                             for f in certificate_fixtures()],
                                            [COMPOSITION_FIXTURE_DIR => f
-                                            for f in composition_fixtures()])
+                                            for f in composition_fixtures()],
+                                           [COMPOSITION_FIXTURE_DIR => f
+                                            for f in colimit_fixtures()])
         path = joinpath(dir, name)
         bytes = certificate_fixture_bytes(certificate)
         if check

@@ -360,3 +360,244 @@ function best_response_dynamics(components::AbstractVector{<:OpenInfluenceDiagra
     return (strategy=σ, value=last(values), rounds=rounds, converged=converged,
             values=values, changed=changed)
 end
+
+# Shared policies (ADR 0024)
+############################
+
+# The policy groups of a chain: each group of `shared`, then every other decision on its
+# own, in component order; and the component that owns each decision name.
+function _policy_groups(names::AbstractVector{<:AbstractVector{Symbol}}, shared)
+    owner = Dict{Symbol,Int}()
+    for (i, ds) in enumerate(names), d in ds
+        owner[d] = i
+    end
+    seen = Set{Symbol}()
+    groups = Vector{Vector{Symbol}}()
+    for g in shared
+        isempty(g) && throw(ArgumentError("shared: a group of decisions is empty"))
+        for d in g
+            haskey(owner, d) ||
+                throw(ArgumentError("shared: :$d is not a decision of the chain"))
+            d in seen &&
+                throw(ArgumentError("shared: decision :$d is in more than one place of the groups"))
+            push!(seen, d)
+        end
+        push!(groups, collect(Symbol, g))
+    end
+    for ds in names, d in ds
+        d in seen && continue
+        push!(groups, [d])
+        push!(seen, d)
+    end
+    return groups, owner
+end
+
+# The information and action spaces of decision `d` of `o`.
+function _decision_spaces(o::OpenInfluenceDiagram, d::Symbol)
+    id = apex(o)
+    k = first(x for x in parts(id, :Decision) if decision_name(id, x) == d)
+    info = FiniteSpace(FiniteAxis[axis(id, v) for v in decision_information(id, k)])
+    return info, FiniteSpace(axis(id, decision_variable(id, k)))
+end
+
+# The spaces of every decision of the groups, checked to agree in size within a group.
+function _group_spaces(components, groups, owner)
+    spaces = Dict{Symbol,Tuple{FiniteSpace,FiniteSpace}}()
+    for g in groups, d in g
+        spaces[d] = _decision_spaces(components[owner[d]], d)
+    end
+    for g in groups, d in g[2:end]
+        I, A = spaces[first(g)]
+        J, B = spaces[d]
+        (size(I) == size(J) && size(A) == size(B)) ||
+            throw(ArgumentError("shared: decisions :$(first(g)) and :$d cannot share a policy: their information states $(size(I)) and $(size(J)) or actions $(size(A)) and $(size(B)) differ in size"))
+    end
+    return spaces
+end
+
+# The strategy with every decision of a group given the policy of the group's first
+# decision, position by position, as a `StochasticPolicy` on its own spaces.
+function _tied(σ::Strategy, groups, spaces)
+    ps = Dict{Symbol,AbstractPolicy}(policies(σ))
+    for g in groups
+        length(g) == 1 && continue
+        head = first(g)
+        for d in g[2:end]
+            haskey(σ, d) &&
+                throw(ArgumentError("shared: the strategy has a policy for :$d, which takes the policy of :$head"))
+        end
+        haskey(σ, head) || continue
+        k = policy_kernel(σ[head], spaces[head]...)
+        for d in g[2:end]
+            J, B = spaces[d]
+            ps[d] = StochasticPolicy(d, FiniteKernel(J, B, k.table; check=false))
+        end
+    end
+    return Strategy(ps)
+end
+
+# The policy of `d` with its information state `r` (a linear index) replaced by the point
+# mass at its action `a`.
+function _row_point_mass(d::Symbol, k::FiniteKernel, (J, B), r::Integer, a::Integer)
+    t = Array{Float64}(undef, size(k.table))
+    t .= k.table
+    m = reshape(t, length(B), :)
+    m[:, r] .= 0.0
+    m[a, r] = 1.0
+    return StochasticPolicy(d, FiniteKernel(J, B, t; check=false))
+end
+
+"""
+    policy_regrets(components, kernels, utilities, σ::Strategy; shared = Vector{Symbol}[],
+                   prior = nothing, continuation = nothing, no_forgetting = true,
+                   max_states, atol) -> Dict{Symbol,Float64}
+
+The regrets of the policies of a chain whose components may share policies (ADR 0024).
+`shared` lists groups of decision names, possibly in different components, that share one
+policy: the strategy gives a policy for the first decision of each group, and the others
+draw from it, position by position (their information states and actions must agree in
+size; `ArgumentError` otherwise, or when the strategy has a policy for a decision that is
+not first in its group). `σ` may be behavioural (`StochasticPolicy`); every other decision is
+a group of its own.
+
+The regret of a policy is the largest, over deterministic replacements `π` of it, of the sum
+over its uses of the gain from switching that use alone to `π`, each use valued in its own
+component's context ([`component_contexts`](@ref) under `σ`, as [`contextual_value`](@ref)).
+That sum is the derivative of the chain's value along the straight path from `σ` towards `π`
+(the Lean module `SharedPolicy`, `HasDeriv.comp`), so a zero regret is the first-order
+condition of the multi-self consistency of Piccione and Rubinstein: it holds at every
+optimum of the shared policies (`shared_optimum_first_order`). For a policy with one use the
+regret is exactly the gain from changing that decision alone. Each use's gain is affine in
+the policy table, so the largest sum is found row by row: the result is the sum, over the
+information states of the policy, of the largest, over actions, of the summed gains of
+moving that state to the action.
+
+Regrets are keyed by the first decision of each group. The chain is checked as for
+[`regrets`](@ref); no evidence is taken.
+"""
+function policy_regrets(components::AbstractVector{<:OpenInfluenceDiagram},
+                        kernels::AbstractDict, utilities::AbstractDict, σ::Strategy;
+                        shared=Vector{Symbol}[], prior=nothing, continuation=nothing,
+                        no_forgetting::Bool=true, atol::Real=DEFAULT_ATOL,
+                        max_states::Integer=DEFAULT_MAX_STATES)
+    names = _check_chain(components, no_forgetting)
+    groups, owner = _policy_groups(names, shared)
+    spaces = _group_spaces(components, groups, owner)
+    τ = _tied(σ, groups, spaces)
+    rs = [interpret(o, kernels, utilities, _restrict(τ, ds); atol=atol, max_states=max_states)
+          for (o, ds) in zip(components, names)]
+    ctx = _chain_contexts(rs, prior, continuation, atol)
+    value(i, r) = contextual_value(r; prior=ctx[i].prior, continuation=ctx[i].continuation,
+                                   atol=atol)
+    base = [value(i, rs[i]) for i in eachindex(rs)]
+    out = Dict{Symbol,Float64}()
+    for g in groups
+        I, A = spaces[first(g)]
+        gains = zeros(length(A), length(I))
+        for d in g
+            i = owner[d]
+            haskey(τ, d) || throw(IncompleteStrategyError([d]))
+            k = policy_kernel(τ[d], spaces[d]...)
+            rest = Dict{Symbol,AbstractPolicy}(policies(_restrict(τ, names[i])))
+            for r in 1:length(I), a in 1:length(A)
+                rest[d] = _row_point_mass(d, k, spaces[d], r, a)
+                ri = interpret(components[i], kernels, utilities, Strategy(rest); atol=atol,
+                               max_states=max_states)
+                gains[a, r] += value(i, ri) - base[i]
+            end
+        end
+        out[first(g)] = sum(maximum(view(gains, :, r)) for r in axes(gains, 2))
+    end
+    return out
+end
+
+"""
+    is_policy_equilibrium(components, kernels, utilities, σ::Strategy; tol = 1e-9,
+                          kwargs...) -> Bool
+
+Whether every one of [`policy_regrets`](@ref) is at most `tol`: no policy of the chain,
+shared or not, gains to first order from a change towards a deterministic one (ADR 0024).
+The keywords are those of `policy_regrets`.
+"""
+function is_policy_equilibrium(components::AbstractVector{<:OpenInfluenceDiagram},
+                               kernels::AbstractDict, utilities::AbstractDict, σ::Strategy;
+                               tol::Real=1e-9, kw...)
+    tol >= 0 || throw(ArgumentError("tol must be nonnegative, got $tol"))
+    return all(<=(tol), values(policy_regrets(components, kernels, utilities, σ; kw...)))
+end
+
+# The probability vectors of length `n` whose entries are multiples of `1 / grid`.
+function _grid_columns(n::Integer, grid::Integer)
+    out = Vector{Vector{Float64}}()
+    function fill_columns(prefix, left)
+        if length(prefix) == n - 1
+            push!(out, [prefix; left] ./ grid)
+            return
+        end
+        for k in left:-1:0
+            fill_columns([prefix; k], left - k)
+        end
+    end
+    n == 1 ? push!(out, [1.0]) : fill_columns(Int[], grid)
+    return out
+end
+
+"""
+    shared_policy_search(components, kernels, utilities; shared = Vector{Symbol}[],
+                         grid = 4, prior = nothing, continuation = nothing,
+                         no_forgetting = true, max_strategies = 100_000, max_states,
+                         atol) -> NamedTuple
+
+Search the behavioural strategies of a chain whose components may share policies
+(`shared`, as for [`policy_regrets`](@ref)) on a grid: every policy draws, at every
+information state, an action distribution whose probabilities are multiples of `1 / grid`.
+The value of each is the chain's [`contextual_value`](@ref) on its composite. With shared
+policies the optimum can be randomised (the absent-minded driver: continuing with
+probability `2/3` at both junctions), so a search over deterministic strategies is not
+enough; the grid contains every deterministic strategy and, with `grid` a multiple of the
+optimum's denominators, the optimum. The number of strategies is the product, over
+policies, of `binomial(grid + |A| - 1, |A| - 1)` to the power of the number of information
+states; above `max_strategies` it raises `PolicySearchTooLargeError` before searching.
+
+Returns `(strategy, value, nstrategies)`: the first best strategy found (one
+`StochasticPolicy` for the first decision of each group and for every other decision), its
+value and the number of strategies searched. `policy_regrets` at the result measures how far
+from the first-order condition the grid leaves it.
+"""
+function shared_policy_search(components::AbstractVector{<:OpenInfluenceDiagram},
+                              kernels::AbstractDict, utilities::AbstractDict;
+                              shared=Vector{Symbol}[], grid::Integer=4, prior=nothing,
+                              continuation=nothing, no_forgetting::Bool=true,
+                              max_strategies::Integer=100_000, atol::Real=DEFAULT_ATOL,
+                              max_states::Integer=DEFAULT_MAX_STATES)
+    grid >= 1 || throw(ArgumentError("grid must be positive, got $grid"))
+    names = _check_chain(components, no_forgetting)
+    whole = _chain_composite(components, no_forgetting)
+    groups, owner = _policy_groups(names, shared)
+    spaces = _group_spaces(components, groups, owner)
+    heads = first.(groups)
+    columns = Dict(d => _grid_columns(length(spaces[d][2]), grid) for d in heads)
+    total = prod((BigInt(length(columns[d]))^length(spaces[d][1]) for d in heads);
+                 init=BigInt(1))
+    total > max_strategies && throw(PolicySearchTooLargeError(total, max_strategies))
+    choices = [Iterators.product(ntuple(_ -> eachindex(columns[d]),
+                                        length(spaces[d][1]))...) for d in heads]
+    best, best_value = nothing, -Inf
+    for pick in Iterators.product(choices...)
+        ps = Dict{Symbol,AbstractPolicy}()
+        for (d, rows) in zip(heads, pick)
+            I, A = spaces[d]
+            t = reduce(hcat, (columns[d][c] for c in rows); init=zeros(length(A), 0))
+            ps[d] = StochasticPolicy(d, FiniteKernel(I, A, reshape(t, size(A)..., size(I)...);
+                                                     check=false))
+        end
+        σ = Strategy(ps)
+        v = contextual_value(whole, kernels, utilities, _tied(σ, groups, spaces);
+                             prior=prior, continuation=continuation, atol=atol,
+                             max_states=max_states)
+        if v > best_value
+            best, best_value = σ, v
+        end
+    end
+    return (strategy=best, value=best_value, nstrategies=Int(total))
+end

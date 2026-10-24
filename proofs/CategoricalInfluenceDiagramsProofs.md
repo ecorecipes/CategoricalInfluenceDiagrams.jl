@@ -3720,6 +3720,1161 @@ end OpenInfluence
 ```
 
 
+<!-- CategoricalInfluenceDiagramsProofs/Kuhn.lean -->
+
+# Kuhn's theorem for open influence diagrams (ADR 0022, second amendment)
+
+```lean
+import CategoricalInfluenceDiagramsProofs.Behaviour
+```
+
+`Behaviour` proves that one randomised decision in any context never beats the best
+deterministic rule. This module proves it for every decision of an open influence diagram at
+once, in the syntax (`IDNet`), when no two decision generators share a label, so that no two
+decisions share a policy (`DistinctDecisions`).
+
+**The argument.** Fix a decision label `l` and a correctly typed row `p` of values on its
+information ports. Only one generator has the label `l`, and it reads one row at each
+internal assignment, so the joint weight of every internal assignment is affine in the
+distribution that the strategy draws from at `(l, p)` (`jointAt_affine`). Hence the reward
+kernel of the diagram is the mixture, weighted by that distribution, of the reward kernels in
+which the row `(l, p)` is replaced by a point mass (`setRow`, `kernelAt_eq_mix`). By
+`eu_mix_le` one of those point masses does at least as well, and by the mediant inequality
+(`conditionalValue_mix_le`) the same holds for conditional values given evidence. Only the
+finitely many rows that decisions actually read matter (`rows`). Replacing them one at a time
+(`kuhn_induction`) ends at a strategy that is deterministic on every row read, which has the
+semantics of a deterministic strategy (`det_joint`).
+
+**The semantics with evidence.** `interpretBE β ev f` is the semantics of `f` under the
+behavioural strategy `β` with every internal assignment weighted by the likelihood `ev` of
+its generators' values: the behavioural counterpart of `Evidence`'s `interpretE`. With the
+constant likelihood `1` it is `interpretB` (`interpretBE_one`), and for the point masses of a
+deterministic strategy it is `interpretE` (`interpretBE_pointMass`, by `rfl`), just as
+`interpretB` of the point masses is `interpret` (`interpretB_pointMass`).
+
+**The theorems.**
+
+* `kuhn_eu`: for every behavioural strategy `β`, prior `μ` and continuation `c` (signed, as in
+  `contextual_identity`), some deterministic strategy `σ` has
+  `EU(interpretB β f) ≤ EU(interpretB (pointMass σ) f)`;
+* `kuhn_conditional`: suppose the likelihoods `ev` are nonnegative, the state's reward
+  vanishes where its mass does, and the effect's value vanishes where its likelihood does.
+  If the evidence has positive mass under `β`, then some deterministic `σ` gives it positive
+  mass too, and a conditional value at least as large.
+
+Assignments of boundaries and internal variables depend only on the state spaces of an
+interpretation, not on its weights. But `OpenNet`'s `Assignment` is indexed by the
+interpretation, so the contexts are carried from `β`'s interpretation to `σ`'s by `recast`,
+which keeps every value.
+
+**Not claimed.** Nothing for decisions that share a label: the absent-minded driver
+(`AbsentMinded`) shows that randomising can then help.
+
+```lean
+set_option autoImplicit false
+
+noncomputable section
+
+namespace OpenInfluence
+
+open FiniteKernelsProofs.Finite OpenNet RewardKernel
+```
+
+### Reindexing contexts, and the evidence pairings of a nonnegative kernel
+
+```lean
+namespace RewardKernel
+
+variable {A A' B B' : Type} [Fintype A] [Fintype A'] [Fintype B] [Fintype B']
+
+/-- Expected utility is invariant under reindexing both boundaries by bijections. -/
+theorem eu_reindex (r : RewardKernel A B) (r' : RewardKernel A' B') (ex : A ≃ A') (ey : B ≃ B')
+    (hK : ∀ x y, r.K x y = r'.K (ex x) (ey y)) (hW : ∀ x y, r.W x y = r'.W (ex x) (ey y))
+    (μ : A' → ℝ) (c : B' → ℝ) :
+    r.eu (fun x => μ (ex x)) (fun y => c (ey y)) = r'.eu μ c := by
+  unfold eu
+  refine Fintype.sum_equiv ex _ _ fun x => ?_
+  congr 1
+  refine Fintype.sum_equiv ey _ _ fun y => ?_
+  rw [hK, hW]
+
+/-- The mass and value of the pullback of an effect are invariant under reindexing both
+boundaries by bijections. -/
+theorem mass_value_reindex (r : RewardKernel A B) (r' : RewardKernel A' B') (ex : A ≃ A')
+    (ey : B ≃ B') (hK : ∀ x y, r.K x y = r'.K (ex x) (ey y))
+    (hW : ∀ x y, r.W x y = r'.W (ex x) (ey y)) (s : State A') (e : Effect B') :
+    mass ⟨fun x => s.ν (ex x), fun x => s.ρ (ex x)⟩
+        (r.pull ⟨fun y => e.m (ey y), fun y => e.c (ey y)⟩) = mass s (r'.pull e) ∧
+      value ⟨fun x => s.ν (ex x), fun x => s.ρ (ex x)⟩
+        (r.pull ⟨fun y => e.m (ey y), fun y => e.c (ey y)⟩) = value s (r'.pull e) := by
+  have hm : ∀ x, (r.pull ⟨fun y => e.m (ey y), fun y => e.c (ey y)⟩).m x =
+      (r'.pull e).m (ex x) := fun x =>
+    Fintype.sum_equiv ey _ _ fun y => by rw [hK]
+  have hc : ∀ x, (r.pull ⟨fun y => e.m (ey y), fun y => e.c (ey y)⟩).c x =
+      (r'.pull e).c (ex x) := fun x =>
+    Fintype.sum_equiv ey _ _ fun y => by rw [hK, hW]
+  constructor
+  · unfold mass
+    exact Fintype.sum_equiv ex _ _ fun x => by rw [hm]
+  · unfold value
+    exact Fintype.sum_equiv ex _ _ fun x => by rw [hm, hc]
+
+omit [Fintype A'] [Fintype B'] in
+/-- The evidence mass of a nonnegative kernel between a nonnegative state and a nonnegative
+effect is nonnegative. -/
+theorem mass_pull_nonneg (r : RewardKernel A B) (hK : ∀ x y, 0 ≤ r.K x y) (s : State A)
+    (hs : ∀ x, 0 ≤ s.ν x) (e : Effect B) (he : ∀ y, 0 ≤ e.m y) : 0 ≤ mass s (r.pull e) :=
+  Finset.sum_nonneg fun x _ =>
+    mul_nonneg (hs x) (Finset.sum_nonneg fun y _ => mul_nonneg (hK x y) (he y))
+
+omit [Fintype A'] [Fintype B'] in
+/-- **Zero evidence mass means zero evidence-weighted value**, for a nonnegative kernel whose
+reward vanishes where its probability does, a nonnegative state whose reward vanishes where
+its mass does, and a nonnegative effect whose value vanishes where its likelihood does. -/
+theorem value_pull_eq_zero (r : RewardKernel A B) (hK : ∀ x y, 0 ≤ r.K x y)
+    (hKW : ∀ x y, r.K x y = 0 → r.W x y = 0) (s : State A) (hs : ∀ x, 0 ≤ s.ν x)
+    (hsρ : ∀ x, s.ν x = 0 → s.ρ x = 0) (e : Effect B) (he : ∀ y, 0 ≤ e.m y)
+    (hec : ∀ y, e.m y = 0 → e.c y = 0) (h0 : mass s (r.pull e) = 0) :
+    value s (r.pull e) = 0 := by
+  have hpm : ∀ x, 0 ≤ (r.pull e).m x :=
+    fun x => Finset.sum_nonneg fun y _ => mul_nonneg (hK x y) (he y)
+  have hterm := (Finset.sum_eq_zero_iff_of_nonneg fun x _ => mul_nonneg (hs x) (hpm x)).1 h0
+  refine Finset.sum_eq_zero fun x hx => ?_
+  by_cases hν : s.ν x = 0
+  · rw [hsρ x hν, hν, zero_mul, zero_mul, add_zero]
+  · have hm0 : (r.pull e).m x = 0 := (mul_eq_zero.1 (hterm x hx)).resolve_left hν
+    have hy := (Finset.sum_eq_zero_iff_of_nonneg fun y _ => mul_nonneg (hK x y) (he y)).1 hm0
+    have hc0 : (r.pull e).c x = 0 := by
+      refine Finset.sum_eq_zero fun y hym => ?_
+      rcases mul_eq_zero.1 (hy y hym) with h | h
+      · rw [hKW x y h, h, zero_mul, zero_mul, add_zero]
+      · rw [h, hec y h, mul_zero, mul_zero, add_zero]
+    rw [hm0, hc0, mul_zero, mul_zero, add_zero]
+
+end RewardKernel
+
+namespace IDInterpretation
+
+variable {S : IDSignature} (M : IDInterpretation S)
+variable {X Y : S.Iface}
+```
+
+### Changing one row of a behavioural strategy
+
+```lean
+open Classical in
+/-- `β` with the row `p` of the decision label `l` replaced by the point mass at `s₀`. -/
+def setRow (β : M.Behaviour) (l : S.Label) (p : List (Sigma M.states))
+    (s₀ : M.states (S.result l)) : M.Behaviour where
+  policy l' h p' s := if l' = l ∧ p' = p then (if s = ⟨S.result l, s₀⟩ then 1 else 0)
+    else β.policy l' h p' s
+  nonneg l' h p' s := by
+    split_ifs
+    · norm_num
+    · norm_num
+    · exact β.nonneg l' h p' s
+  normalized l' h p' hp := by
+    by_cases hc : l' = l ∧ p' = p
+    · obtain ⟨rfl, rfl⟩ := hc
+      simp
+    · simp only [hc, if_false]
+      exact β.normalized l' h p' hp
+
+open Classical in
+theorem weight_setRow (β : M.Behaviour) (l : S.Label) (p : List (Sigma M.states))
+    (s₀ : M.states (S.result l)) (l' : S.Label) (p' : List (Sigma M.states))
+    (s : Sigma M.states) :
+    (M.interpB (M.setRow β l p s₀)).weight l' p' s =
+      if S.isDecision l' = true ∧ l' = l ∧ p' = p then (if s = ⟨S.result l, s₀⟩ then 1 else 0)
+      else (M.interpB β).weight l' p' s := by
+  change (if h' : S.isDecision l' = true then (M.setRow β l p s₀).policy l' h' p' s
+      else M.chance l' p' s) = if S.isDecision l' = true ∧ l' = l ∧ p' = p then _ else
+        (if h' : S.isDecision l' = true then β.policy l' h' p' s else M.chance l' p' s)
+  by_cases h : S.isDecision l' = true
+  · simp only [h, dite_true, true_and, setRow]
+  · rw [dif_neg h, dif_neg h, if_neg (fun hc => h hc.1)]
+
+/-- Assignments do not depend on the weights of an interpretation: read an assignment of one
+behavioural strategy's interpretation as one of another's, keeping every value. -/
+def recast {β β' : M.Behaviour} {A : Type} {τ : A → S.Ty} :
+    (M.interpB β).Assignment τ ≃ (M.interpB β').Assignment τ where
+  toFun x := ⟨x.value, x.typed⟩
+  invFun x := ⟨x.value, x.typed⟩
+  left_inv _ := rfl
+  right_inv _ := rfl
+```
+
+### The semantics of a behavioural strategy read on a fixed interpretation's assignments
+
+```lean
+section At
+
+variable (β₀ : M.Behaviour) (ev : M.Likelihood)
+
+/-- The joint weight under `β` of the internal assignment `z` from the input `x`, both
+assignments of `β₀`'s interpretation. -/
+def jointAt (β : M.Behaviour) (f : IDNet X Y) (x : (M.interpB β₀).Boundary X)
+    (z : (M.interpB β₀).Internal f.net) : ℝ :=
+  ∏ a, (M.interpB β).weight (f.net.label a) ((M.interpB β₀).parents f.net x z a) (z a)
+
+/-- The likelihood of the values of the generators. -/
+def likAt (f : IDNet X Y) (z : (M.interpB β₀).Internal f.net) : ℝ :=
+  ∏ a, ev (f.net.label a) (z a)
+
+/-- The likelihood-weighted reward kernel of `f` under `β`, on `β₀`'s assignments. -/
+def kernelAt (β : M.Behaviour) (f : IDNet X Y) :
+    RewardKernel ((M.interpB β₀).Boundary X) ((M.interpB β₀).Boundary Y) :=
+  ⟨fun x y => ∑ z, if y = (M.interpB β₀).read f.net x z then
+      M.jointAt β₀ β f x z * M.likAt β₀ ev f z else 0,
+    fun x y => ∑ z, if y = (M.interpB β₀).read f.net x z then
+      M.jointAt β₀ β f x z * M.likAt β₀ ev f z * M.rewardB β₀ f x z else 0⟩
+
+theorem kernelAt_congr {β β' : M.Behaviour} (f : IDNet X Y)
+    (h : ∀ x z, M.jointAt β₀ β f x z = M.jointAt β₀ β' f x z) :
+    M.kernelAt β₀ ev β f = M.kernelAt β₀ ev β' f := by
+  ext x y <;> simp only [kernelAt, h]
+
+theorem jointAt_nonneg (β : M.Behaviour) (f : IDNet X Y) (x : (M.interpB β₀).Boundary X)
+    (z : (M.interpB β₀).Internal f.net) : 0 ≤ M.jointAt β₀ β f x z :=
+  Finset.prod_nonneg fun _ _ => (M.interpB β).nonneg _ _ _
+
+theorem likAt_nonneg (hev : ∀ l v, 0 ≤ ev l v) (f : IDNet X Y)
+    (z : (M.interpB β₀).Internal f.net) : 0 ≤ M.likAt β₀ ev f z :=
+  Finset.prod_nonneg fun _ _ => hev _ _
+
+theorem kernelAt_K_nonneg (hev : ∀ l v, 0 ≤ ev l v) (β : M.Behaviour) (f : IDNet X Y)
+    (x : (M.interpB β₀).Boundary X) (y : (M.interpB β₀).Boundary Y) :
+    0 ≤ (M.kernelAt β₀ ev β f).K x y :=
+  Finset.sum_nonneg fun z _ => by
+    split_ifs
+    · exact mul_nonneg (M.jointAt_nonneg β₀ β f x z) (M.likAt_nonneg β₀ ev hev f z)
+    · exact le_rfl
+
+theorem kernelAt_W_eq_zero (hev : ∀ l v, 0 ≤ ev l v) (β : M.Behaviour) (f : IDNet X Y)
+    (x : (M.interpB β₀).Boundary X) (y : (M.interpB β₀).Boundary Y)
+    (h : (M.kernelAt β₀ ev β f).K x y = 0) : (M.kernelAt β₀ ev β f).W x y = 0 := by
+  have hz := (Finset.sum_eq_zero_iff_of_nonneg fun z _ => by
+    split_ifs
+    · exact mul_nonneg (M.jointAt_nonneg β₀ β f x z) (M.likAt_nonneg β₀ ev hev f z)
+    · exact le_rfl).1 h
+  refine Finset.sum_eq_zero fun z hzm => ?_
+  have hzz := hz z hzm
+  split_ifs at hzz ⊢
+  · rw [hzz, zero_mul]
+  · rfl
+
+end At
+
+/-- The semantics of an open influence diagram under the behavioural strategy `β`, every
+internal assignment weighted by the likelihood `ev` of its generators' values. -/
+def interpretBE (β : M.Behaviour) (ev : M.Likelihood) (f : IDNet X Y) :
+    RewardKernel ((M.interpB β).Boundary X) ((M.interpB β).Boundary Y) :=
+  M.kernelAt β ev β f
+
+/-- With the constant likelihood `1`, the weighted semantics is `interpretB`. -/
+theorem interpretBE_one (β : M.Behaviour) (f : IDNet X Y) :
+    M.interpretBE β (fun _ _ => 1) f = M.interpretB β f := by
+  have hl : ∀ z, M.likAt β (fun _ _ => 1) f z = 1 := fun z => by simp [likAt]
+  ext x y
+  · simp only [interpretBE, kernelAt, hl, mul_one]
+    rfl
+  · simp only [interpretBE, kernelAt, hl, mul_one]
+    rfl
+
+/-- For the point masses of a deterministic strategy, the weighted semantics is
+`interpretE`. -/
+theorem interpretBE_pointMass (σ : M.Strategy) (ev : M.Likelihood) (f : IDNet X Y) :
+    M.interpretBE (M.pointMass σ) ev f = M.interpretE σ ev f := rfl
+
+/-- The semantics does not depend on the interpretation whose assignments it is read on. -/
+theorem kernelAt_recast (β₀ β : M.Behaviour) (ev : M.Likelihood) (f : IDNet X Y)
+    (x : (M.interpB β₀).Boundary X) (y : (M.interpB β₀).Boundary Y) :
+    (M.kernelAt β₀ ev β f).K x y = (M.interpretBE β ev f).K (M.recast x) (M.recast y) ∧
+      (M.kernelAt β₀ ev β f).W x y = (M.interpretBE β ev f).W (M.recast x) (M.recast y) := by
+  have hr : ∀ z : (M.interpB β₀).Internal f.net,
+      (M.recast y = (M.interpB β).read f.net (M.recast x) (M.recast z)) ↔
+        y = (M.interpB β₀).read f.net x z :=
+    fun z => (M.recast (β := β₀) (β' := β)).injective.eq_iff (a := y)
+      (b := (M.interpB β₀).read f.net x z)
+  constructor
+  · simp only [interpretBE, kernelAt]
+    refine Fintype.sum_equiv (M.recast (β := β₀) (β' := β)) _ _ fun z => ?_
+    by_cases hc : y = (M.interpB β₀).read f.net x z
+    · rw [if_pos hc, if_pos ((hr z).2 hc)]
+      rfl
+    · rw [if_neg hc, if_neg (fun h => hc ((hr z).1 h))]
+  · simp only [interpretBE, kernelAt]
+    refine Fintype.sum_equiv (M.recast (β := β₀) (β' := β)) _ _ fun z => ?_
+    by_cases hc : y = (M.interpB β₀).read f.net x z
+    · rw [if_pos hc, if_pos ((hr z).2 hc)]
+      rfl
+    · rw [if_neg hc, if_neg (fun h => hc ((hr z).1 h))]
+```
+
+### Affinity in one row
+
+```lean
+/-- No two decision generators share a label, so no two decisions share a policy. -/
+def DistinctDecisions (f : IDNet X Y) : Prop :=
+  ∀ a b, f.IsDecision a → f.net.label a = f.net.label b → a = b
+
+open Classical in
+theorem sum_point (t : S.Ty) (v : Sigma M.states) (hv : v.1 = t) (g : Sigma M.states → ℝ) :
+    ∑ s : M.states t, g ⟨t, s⟩ * (if v = ⟨t, s⟩ then 1 else 0) = g v := by
+  obtain ⟨t', s'⟩ := v
+  simp only at hv
+  subst hv
+  simp
+
+section Affine
+
+variable (β₀ : M.Behaviour) (ev : M.Likelihood)
+
+/-- **The joint weight is affine in one row of the strategy**: when decision labels are
+distinct, the weight under `β` is the mixture, weighted by `β`'s distribution at the row `p`
+of `l`, of the weights with that row replaced by each point mass. -/
+theorem jointAt_affine (f : IDNet X Y) (hf : DistinctDecisions f) (β : M.Behaviour)
+    (l : S.Label) (hl : S.isDecision l = true) (p : List (Sigma M.states))
+    (hp : p.map Sigma.fst = S.inputs l) (x : (M.interpB β₀).Boundary X)
+    (z : (M.interpB β₀).Internal f.net) :
+    M.jointAt β₀ β f x z = ∑ s₀ : M.states (S.result l),
+      β.policy l hl p ⟨S.result l, s₀⟩ * M.jointAt β₀ (M.setRow β l p s₀) f x z := by
+  classical
+  by_cases hex : ∃ a, f.IsDecision a ∧ f.net.label a = l ∧
+      (M.interpB β₀).parents f.net x z a = p
+  · obtain ⟨a₀, ha₀, hla, hpa⟩ := hex
+    subst hla
+    subst hpa
+    have hR : ∀ s₀, M.jointAt β₀ (M.setRow β (f.net.label a₀)
+        ((M.interpB β₀).parents f.net x z a₀) s₀) f x z =
+        (if z a₀ = ⟨S.result (f.net.label a₀), s₀⟩ then 1 else 0) *
+          ∏ a ∈ Finset.univ.erase a₀, (M.interpB β).weight (f.net.label a)
+            ((M.interpB β₀).parents f.net x z a) (z a) := by
+      intro s₀
+      unfold jointAt
+      rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ a₀), weight_setRow,
+        if_pos ⟨hl, rfl, rfl⟩]
+      congr 1
+      refine Finset.prod_congr rfl fun a ha => ?_
+      rw [weight_setRow, if_neg]
+      rintro ⟨hd, hl', _⟩
+      exact Finset.ne_of_mem_erase ha (hf a a₀ hd hl')
+    have hw : (M.interpB β).weight (f.net.label a₀) ((M.interpB β₀).parents f.net x z a₀)
+        (z a₀) = β.policy (f.net.label a₀) hl ((M.interpB β₀).parents f.net x z a₀) (z a₀) := by
+      change (if h' : S.isDecision (f.net.label a₀) = true then β.policy _ h' _ _
+        else M.chance _ _ _) = _
+      rw [dif_pos hl]
+    simp_rw [hR]
+    unfold jointAt
+    rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ a₀), hw]
+    simp_rw [← mul_assoc]
+    rw [← Finset.sum_mul]
+    congr 1
+    exact (M.sum_point _ (z a₀) (z.typed a₀)
+      (fun s => β.policy (f.net.label a₀) hl ((M.interpB β₀).parents f.net x z a₀) s)).symm
+  · have hsame : ∀ s₀, M.jointAt β₀ (M.setRow β l p s₀) f x z = M.jointAt β₀ β f x z := by
+      intro s₀
+      refine Finset.prod_congr rfl fun a _ => ?_
+      rw [weight_setRow, if_neg]
+      rintro ⟨hd, hl', hp'⟩
+      exact hex ⟨a, hd, hl', hp'⟩
+    simp only [hsame, ← Finset.sum_mul]
+    rw [β.normalized l hl p hp, one_mul]
+
+/-- **The reward kernel is a mixture over one row**: when decision labels are distinct, the
+semantics under `β` is the mixture, weighted by `β`'s distribution at the row `p` of `l`, of
+the semantics with that row replaced by each point mass. -/
+theorem kernelAt_eq_mix (f : IDNet X Y) (hf : DistinctDecisions f) (β : M.Behaviour)
+    (l : S.Label) (hl : S.isDecision l = true) (p : List (Sigma M.states))
+    (hp : p.map Sigma.fst = S.inputs l) :
+    M.kernelAt β₀ ev β f = mix (fun s₀ => β.policy l hl p ⟨S.result l, s₀⟩)
+      (fun s₀ => M.kernelAt β₀ ev (M.setRow β l p s₀) f) := by
+  ext x y
+  · simp only [kernelAt, mix, Finset.mul_sum]
+    rw [Finset.sum_comm]
+    refine Finset.sum_congr rfl fun z _ => ?_
+    split_ifs
+    · rw [M.jointAt_affine β₀ f hf β l hl p hp x z, Finset.sum_mul]
+      exact Finset.sum_congr rfl fun _ _ => by ring
+    · simp
+  · simp only [kernelAt, mix, Finset.mul_sum]
+    rw [Finset.sum_comm]
+    refine Finset.sum_congr rfl fun z _ => ?_
+    split_ifs
+    · rw [M.jointAt_affine β₀ f hf β l hl p hp x z, Finset.sum_mul, Finset.sum_mul]
+      exact Finset.sum_congr rfl fun _ _ => by ring
+    · simp
+
+end Affine
+```
+
+### The rows that decisions read
+
+```lean
+section Rows
+
+variable (β₀ : M.Behaviour)
+
+open Classical in
+/-- The rows that the decision generators of `f` read, over all inputs and internal
+assignments: finitely many. -/
+def rows (f : IDNet X Y) : Finset (S.Label × List (Sigma M.states)) :=
+  ((Finset.univ : Finset (f.net.Gen × (M.interpB β₀).Boundary X ×
+      (M.interpB β₀).Internal f.net)).filter fun t => f.IsDecision t.1).image
+    fun t => (f.net.label t.1, (M.interpB β₀).parents f.net t.2.1 t.2.2 t.1)
+
+theorem mem_rows (f : IDNet X Y) {a : f.net.Gen} (ha : f.IsDecision a)
+    (x : (M.interpB β₀).Boundary X) (z : (M.interpB β₀).Internal f.net) :
+    (f.net.label a, (M.interpB β₀).parents f.net x z a) ∈ M.rows β₀ f := by
+  classical
+  unfold rows
+  exact Finset.mem_image.2 ⟨(a, x, z), Finset.mem_filter.2 ⟨Finset.mem_univ _, ha⟩, rfl⟩
+
+theorem rows_spec (f : IDNet X Y) {q : S.Label × List (Sigma M.states)}
+    (hq : q ∈ M.rows β₀ f) : S.isDecision q.1 = true ∧ q.2.map Sigma.fst = S.inputs q.1 := by
+  classical
+  unfold rows at hq
+  obtain ⟨⟨a, x, z⟩, ht, rfl⟩ := Finset.mem_image.1 hq
+  exact ⟨(Finset.mem_filter.1 ht).2, (M.interpB β₀).parents_typed f.net x z a⟩
+
+end Rows
+
+open Classical in
+/-- `β` is deterministic at the row `q`: it draws a point mass there. -/
+def DetAt (β : M.Behaviour) (q : S.Label × List (Sigma M.states)) : Prop :=
+  ∀ h : S.isDecision q.1 = true, ∃ s₀ : M.states (S.result q.1),
+    ∀ s, β.policy q.1 h q.2 s = if s = ⟨S.result q.1, s₀⟩ then 1 else 0
+
+theorem detAt_setRow_self (β : M.Behaviour) (l : S.Label) (p : List (Sigma M.states))
+    (s₀ : M.states (S.result l)) : M.DetAt (M.setRow β l p s₀) (l, p) :=
+  fun _ => ⟨s₀, fun s => by simp [setRow]⟩
+
+theorem detAt_setRow_of_ne (β : M.Behaviour) (l : S.Label) (p : List (Sigma M.states))
+    (s₀ : M.states (S.result l)) {q : S.Label × List (Sigma M.states)} (hq : q ≠ (l, p))
+    (hd : M.DetAt β q) : M.DetAt (M.setRow β l p s₀) q := by
+  intro h
+  obtain ⟨s₁, hs₁⟩ := hd h
+  refine ⟨s₁, fun s => ?_⟩
+  have hne : ¬ (q.1 = l ∧ q.2 = p) := fun ⟨h1, h2⟩ => hq (Prod.ext h1 h2)
+  simp only [setRow, hne, if_false]
+  exact hs₁ s
+
+open Classical in
+/-- **A strategy deterministic on every row read is a deterministic strategy.** -/
+theorem det_joint (β₀ : M.Behaviour) (f : IDNet X Y)
+    (hne : ∀ l, S.isDecision l = true → Nonempty (M.states (S.result l)))
+    (β : M.Behaviour) (hβ : ∀ q ∈ M.rows β₀ f, M.DetAt β q) :
+    ∃ σ : M.Strategy, ∀ x z, M.jointAt β₀ β f x z = M.jointAt β₀ (M.pointMass σ) f x z := by
+  refine ⟨fun l h p => if hq : ∃ s₀ : M.states (S.result l), ∀ s, β.policy l h p s =
+      (if s = ⟨S.result l, s₀⟩ then 1 else 0) then hq.choose else (hne l h).some,
+    fun x z => Finset.prod_congr rfl fun a _ => ?_⟩
+  by_cases ha : S.isDecision (f.net.label a) = true
+  · obtain ⟨s₀, hs₀⟩ := hβ _ (M.mem_rows β₀ f ha x z) ha
+    have hq : ∃ s₀ : M.states (S.result (f.net.label a)), ∀ s,
+        β.policy (f.net.label a) ha ((M.interpB β₀).parents f.net x z a) s =
+          (if s = ⟨S.result (f.net.label a), s₀⟩ then 1 else 0) := ⟨s₀, hs₀⟩
+    change (if h' : S.isDecision (f.net.label a) = true then β.policy _ h' _ _
+      else M.chance _ _ _) = (if h' : S.isDecision (f.net.label a) = true then
+        (M.pointMass _).policy _ h' _ _ else M.chance _ _ _)
+    rw [dif_pos ha, dif_pos ha, hq.choose_spec]
+    simp only [pointMass, dif_pos hq]
+    split_ifs <;> rfl
+  · change (if h' : S.isDecision (f.net.label a) = true then β.policy _ h' _ _
+      else M.chance _ _ _) = (if h' : S.isDecision (f.net.label a) = true then
+        (M.pointMass _).policy _ h' _ _ else M.chance _ _ _)
+    rw [dif_neg ha, dif_neg ha]
+
+/-- **Replacing the rows one at a time.** If an objective of the strategy depends only on the
+joint weights, and every row read can be made deterministic without lowering it (and keeping
+a side condition), then some deterministic strategy does at least as well. -/
+theorem kuhn_induction (β₀ : M.Behaviour) (f : IDNet X Y)
+    (hne : ∀ l, S.isDecision l = true → Nonempty (M.states (S.result l)))
+    (Good : M.Behaviour → Prop) (Φ : M.Behaviour → ℝ)
+    (hcongr : ∀ β β', (∀ x z, M.jointAt β₀ β f x z = M.jointAt β₀ β' f x z) →
+      (Good β → Good β') ∧ Φ β = Φ β')
+    (hstep : ∀ β, Good β → ∀ q ∈ M.rows β₀ f, ∀ _ : S.isDecision q.1 = true,
+      ∃ s₀ : M.states (S.result q.1), Good (M.setRow β q.1 q.2 s₀) ∧
+        Φ β ≤ Φ (M.setRow β q.1 q.2 s₀))
+    (β : M.Behaviour) (hβ : Good β) :
+    ∃ σ : M.Strategy, Good (M.pointMass σ) ∧ Φ β ≤ Φ (M.pointMass σ) := by
+  classical
+  suffices key : ∀ F : Finset (S.Label × List (Sigma M.states)), ∀ β, Good β →
+      (∀ q ∈ M.rows β₀ f, q ∉ F → M.DetAt β q) →
+      ∃ σ : M.Strategy, Good (M.pointMass σ) ∧ Φ β ≤ Φ (M.pointMass σ) from
+    key (M.rows β₀ f) β hβ fun q hq hn => absurd hq hn
+  intro F
+  induction F using Finset.induction_on with
+  | empty =>
+    intro β hβ hdet
+    obtain ⟨σ, hσ⟩ := M.det_joint β₀ f hne β fun q hq => hdet q hq (Finset.notMem_empty q)
+    obtain ⟨hg, hΦ⟩ := hcongr β (M.pointMass σ) hσ
+    exact ⟨σ, hg hβ, hΦ.le⟩
+  | insert q F hqF ih =>
+    intro β hβ hdet
+    by_cases hq : q ∈ M.rows β₀ f
+    · obtain ⟨s₀, hg, hΦ⟩ := hstep β hβ q hq (M.rows_spec β₀ f hq).1
+      obtain ⟨σ, hgσ, hΦσ⟩ := ih (M.setRow β q.1 q.2 s₀) hg fun q' hq' hq'F => by
+        by_cases he : q' = q
+        · subst he
+          exact M.detAt_setRow_self β q'.1 q'.2 s₀
+        · exact M.detAt_setRow_of_ne β q.1 q.2 s₀ (fun h => he (h.trans Prod.mk.eta))
+            (hdet q' hq' (by simp [Finset.mem_insert, he, hq'F]))
+      exact ⟨σ, hgσ, hΦ.trans hΦσ⟩
+    · exact ih β hβ fun q' hq' hq'F => hdet q' hq' (by
+        simp only [Finset.mem_insert, not_or]
+        exact ⟨fun h => hq (h ▸ hq'), hq'F⟩)
+```
+
+### Kuhn's theorem
+
+```lean
+/-- **Kuhn's theorem for open influence diagrams.** When no two decision generators share a
+label, for every behavioural strategy `β`, prior `μ` and continuation `c`, some deterministic
+strategy `σ` has at least `β`'s expected utility. (`interpretB (pointMass σ) f` is
+`interpret σ f`, by `interpretB_pointMass`.) -/
+theorem kuhn_eu (f : IDNet X Y) (hf : DistinctDecisions f)
+    (hne : ∀ l, S.isDecision l = true → Nonempty (M.states (S.result l)))
+    (β : M.Behaviour) (μ : (M.interpB β).Boundary X → ℝ) (c : (M.interpB β).Boundary Y → ℝ) :
+    ∃ σ : M.Strategy, (M.interpretB β f).eu μ c ≤
+      (M.interpretB (M.pointMass σ) f).eu (fun x => μ (M.recast x))
+        (fun y => c (M.recast y)) := by
+  obtain ⟨σ, -, hσ⟩ := M.kuhn_induction β f hne (fun _ => True)
+    (fun β' => (M.kernelAt β (fun _ _ => 1) β' f).eu μ c)
+    (fun β' β'' h => ⟨id, by simp only [M.kernelAt_congr β _ f h]⟩)
+    (fun β' _ q hq hl => by
+      haveI := hne q.1 hl
+      have hp := (M.rows_spec β f hq).2
+      obtain ⟨s₀, hs₀⟩ := eu_mix_le (fun s₀ => β'.policy q.1 hl q.2 ⟨S.result q.1, s₀⟩)
+        (fun s => β'.nonneg q.1 hl q.2 _) (β'.normalized q.1 hl q.2 hp)
+        (fun s₀ => M.kernelAt β (fun _ _ => 1) (M.setRow β' q.1 q.2 s₀) f) μ c
+      refine ⟨s₀, trivial, ?_⟩
+      show (M.kernelAt β (fun _ _ => 1) β' f).eu μ c ≤
+        (M.kernelAt β (fun _ _ => 1) (M.setRow β' q.1 q.2 s₀) f).eu μ c
+      rw [M.kernelAt_eq_mix β _ f hf β' q.1 hl q.2 hp]
+      exact hs₀)
+    β trivial
+  refine ⟨σ, ?_⟩
+  have hre := eu_reindex (M.interpretBE (M.pointMass σ) (fun _ _ => 1) f)
+    (M.kernelAt β (fun _ _ => 1) (M.pointMass σ) f) M.recast M.recast
+    (fun x y => (M.kernelAt_recast β (M.pointMass σ) _ f (M.recast x) (M.recast y)).1.symm)
+    (fun x y => (M.kernelAt_recast β (M.pointMass σ) _ f (M.recast x) (M.recast y)).2.symm) μ c
+  rw [M.interpretBE_one] at hre
+  rw [← M.interpretBE_one β f, hre]
+  exact hσ
+
+/-- **Kuhn's theorem given evidence.** When no two decision generators share a label, the
+likelihoods are nonnegative, the state's reward vanishes where its mass does and the effect's
+value vanishes where its likelihood does: if the evidence has positive mass under the
+behavioural strategy `β`, then some deterministic strategy `σ` gives it positive mass and a
+conditional value at least as large. (`interpretBE (pointMass σ) ev f` is `interpretE σ ev f`,
+by `interpretBE_pointMass`.) -/
+theorem kuhn_conditional (f : IDNet X Y) (hf : DistinctDecisions f)
+    (hne : ∀ l, S.isDecision l = true → Nonempty (M.states (S.result l)))
+    (β : M.Behaviour) (ev : M.Likelihood) (hev : ∀ l v, 0 ≤ ev l v)
+    (s : RewardKernel.State ((M.interpB β).Boundary X)) (hs : ∀ x, 0 ≤ s.ν x)
+    (hsρ : ∀ x, s.ν x = 0 → s.ρ x = 0)
+    (e : RewardKernel.Effect ((M.interpB β).Boundary Y)) (he : ∀ y, 0 ≤ e.m y)
+    (hec : ∀ y, e.m y = 0 → e.c y = 0)
+    (hpos : 0 < mass s ((M.interpretBE β ev f).pull e)) :
+    ∃ σ : M.Strategy,
+      0 < mass ⟨fun x => s.ν (M.recast x), fun x => s.ρ (M.recast x)⟩
+        ((M.interpretBE (M.pointMass σ) ev f).pull
+          ⟨fun y => e.m (M.recast y), fun y => e.c (M.recast y)⟩) ∧
+      conditionalValue s ((M.interpretBE β ev f).pull e) ≤
+        conditionalValue ⟨fun x => s.ν (M.recast x), fun x => s.ρ (M.recast x)⟩
+          ((M.interpretBE (M.pointMass σ) ev f).pull
+            ⟨fun y => e.m (M.recast y), fun y => e.c (M.recast y)⟩) := by
+  obtain ⟨σ, hgσ, hσ⟩ := M.kuhn_induction β f hne
+    (fun β' => 0 < mass s ((M.kernelAt β ev β' f).pull e))
+    (fun β' => conditionalValue s ((M.kernelAt β ev β' f).pull e))
+    (fun β' β'' h => by
+      simp only [M.kernelAt_congr β ev f h]
+      exact ⟨id, trivial⟩)
+    (fun β' hg q hq hl => by
+      have hp := (M.rows_spec β f hq).2
+      have hmix := M.kernelAt_eq_mix β ev f hf β' q.1 hl q.2 hp
+      change 0 < mass s ((M.kernelAt β ev β' f).pull e) at hg
+      rw [hmix] at hg
+      obtain ⟨s₀, hs₀, hle⟩ := conditionalValue_mix_le
+        (fun s₀ => β'.policy q.1 hl q.2 ⟨S.result q.1, s₀⟩) (fun s => β'.nonneg q.1 hl q.2 _)
+        (fun s₀ => M.kernelAt β ev (M.setRow β' q.1 q.2 s₀) f) s e
+        (fun i => mass_pull_nonneg _ (M.kernelAt_K_nonneg β ev hev _ f) s hs e he)
+        (fun i => value_pull_eq_zero _ (M.kernelAt_K_nonneg β ev hev _ f)
+          (M.kernelAt_W_eq_zero β ev hev _ f) s hs hsρ e he hec) hg
+      refine ⟨s₀, hs₀, ?_⟩
+      show conditionalValue s ((M.kernelAt β ev β' f).pull e) ≤ _
+      rw [hmix]
+      exact hle)
+    β hpos
+  have hre := mass_value_reindex (M.interpretBE (M.pointMass σ) ev f)
+    (M.kernelAt β ev (M.pointMass σ) f) M.recast M.recast
+    (fun x y => (M.kernelAt_recast β (M.pointMass σ) ev f (M.recast x) (M.recast y)).1.symm)
+    (fun x y => (M.kernelAt_recast β (M.pointMass σ) ev f (M.recast x) (M.recast y)).2.symm) s e
+  refine ⟨σ, ?_, ?_⟩
+  · rw [hre.1]
+    exact hgσ
+  · unfold conditionalValue at hσ ⊢
+    rw [hre.1, hre.2]
+    exact hσ
+
+end IDInterpretation
+
+end OpenInfluence
+```
+
+
+<!-- CategoricalInfluenceDiagramsProofs/SharedPolicy.lean -->
+
+# Shared policies: the first-order condition at an optimum (ADR 0024)
+
+```lean
+import CategoricalInfluenceDiagramsProofs.Behaviour
+import Mathlib.Analysis.Calculus.Deriv.Mul
+import Mathlib.Analysis.Calculus.Deriv.Slope
+```
+
+When several decisions share one policy (the absent-minded driver of `Behaviour`), the
+optimum can be randomised, and the equilibria of ADR 0020, in which each component best
+responds on its own, are the wrong notion: at the optimum of the absent-minded driver the
+first junction alone would gain by continuing for sure (`AbsentMinded.per_use_gains`).
+What holds instead is the first-order condition of Piccione and Rubinstein's multi-self
+consistency, as made precise by Aumann, Hart and Perry: change the shared policy towards
+another one, and the sum, over the uses of the policy, of the gain from changing that use
+alone (each in the context the others induce) is at most zero.
+
+**Paths of reward kernels.** A path `F : ℝ → RewardKernel X Y` has first-order term `D` at
+`0` (`HasDeriv F D`) when every cell of `K` and `W` is differentiable at `0` with that
+derivative. A segment `t ↦ (1 - t) A + t B` has first-order term `B - A`
+(`hasDeriv_segment`), a constant path `0`, and serial composition obeys the product rule
+(`HasDeriv.comp`: `(F ; G)' = F' ; G(0) + F(0) ; G'`). So along a chain in which each use of
+a policy moves along a segment, the first-order term is the sum, over the uses, of the chain
+with that use alone replaced by its direction, which is the sum of the uses' unilateral
+gains (`eu_lin`, `lin_comp`, `comp_lin`).
+
+**The first-order condition.** If the expected utility along a path is largest at `t = 0`,
+its first-order term has nonpositive expected utility (`first_order_optimum`). For two uses
+of a policy, separated by any fixed kernels, this reads: at an optimum of the shared policy,
+the two unilateral gains of a change sum to at most zero (`shared_optimum_first_order`).
+
+**The absent-minded driver.** At the optimum, continuing with probability `2/3` at both
+junctions, continuing for sure at the first junction alone gains `2/3` and at the second
+alone loses `2/3` (`per_use_gains`): the per-use gains sum to zero, as the first-order
+condition requires, while the first is positive, so the strategy is not an equilibrium in the
+per-component sense of ADR 0020.
+
+```lean
+set_option autoImplicit false
+
+noncomputable section
+
+namespace OpenInfluence
+
+open FiniteKernelsProofs.Finite Filter Topology
+
+namespace RewardKernel
+
+variable {X Y Z : Type} [Fintype X] [Fintype Y] [Fintype Z]
+```
+
+### Linear combinations of reward kernels
+
+```lean
+omit [Fintype X] [Fintype Y] [Fintype Z] in
+/-- The linear combination `a f + b g` of two pairs of tables (a mixture with two weights,
+which need not be a stochastic kernel). -/
+def lin (a : ℝ) (f : RewardKernel X Y) (b : ℝ) (g : RewardKernel X Y) : RewardKernel X Y :=
+  mix (fun i : Bool => if i then a else b) (fun i => if i then f else g)
+
+omit [Fintype X] [Fintype Y] [Fintype Z] in
+@[simp] theorem lin_K (a : ℝ) (f : RewardKernel X Y) (b : ℝ) (g : RewardKernel X Y) (x : X)
+    (y : Y) : (lin a f b g).K x y = a * f.K x y + b * g.K x y := by
+  simp [lin, mix]
+
+omit [Fintype X] [Fintype Y] [Fintype Z] in
+@[simp] theorem lin_W (a : ℝ) (f : RewardKernel X Y) (b : ℝ) (g : RewardKernel X Y) (x : X)
+    (y : Y) : (lin a f b g).W x y = a * f.W x y + b * g.W x y := by
+  simp [lin, mix]
+
+omit [Fintype X] [Fintype Z] in
+theorem lin_comp (a : ℝ) (f : RewardKernel X Y) (b : ℝ) (g : RewardKernel X Y)
+    (h : RewardKernel Y Z) : (lin a f b g).comp h = lin a (f.comp h) b (g.comp h) := by
+  rw [lin, mix_comp, lin]
+  congr 1
+  funext i
+  cases i <;> rfl
+
+omit [Fintype Z] in
+theorem comp_lin (f : RewardKernel X Y) (a : ℝ) (g : RewardKernel Y Z) (b : ℝ)
+    (h : RewardKernel Y Z) : f.comp (lin a g b h) = lin a (f.comp g) b (f.comp h) := by
+  rw [lin, comp_mix, lin]
+  congr 1
+  funext i
+  cases i <;> rfl
+
+omit [Fintype Z] in
+theorem eu_lin (a : ℝ) (f : RewardKernel X Y) (b : ℝ) (g : RewardKernel X Y) (μ : X → ℝ)
+    (c : Y → ℝ) : (lin a f b g).eu μ c = a * f.eu μ c + b * g.eu μ c := by
+  rw [lin, eu_mix, Fintype.sum_bool]
+  simp
+```
+
+### Paths and their first-order terms
+
+```lean
+omit [Fintype X] [Fintype Y] [Fintype Z] in
+/-- The path `F` has first-order term `D` at `0`: every cell of `K` and of `W` is
+differentiable at `0`, with the corresponding cell of `D` as derivative. -/
+def HasDeriv (F : ℝ → RewardKernel X Y) (D : RewardKernel X Y) : Prop :=
+  ∀ x y, HasDerivAt (fun t => (F t).K x y) (D.K x y) 0 ∧
+    HasDerivAt (fun t => (F t).W x y) (D.W x y) 0
+
+omit [Fintype X] [Fintype Y] [Fintype Z] in
+/-- The segment from `A` (at `t = 0`) to `B` (at `t = 1`). -/
+def segment (A B : RewardKernel X Y) (t : ℝ) : RewardKernel X Y := lin (1 - t) A t B
+
+omit [Fintype X] [Fintype Y] [Fintype Z] in
+@[simp] theorem segment_zero (A B : RewardKernel X Y) : segment A B 0 = A := by
+  ext x y <;> simp [segment]
+
+omit [Fintype X] [Fintype Y] [Fintype Z] in
+/-- A segment has first-order term `B - A`. -/
+theorem hasDeriv_segment (A B : RewardKernel X Y) : HasDeriv (segment A B) (lin (-1) A 1 B) := by
+  intro x y
+  constructor
+  · have h := ((hasDerivAt_id (0 : ℝ)).const_sub 1).mul_const (A.K x y) |>.add
+      ((hasDerivAt_id (0 : ℝ)).mul_const (B.K x y))
+    simp only [segment, lin_K, lin_K]
+    convert h using 1
+  · have h := ((hasDerivAt_id (0 : ℝ)).const_sub 1).mul_const (A.W x y) |>.add
+      ((hasDerivAt_id (0 : ℝ)).mul_const (B.W x y))
+    simp only [segment, lin_W, lin_W]
+    convert h using 1
+
+omit [Fintype X] [Fintype Y] [Fintype Z] in
+/-- A constant path has first-order term `0`. -/
+theorem hasDeriv_const (A : RewardKernel X Y) : HasDeriv (fun _ => A) (lin 0 A 0 A) := by
+  intro x y
+  constructor
+  · simpa using hasDerivAt_const (0 : ℝ) (A.K x y)
+  · simpa using hasDerivAt_const (0 : ℝ) (A.W x y)
+
+omit [Fintype X] [Fintype Z] in
+/-- **The product rule for serial composition**: `(F ; G)' = F' ; G(0) + F(0) ; G'`. -/
+theorem HasDeriv.comp {F : ℝ → RewardKernel X Y} {G : ℝ → RewardKernel Y Z}
+    {DF : RewardKernel X Y} {DG : RewardKernel Y Z} (hF : HasDeriv F DF) (hG : HasDeriv G DG) :
+    HasDeriv (fun t => (F t).comp (G t)) (lin 1 (DF.comp (G 0)) 1 ((F 0).comp DG)) := by
+  intro x z
+  constructor
+  · have h := HasDerivAt.fun_sum (u := Finset.univ) (fun y _ => (hF x y).1.mul (hG y z).1)
+    simp only [comp_K, Kernel.comp_apply, lin_K, one_mul]
+    convert h using 1
+    rw [← Finset.sum_add_distrib]
+  · have h := HasDerivAt.fun_sum (u := Finset.univ) (fun y _ =>
+      ((hF x y).2.mul (hG y z).1).add ((hF x y).1.mul (hG y z).2))
+    simp only [comp_W, Kernel.comp_apply, Pi.add_apply, lin_W, one_mul]
+    convert h using 1
+    · funext t
+      simp only [Pi.add_apply, Pi.mul_apply]
+      rw [← Finset.sum_add_distrib]
+    · rw [← Finset.sum_add_distrib, ← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
+      exact Finset.sum_congr rfl fun _ _ => by ring
+
+omit [Fintype Z] in
+/-- The expected utility along a path has the expected utility of its first-order term as
+derivative. -/
+theorem HasDeriv.eu {F : ℝ → RewardKernel X Y} {D : RewardKernel X Y} (hF : HasDeriv F D)
+    (μ : X → ℝ) (c : Y → ℝ) : HasDerivAt (fun t => (F t).eu μ c) (D.eu μ c) 0 := by
+  unfold RewardKernel.eu
+  exact HasDerivAt.fun_sum fun x _ => (HasDerivAt.fun_sum fun y _ =>
+    (hF x y).2.add ((hF x y).1.mul_const (c y))).const_mul (μ x)
+
+/-- **A derivative at a one-sided maximum is nonpositive**: if `g` is largest at `0` on
+`(0, 1)`, its derivative at `0` is at most zero. -/
+theorem deriv_nonpos_of_le {g : ℝ → ℝ} {d : ℝ} (hg : HasDerivAt g d 0)
+    (hmax : ∀ t ∈ Set.Ioo (0 : ℝ) 1, g t ≤ g 0) : d ≤ 0 := by
+  have hs := hg.tendsto_slope_zero_right
+  refine le_of_tendsto hs ?_
+  filter_upwards [Ioo_mem_nhdsGT (show (0 : ℝ) < 1 by norm_num)] with t ht
+  have h1 : g (0 + t) - g 0 ≤ 0 := by rw [zero_add]; linarith [hmax t ht]
+  exact smul_nonpos_of_nonneg_of_nonpos (inv_nonneg.2 ht.1.le) h1
+
+omit [Fintype Z] in
+/-- **The first-order condition at an optimum**: if the expected utility along a path is
+largest at `t = 0`, its first-order term has nonpositive expected utility. -/
+theorem first_order_optimum {F : ℝ → RewardKernel X Y} {D : RewardKernel X Y}
+    (hF : HasDeriv F D) (μ : X → ℝ) (c : Y → ℝ)
+    (hmax : ∀ t ∈ Set.Ioo (0 : ℝ) 1, (F t).eu μ c ≤ (F 0).eu μ c) : D.eu μ c ≤ 0 :=
+  deriv_nonpos_of_le (hF.eu μ c) hmax
+
+/-- **The per-use gains of a change of a shared policy sum to at most zero at an optimum.**
+Two uses of one policy, the first moving from `A₀` towards `A₁` and the second from `B₀`
+towards `B₁` (any fixed kernels before, between and after them can be composed into
+these): if no point of the joint change does better than `A₀ ; B₀`, then the gain of the
+first change alone plus the gain of the second change alone is at most zero. -/
+theorem shared_optimum_first_order (A₀ A₁ : RewardKernel X Y) (B₀ B₁ : RewardKernel Y Z)
+    (μ : X → ℝ) (c : Z → ℝ)
+    (hopt : ∀ t ∈ Set.Ioo (0 : ℝ) 1,
+      ((segment A₀ A₁ t).comp (segment B₀ B₁ t)).eu μ c ≤ (A₀.comp B₀).eu μ c) :
+    ((A₁.comp B₀).eu μ c - (A₀.comp B₀).eu μ c) +
+      ((A₀.comp B₁).eu μ c - (A₀.comp B₀).eu μ c) ≤ 0 := by
+  have hd := (hasDeriv_segment A₀ A₁).comp (hasDeriv_segment B₀ B₁)
+  have h := first_order_optimum hd μ c (by simpa using hopt)
+  simp only [segment_zero, eu_lin, lin_comp, comp_lin] at h
+  linarith
+
+end RewardKernel
+```
+
+### The absent-minded driver
+
+```lean
+namespace AbsentMinded
+
+open RewardKernel
+
+/-- **At the shared optimum the per-use gains sum to zero, but are not each zero.** With
+continuation probability `2/3` at both junctions, continuing for sure at the first junction
+alone gains `2/3`, and at the second alone loses `2/3`. -/
+theorem per_use_gains :
+    ((first 1).comp (second (2 / 3))).eu (fun _ => 1) (fun _ => 0) -
+        ((first (2 / 3)).comp (second (2 / 3))).eu (fun _ => 1) (fun _ => 0) = 2 / 3 ∧
+      ((first (2 / 3)).comp (second 1)).eu (fun _ => 1) (fun _ => 0) -
+        ((first (2 / 3)).comp (second (2 / 3))).eu (fun _ => 1) (fun _ => 0) = -(2 / 3) := by
+  simp only [drive_eu]
+  constructor <;> norm_num
+
+end AbsentMinded
+
+end OpenInfluence
+```
+
+
+<!-- CategoricalInfluenceDiagramsProofs/SyntaxCategory.lean -->
+
+# Open influence diagrams up to isomorphism, and the semantics as a functor
+
+```lean
+import CategoricalInfluenceDiagramsProofs.Behaviour
+```
+
+`Syntax.lean` does not quotient `IDNet` by isomorphism, so `Interpretation.lean` states
+functoriality as equations on representatives. This module adds the quotient.
+
+**Isomorphism.** An isomorphism of open influence diagrams `f ≅ g : X → Y` (`IDNet.Iso`) is
+an isomorphism of the underlying nets (CategoricalBayesianNetworks' `Net.Iso`: a bijection of
+generators preserving labels, ordered parent lists and the output leg, fixing the boundary)
+together with a bijection of utility generators preserving their labels and their ordered
+scopes, read through the bijection of variables. It is an equivalence relation
+(`IDNet.setoid`), a congruence for serial composition (`Iso.comp`), and the unit and
+associativity laws of serial composition hold up to isomorphism (`id_comp_iso`,
+`comp_id_iso`, `assoc_iso`), by the same empty-sum and sum-associativity bijections as for
+nets, extended to utilities.
+
+**Invariance.** Isomorphic diagrams have the same semantics, under every behavioural
+strategy (`interpretB_iso`) and so under every deterministic strategy (`interpret_iso`): the
+bijection of generators carries internal assignments to internal assignments with the same
+joint weight, output and reward.
+
+**The syntax category and the semantic functor.** Typed interfaces, with open influence
+diagrams up to isomorphism as morphisms, form a category (`IDCat`); there are no equations
+in the quotient beyond isomorphism. For every behavioural strategy `β` the semantics is a
+functor `IDCat S ⥤ FinRew` (`interpretFunctor`), and for a deterministic strategy `σ`
+`interpretFunctor (pointMass σ)` sends a diagram to `interpret σ f`
+(`interpretFunctor_pointMass`). So the functoriality theorems of `Interpretation.lean` and
+`Behaviour.lean` are now about a Mathlib `Functor`, not only about representatives.
+
+**Scope.** Serial composition only: the monoidal structure of the quotient (tensor up to
+isomorphism, its associator and unitors) is not developed here; `interpret_tensor` stays an
+equation on representatives.
+
+```lean
+set_option autoImplicit false
+
+noncomputable section
+
+namespace OpenInfluence
+
+open CategoryTheory OpenNet
+
+variable {S : IDSignature} {X Y Z W : S.Iface}
+
+namespace IDNet
+
+/-- An isomorphism of open influence diagrams: an isomorphism of the underlying nets with a
+bijection of utility generators preserving labels and ordered scopes. -/
+structure Iso (f g : IDNet X Y) where
+  /-- The isomorphism of the underlying nets. -/
+  net : Net.Iso f.net g.net
+  /-- The bijection of utility generators. -/
+  ugen : f.UGen ≃ g.UGen
+  /-- Utility labels are preserved. -/
+  ulabel : ∀ u, g.ulabel (ugen u) = f.ulabel u
+  /-- Ordered scopes are preserved, read through the bijection of variables. -/
+  uparents : ∀ u, g.uparents (ugen u) = (f.uparents u).map (Sum.map id net.gen)
+
+theorem map_sum_refl {A B : Type} (l : List (A ⊕ B)) :
+    l.map (Sum.map id (Equiv.refl B)) = l := by
+  have h : (Sum.map id (Equiv.refl B) : A ⊕ B → A ⊕ B) = id := by
+    funext v
+    cases v <;> rfl
+  rw [h, List.map_id]
+
+def Iso.refl (f : IDNet X Y) : Iso f f where
+  net := Net.Iso.refl f.net
+  ugen := Equiv.refl _
+  ulabel _ := rfl
+  uparents _ := (map_sum_refl _).symm
+
+def Iso.trans {f g h : IDNet X Y} (a : Iso f g) (b : Iso g h) : Iso f h where
+  net := a.net.trans b.net
+  ugen := a.ugen.trans b.ugen
+  ulabel u := (b.ulabel _).trans (a.ulabel _)
+  uparents u := by
+    change h.uparents (b.ugen (a.ugen u)) = _
+    rw [b.uparents, a.uparents, List.map_map]
+    congr 1
+    funext v
+    cases v <;> rfl
+
+def Iso.symm {f g : IDNet X Y} (a : Iso f g) : Iso g f where
+  net := a.net.symm
+  ugen := a.ugen.symm
+  ulabel u := by simpa using (a.ulabel (a.ugen.symm u)).symm
+  uparents u := by
+    have h := congrArg (List.map (Sum.map id a.net.gen.symm)) (a.uparents (a.ugen.symm u))
+    simp only [Equiv.apply_symm_apply, List.map_map] at h
+    have hid : (Sum.map id a.net.gen.symm ∘ Sum.map id a.net.gen : f.net.Var → f.net.Var) =
+        id := by
+      funext v
+      cases v <;> simp
+    rw [hid, List.map_id] at h
+    exact h.symm
+
+instance setoid (X Y : S.Iface) : Setoid (IDNet X Y) where
+  r f g := Nonempty (Iso f g)
+  iseqv := ⟨fun f => ⟨Iso.refl f⟩, fun ⟨a⟩ => ⟨a.symm⟩, fun ⟨a⟩ ⟨b⟩ => ⟨a.trans b⟩⟩
+
+theorem left_iso {f f' : Net X Y} {g g' : Net Y Z} (a : Net.Iso f f') (b : Net.Iso g g')
+    (v : f.Var) :
+    Net.left f' g' (Sum.map id a.gen v) =
+      Sum.map id (Equiv.sumCongr a.gen b.gen) (Net.left f g v) := by
+  cases v <;> rfl
+
+theorem right_iso {f f' : Net X Y} {g g' : Net Y Z} (a : Net.Iso f f') (b : Net.Iso g g')
+    (v : g.Var) :
+    Net.right f' g' (Sum.map id b.gen v) =
+      Sum.map id (Equiv.sumCongr a.gen b.gen) (Net.right f g v) := by
+  cases v with
+  | inl y =>
+    simp only [Sum.map_inl, id_eq, Net.right, Sum.elim_inl, a.output]
+    cases f.output y <;> rfl
+  | inr c => rfl
+
+/-- Serial composition respects isomorphism. -/
+def Iso.comp {f f' : IDNet X Y} {g g' : IDNet Y Z} (a : Iso f f') (b : Iso g g') :
+    Iso (f.comp g) (f'.comp g') where
+  net := a.net.comp b.net
+  ugen := Equiv.sumCongr a.ugen b.ugen
+  ulabel u := by
+    cases u with
+    | inl u => exact a.ulabel u
+    | inr u => exact b.ulabel u
+  uparents u := by
+    cases u with
+    | inl u =>
+      change (f'.uparents (a.ugen u)).map _ = ((f.uparents u).map _).map _
+      rw [a.uparents, List.map_map, List.map_map]
+      exact congrArg (fun k => (f.uparents u).map k) (funext (left_iso a.net b.net))
+    | inr u =>
+      change (g'.uparents (b.ugen u)).map _ = ((g.uparents u).map _).map _
+      rw [b.uparents, List.map_map, List.map_map]
+      exact congrArg (fun k => (g.uparents u).map k) (funext (right_iso a.net b.net))
+
+/-- The identity is a left unit up to isomorphism. -/
+def id_comp_iso (f : IDNet X Y) : Iso ((identity X).comp f) f where
+  net := Net.id_comp_iso f.net
+  ugen := Equiv.emptySum Empty f.UGen
+  ulabel u := by rcases u with u | u; exact u.elim; rfl
+  uparents u := by
+    rcases u with u | u
+    · exact u.elim
+    · change f.uparents u = ((f.uparents u).map (Net.right (Net.identity X) f.net)).map _
+      rw [List.map_map]
+      have h : (Sum.map id (Equiv.emptySum Empty f.net.Gen)) ∘
+          Net.right (Net.identity X) f.net = id := by
+        funext v
+        cases v <;> rfl
+      exact ((congrArg (fun k => (f.uparents u).map k) h).trans (List.map_id _)).symm
+
+/-- The identity is a right unit up to isomorphism. -/
+def comp_id_iso (f : IDNet X Y) : Iso (f.comp (identity Y)) f where
+  net := Net.comp_id_iso f.net
+  ugen := Equiv.sumEmpty f.UGen Empty
+  ulabel u := by rcases u with u | u; rfl; exact u.elim
+  uparents u := by
+    rcases u with u | u
+    · change f.uparents u = ((f.uparents u).map (Net.left f.net (Net.identity Y))).map _
+      rw [List.map_map]
+      have h : (Sum.map id (Equiv.sumEmpty f.net.Gen Empty)) ∘
+          Net.left f.net (Net.identity Y) = id := by
+        funext v
+        cases v <;> rfl
+      exact ((congrArg (fun k => (f.uparents u).map k) h).trans (List.map_id _)).symm
+    · exact u.elim
+
+/-- Serial composition is associative up to isomorphism. -/
+def assoc_iso (f : IDNet X Y) (g : IDNet Y Z) (h : IDNet Z W) :
+    Iso ((f.comp g).comp h) (f.comp (g.comp h)) where
+  net := Net.assoc_iso f.net g.net h.net
+  ugen := Equiv.sumAssoc f.UGen g.UGen h.UGen
+  ulabel u := by rcases u with (u | u) | u <;> rfl
+  uparents u := by
+    rcases u with (u | u) | u
+    · change (f.uparents u).map _ = (((f.uparents u).map _).map _).map _
+      simp only [List.map_map]
+      congr 1; funext v; cases v <;> rfl
+    · change ((g.uparents u).map _).map _ = (((g.uparents u).map _).map _).map _
+      simp only [List.map_map]
+      congr 1; funext v
+      cases v with
+      | inl y =>
+        change Net.right f.net (g.net.comp h.net) (Sum.inl y) = _
+        cases e : f.net.output y <;>
+          simp [Net.right, Net.left, e, Function.comp_def] <;> rfl
+      | inr b => rfl
+    · change ((h.uparents u).map _).map _ = ((h.uparents u).map _).map _
+      simp only [List.map_map]
+      congr 1; funext v
+      cases v with
+      | inl z =>
+        cases eg : g.net.output z with
+        | inl y =>
+          cases ef : f.net.output y <;>
+            (simp [Net.comp, Net.right, Net.left, eg, ef, Function.comp_def]; try rfl)
+        | inr b => simp [Net.comp, Net.right, Net.left, eg, Function.comp_def]; rfl
+      | inr c => rfl
+
+end IDNet
+```
+
+### Invariance of the semantics
+
+```lean
+namespace IDInterpretation
+
+variable (M : IDInterpretation S) (β : M.Behaviour)
+
+theorem rewardB_iso {f g : IDNet X Y} (a : f.Iso g) (x : (M.interpB β).Boundary X)
+    (z : (M.interpB β).Internal f.net) :
+    M.rewardB β g x ((M.interpB β).internalEquiv a.net z) = M.rewardB β f x z := by
+  unfold rewardB
+  symm
+  refine Fintype.sum_equiv a.ugen _ _ fun u => ?_
+  rw [a.ulabel, a.uparents, List.map_map]
+  congr 1
+  exact congrArg (fun k => (f.uparents u).map k)
+    (funext fun v => ((M.interpB β).valuation_iso a.net x z v).symm)
+
+/-- **Isomorphic diagrams have the same semantics** under every behavioural strategy. -/
+theorem interpretB_iso {f g : IDNet X Y} (a : f.Iso g) :
+    M.interpretB β f = M.interpretB β g := by
+  ext1
+  · exact (M.interpB β).kernel_iso a.net
+  · funext x y
+    change M.rewardTableB β f x y = M.rewardTableB β g x y
+    unfold rewardTableB
+    refine Fintype.sum_equiv ((M.interpB β).internalEquiv a.net) _ _ fun z => ?_
+    rw [(M.interpB β).read_iso, (M.interpB β).joint_iso, M.rewardB_iso β a]
+
+/-- **Isomorphic diagrams have the same semantics** under every deterministic strategy. -/
+theorem interpret_iso (σ : M.Strategy) {f g : IDNet X Y} (a : f.Iso g) :
+    M.interpret σ f = M.interpret σ g :=
+  M.interpretB_iso (M.pointMass σ) a
+
+end IDInterpretation
+```
+
+### The syntax category and the semantic functor
+
+```lean
+/-- The syntax category of open influence diagrams: its objects are typed interfaces. -/
+structure IDCat (S : IDSignature) where
+  /-- The interface. -/
+  iface : S.Iface
+
+/-- Open influence diagrams `X → Y` up to isomorphism. -/
+abbrev IDHom (X Y : S.Iface) := Quotient (IDNet.setoid X Y)
+
+/-- The class of an open influence diagram. -/
+def IDHom.mk (f : IDNet X Y) : IDHom X Y := Quotient.mk _ f
+
+theorem IDHom.mk_eq_iff (f g : IDNet X Y) : IDHom.mk f = IDHom.mk g ↔ Nonempty (f.Iso g) :=
+  Quotient.eq
+
+/-- Serial composition of classes. -/
+def IDHom.comp (f : IDHom X Y) (g : IDHom Y Z) : IDHom X Z :=
+  Quotient.liftOn₂ f g (fun a b => IDHom.mk (a.comp b))
+    (fun _ _ _ _ ⟨a⟩ ⟨b⟩ => Quotient.sound ⟨a.comp b⟩)
+
+@[simp] theorem IDHom.comp_mk (f : IDNet X Y) (g : IDNet Y Z) :
+    IDHom.comp (IDHom.mk f) (IDHom.mk g) = IDHom.mk (f.comp g) := rfl
+
+instance IDCat.category : Category (IDCat S) where
+  Hom A B := IDHom A.iface B.iface
+  id A := IDHom.mk (IDNet.identity A.iface)
+  comp := IDHom.comp
+  id_comp := by
+    intro A B f
+    induction f using Quotient.inductionOn with | _ f =>
+      exact Quotient.sound ⟨IDNet.id_comp_iso f⟩
+  comp_id := by
+    intro A B f
+    induction f using Quotient.inductionOn with | _ f =>
+      exact Quotient.sound ⟨IDNet.comp_id_iso f⟩
+  assoc := by
+    intro A B C D f g h
+    induction f, g using Quotient.inductionOn₂ with | _ f g =>
+      induction h using Quotient.inductionOn with | _ h =>
+        exact Quotient.sound ⟨IDNet.assoc_iso f g h⟩
+
+namespace IDInterpretation
+
+variable (M : IDInterpretation S) (β : M.Behaviour)
+
+/-- The semantics of a class: the semantics of any representative. -/
+def interpretClass {X Y : S.Iface} (f : IDHom X Y) :
+    (⟨(M.interpB β).Boundary X⟩ : FinRew) ⟶ ⟨(M.interpB β).Boundary Y⟩ :=
+  Quotient.liftOn f (fun a => ⟨M.interpretB β a, M.interpretB_stochastic β a⟩)
+    (fun _ _ ⟨i⟩ => Subtype.ext (M.interpretB_iso β i))
+
+/-- **The semantics is a functor** from the syntax category of open influence diagrams up to
+isomorphism to `FinRew`, for every behavioural strategy. -/
+def interpretFunctor : IDCat S ⥤ FinRew where
+  obj A := ⟨(M.interpB β).Boundary A.iface⟩
+  map f := M.interpretClass β f
+  map_id A := Subtype.ext (M.interpretB_identity β A.iface)
+  map_comp := by
+    intro A B C f g
+    induction f, g using Quotient.inductionOn₂ with | _ f g =>
+      exact Subtype.ext (M.interpretB_comp β f g)
+
+/-- The functor sends the class of a diagram to its semantics. -/
+theorem interpretFunctor_map {A B : IDCat S} (f : IDNet A.iface B.iface) :
+    ((M.interpretFunctor β).map (IDHom.mk f : A ⟶ B)).val = M.interpretB β f := rfl
+
+/-- For a deterministic strategy, the functor of its point masses sends a diagram to
+`interpret σ f`. -/
+theorem interpretFunctor_pointMass (σ : M.Strategy) {A B : IDCat S}
+    (f : IDNet A.iface B.iface) :
+    ((M.interpretFunctor (M.pointMass σ)).map (IDHom.mk f : A ⟶ B)).val = M.interpret σ f :=
+  rfl
+
+end IDInterpretation
+
+end OpenInfluence
+```
+
+
 <!-- CategoricalInfluenceDiagramsProofs/Certificate/Record.lean -->
 
 # Reward certificates: the record
@@ -6313,6 +7468,850 @@ def readOperation (text : String) : Except String (Bool × Composition) := do
 def readComposition (text : String) : Except String Composition := do
   let j ← OpenNet.CertificateSyntax.parse text
   decodeComposition j
+
+end Json
+
+end OpenInfluence.RewardCertificate
+```
+
+
+<!-- CategoricalInfluenceDiagramsProofs/Certificate/Colimit.lean -->
+
+# Colimit certificates: the composite's structure, and its exact semantics (ADR 0025)
+
+```lean
+import CategoricalInfluenceDiagramsProofs.Certificate.Sound
+import CategoricalInfluenceDiagramsProofs.Certificate.Json
+```
+
+A composition or tensor certificate (ADR 0023) checks a composite's *numbers* against its
+parts', cell by cell, up to a tolerance; the structure, that Julia's composite is the colimit
+of its parts, stays trusted. A **colimit certificate** records the parts, the composite and
+Catlab's cocone maps (`legs`): for every part, where each of its variables, generators and
+utilities went in the composite. The checker (`Colimit.check`) accepts when every reward
+certificate is accepted and the legs are a colimit witness (`Wired`):
+
+* the generator maps of the parts together are a bijection onto the composite's generators,
+  and likewise for utilities (`genInj`, `genSurj`, `utilInj`, `utilSurj`);
+* the variable maps preserve attributes, and each generator keeps its label, its target, its
+  ordered parents, its chance table and (for a decision) its recorded policy; each utility its
+  ordered scope and its table (`attrs`, `labels`, `targets`, `parents`, `tables`, `policies`,
+  `scopes`, `ucells`);
+* only boundary variables are identified: two distinct part variables with one image are both
+  input or output rows of their parts (`joins`);
+* every output row of the composite is an input row of it or the image of a boundary row of a
+  part (`outputs`).
+
+This is the structure of a colimit of the parts along their interfaces (a pushout for
+`compose` and `glue`, a coproduct for `otimes`, the colimit of a wiring diagram for `oapply`),
+checked on the records, with Catlab's cocone as the witness.
+
+**The semantics** (`colimit_exactK`, `colimit_exactW`). Call a choice `t` of boundary
+coordinates for every part *consistent* with composite coordinates `x`, `y` when any two rows,
+of the parts or of the composite, whose variables have one image carry one state
+(`Consistent`). Then, exactly, with no tolerance,
+
+`K_C(x, y) = Σ_t [t consistent] Π_i K_i(t_i)` and
+`W_C(x, y) = Σ_t [t consistent] Σ_i W_i(t_i) Π_{j ≠ i} K_j(t_j)`:
+
+the composite's semantics is the junction sum of the parts' semantics in the expectation
+semiring. For `compose` it is `(K_A K_B, W_A K_B + K_A W_B)`, for `otimes` the tensor; for
+`glue` and `oapply` the sum over the shared variables. By `interpret_K_eq` and
+`interpret_W_eq` (`Sound.lean`) every certificate's exact tables are `interpret σ f` of its
+decoded diagram. The proof is a bijection: the composite's generator states split into the
+parts' (`split`), every part variable takes the composite value of its image (`valueP`), the
+joint weight and the reward factor over the parts (`joint_split`, `reward_split`), and the
+only consistent choice of boundary coordinates compatible with the parts' outputs is the one
+the composite's values give (`ports_unique`).
+
+**Not claimed.** The decoded composite is not shown to be `IDNet.comp` of the decoded parts
+as `IDNet`s: the isomorphism is checked on the records, and its consequence for the
+semantics is proved here; `SyntaxCategory` proves separately that `interpret` respects
+isomorphism of `IDNet`s.
+
+```lean
+set_option autoImplicit false
+
+namespace OpenInfluence.RewardCertificate
+
+open OpenNet.RawCertificate
+open InfluenceDiagramsProofs.DVECertificate (Value.toRat)
+
+/-- One leg of a colimit certificate: for each variable, generator and utility of a part, its
+0-based index in the composite. -/
+structure Leg where
+  vars : List ℕ
+  gens : List ℕ
+  utils : List ℕ
+  deriving DecidableEq, Repr
+
+/-- A decoded `OpenInfluence.ColimitCertificate/v1`. -/
+structure Colimit where
+  operation : String
+  parts : List Certificate
+  composite : Certificate
+  legs : List Leg
+
+/-- The format string of version 1. -/
+def colimitFormatName : String := "OpenInfluence.ColimitCertificate/v1"
+```
+
+## Facts about one certificate
+
+```lean
+namespace Certificate
+
+variable (c : Certificate)
+
+/-- A variable is a boundary variable: the variable of an input or an output row. -/
+def IsBoundary (v : Fin c.network.variableCount) : Prop :=
+  (∃ k, c.network.input k = v) ∨ ∃ k, c.network.output k = v
+
+instance (v : Fin c.network.variableCount) : Decidable (c.IsBoundary v) := by
+  unfold IsBoundary
+  infer_instance
+
+/-- The recorded actions of the policy that a decision label reads, if any. -/
+def policyActions (l : LabelAttrs) : Option (List ℕ) :=
+  (policyName? l.kernelRef).bind fun nm => (c.policyOf nm).map Policy.actions
+
+theorem rawAction_eq (l : LabelAttrs) (vals : List ℕ) :
+    c.rawAction l vals =
+      ((c.policyActions l).map fun a => a.getD (flatIndex (inputAxes l vals)) 0).getD 0 := by
+  unfold rawAction policyActions
+  rcases policyName? l.kernelRef with _ | nm
+  · rfl
+  · dsimp only [Option.bind_some]
+    rcases c.policyOf nm with _ | p <;> rfl
+
+theorem actionOf_congr {c d : Certificate} {l : LabelAttrs}
+    (h : c.policyActions l = d.policyActions l) (vals : List ℕ) :
+    c.actionOf l vals = d.actionOf l vals := by
+  unfold actionOf
+  rw [rawAction_eq, rawAction_eq, h]
+
+theorem isDecisionGen_eq (g : c.Gen) : c.isDecisionGen g = isPolicy (c.network.label g).kernelRef :=
+  rfl
+
+variable {c}
+
+theorem genOf_input (hv : c.network.Valid) (k : Fin c.network.inputs.length) :
+    c.genOf (c.network.input k) = none := by
+  unfold genOf
+  rw [List.find?_eq_none]
+  intro g _ hg
+  exact hv.2.2.2.2.1 k g (of_decide_eq_true hg).symm
+
+theorem inputOf_input (hv : c.network.Valid) (k : Fin c.network.inputs.length) :
+    c.inputOf (c.network.input k) = some k :=
+  find?_unique (List.mem_finRange k) (by simp) (fun _ _ h' => hv.2.2.2.1 (of_decide_eq_true h'))
+
+theorem genOf_target (hv : c.network.Valid) (g : c.Gen) :
+    c.genOf (c.network.target g) = some g :=
+  find?_unique (List.mem_finRange g) (by simp) (fun _ _ h' => hv.2.2.1 (of_decide_eq_true h'))
+
+theorem value_input (hv : c.network.Valid) (x : c.InCoord) (z : c.GenCoord)
+    (k : Fin c.network.inputs.length) : c.value x z (c.network.input k) = (x k).val := by
+  simp only [value, genOf_input hv, inputOf_input hv]
+
+theorem value_target (hv : c.network.Valid) (x : c.InCoord) (z : c.GenCoord) (g : c.Gen) :
+    c.value x z (c.network.target g) = (z g).val := by
+  simp only [value, genOf_target hv]
+
+theorem value_lt (hv : c.network.Valid) (x : c.InCoord) (z : c.GenCoord)
+    (v : Fin c.network.variableCount) : c.value x z v < dimension (c.network.attrs v) := by
+  rcases hv.2.2.2.2.2.1 v with ⟨k, rfl⟩ | ⟨g, rfl⟩
+  · rw [value_input hv, hv.2.2.2.2.2.2.1 k]
+    exact (x k).isLt
+  · rw [value_target hv]
+    exact (z g).isLt
+
+theorem cellQ_congr {a b : List Value} (h : a.map Value.toRat = b.map Value.toRat) (k : ℕ) :
+    cellQ a k = cellQ b k := by
+  unfold cellQ
+  rw [← List.getElem?_map, ← List.getElem?_map, h]
+
+end Certificate
+```
+
+## The colimit witness
+
+```lean
+namespace Colimit
+
+variable (cc : Colimit)
+
+/-- A part index. -/
+abbrev Part := Fin cc.parts.length
+
+/-- The part `i`. -/
+def part (i : cc.Part) : Certificate := cc.parts[i]
+
+/-- The leg of part `i` (empty when missing). -/
+def leg (i : cc.Part) : Leg := cc.legs.getD i ⟨[], [], []⟩
+
+/-- The image of variable `v` of part `i`. -/
+def vN (i : cc.Part) (v : ℕ) : ℕ := (cc.leg i).vars.getD v 0
+
+/-- The image of generator `g` of part `i`. -/
+def gN (i : cc.Part) (g : ℕ) : ℕ := (cc.leg i).gens.getD g 0
+
+/-- The image of utility `u` of part `i`. -/
+def uN (i : cc.Part) (u : ℕ) : ℕ := (cc.leg i).utils.getD u 0
+
+/-- **The legs are a colimit witness**: bijective on generators and utilities, preserving
+attributes, labels, targets, parents, tables, policies and scopes, identifying only boundary
+variables, and covering the composite's outputs. -/
+structure Wired : Prop where
+  vars : ∀ i (v : Fin (cc.part i).network.variableCount),
+    cc.vN i v < cc.composite.network.variableCount
+  gens : ∀ i (g : (cc.part i).Gen), cc.gN i g < cc.composite.network.mechanisms.length
+  utils : ∀ i (u : (cc.part i).UIdx), cc.uN i u < cc.composite.utilities.length
+  genInj : ∀ i (g : (cc.part i).Gen) i' (g' : (cc.part i').Gen),
+    cc.gN i g = cc.gN i' g' → i = i' ∧ g.val = g'.val
+  genSurj : ∀ c : cc.composite.Gen, ∃ i, ∃ g : (cc.part i).Gen, cc.gN i g = c.val
+  utilInj : ∀ i (u : (cc.part i).UIdx) i' (u' : (cc.part i').UIdx),
+    cc.uN i u = cc.uN i' u' → i = i' ∧ u.val = u'.val
+  utilSurj : ∀ c : cc.composite.UIdx, ∃ i, ∃ u : (cc.part i).UIdx, cc.uN i u = c.val
+  attrs : ∀ i (v : Fin (cc.part i).network.variableCount)
+    (h : cc.vN i v < cc.composite.network.variableCount),
+    cc.composite.network.attrs ⟨_, h⟩ = (cc.part i).network.attrs v
+  labels : ∀ i (g : (cc.part i).Gen) (h : cc.gN i g < cc.composite.network.mechanisms.length),
+    cc.composite.network.label ⟨_, h⟩ = (cc.part i).network.label g
+  targets : ∀ i (g : (cc.part i).Gen) (h : cc.gN i g < cc.composite.network.mechanisms.length),
+    (cc.composite.network.target ⟨_, h⟩).val = cc.vN i ((cc.part i).network.target g)
+  parents : ∀ i (g : (cc.part i).Gen) (h : cc.gN i g < cc.composite.network.mechanisms.length),
+    (cc.composite.network.parents ⟨_, h⟩).map Fin.val =
+      ((cc.part i).network.parents g).map fun v : Fin _ => cc.vN i v.val
+  tables : ∀ i (g : (cc.part i).Gen) (h : cc.gN i g < cc.composite.network.mechanisms.length),
+    (cc.composite.tableOf ⟨_, h⟩).map Value.toRat = ((cc.part i).tableOf g).map Value.toRat
+  policies : ∀ i (g : (cc.part i).Gen),
+    cc.composite.policyActions ((cc.part i).network.label g) =
+      (cc.part i).policyActions ((cc.part i).network.label g)
+  scopes : ∀ i (u : (cc.part i).UIdx) (h : cc.uN i u < cc.composite.utilities.length),
+    (cc.composite.scope ⟨_, h⟩).map Fin.val = ((cc.part i).scope u).map fun v : Fin _ => cc.vN i v.val
+  ucells : ∀ i (u : (cc.part i).UIdx) (h : cc.uN i u < cc.composite.utilities.length),
+    (cc.composite.utilities[cc.uN i u].cells).map Value.toRat =
+      ((cc.part i).utilities[u].cells).map Value.toRat
+  joins : ∀ i (v : Fin (cc.part i).network.variableCount) i'
+    (v' : Fin (cc.part i').network.variableCount), cc.vN i v = cc.vN i' v' →
+      (i = i' ∧ v.val = v'.val) ∨ ((cc.part i).IsBoundary v ∧ (cc.part i').IsBoundary v')
+  outputs : ∀ j : Fin cc.composite.network.outputs.length,
+    (∃ k, cc.composite.network.input k = cc.composite.network.output j) ∨
+      ∃ i, ∃ v : Fin (cc.part i).network.variableCount,
+        (cc.part i).IsBoundary v ∧ cc.vN i v = (cc.composite.network.output j).val
+
+set_option synthInstance.maxSize 4096 in
+set_option synthInstance.maxHeartbeats 400000 in
+instance : Decidable cc.Wired :=
+  decidable_of_iff
+    ((∀ i (v : Fin (cc.part i).network.variableCount),
+        cc.vN i v < cc.composite.network.variableCount) ∧
+      (∀ i (g : (cc.part i).Gen), cc.gN i g < cc.composite.network.mechanisms.length) ∧
+      (∀ i (u : (cc.part i).UIdx), cc.uN i u < cc.composite.utilities.length) ∧
+      (∀ i (g : (cc.part i).Gen) i' (g' : (cc.part i').Gen),
+        cc.gN i g = cc.gN i' g' → i = i' ∧ g.val = g'.val) ∧
+      (∀ c : cc.composite.Gen, ∃ i, ∃ g : (cc.part i).Gen, cc.gN i g = c.val) ∧
+      (∀ i (u : (cc.part i).UIdx) i' (u' : (cc.part i').UIdx),
+        cc.uN i u = cc.uN i' u' → i = i' ∧ u.val = u'.val) ∧
+      (∀ c : cc.composite.UIdx, ∃ i, ∃ u : (cc.part i).UIdx, cc.uN i u = c.val) ∧
+      (∀ i (v : Fin (cc.part i).network.variableCount)
+        (h : cc.vN i v < cc.composite.network.variableCount),
+        cc.composite.network.attrs ⟨_, h⟩ = (cc.part i).network.attrs v) ∧
+      (∀ i (g : (cc.part i).Gen) (h : cc.gN i g < cc.composite.network.mechanisms.length),
+        cc.composite.network.label ⟨_, h⟩ = (cc.part i).network.label g) ∧
+      (∀ i (g : (cc.part i).Gen) (h : cc.gN i g < cc.composite.network.mechanisms.length),
+        (cc.composite.network.target ⟨_, h⟩).val = cc.vN i ((cc.part i).network.target g)) ∧
+      (∀ i (g : (cc.part i).Gen) (h : cc.gN i g < cc.composite.network.mechanisms.length),
+        (cc.composite.network.parents ⟨_, h⟩).map Fin.val =
+          ((cc.part i).network.parents g).map fun v : Fin _ => cc.vN i v.val) ∧
+      (∀ i (g : (cc.part i).Gen) (h : cc.gN i g < cc.composite.network.mechanisms.length),
+        (cc.composite.tableOf ⟨_, h⟩).map Value.toRat =
+          ((cc.part i).tableOf g).map Value.toRat) ∧
+      (∀ i (g : (cc.part i).Gen),
+        cc.composite.policyActions ((cc.part i).network.label g) =
+          (cc.part i).policyActions ((cc.part i).network.label g)) ∧
+      (∀ i (u : (cc.part i).UIdx) (h : cc.uN i u < cc.composite.utilities.length),
+        (cc.composite.scope ⟨_, h⟩).map Fin.val =
+          ((cc.part i).scope u).map fun v : Fin _ => cc.vN i v.val) ∧
+      (∀ i (u : (cc.part i).UIdx) (h : cc.uN i u < cc.composite.utilities.length),
+        (cc.composite.utilities[cc.uN i u].cells).map Value.toRat =
+          ((cc.part i).utilities[u].cells).map Value.toRat) ∧
+      (∀ i (v : Fin (cc.part i).network.variableCount) i'
+        (v' : Fin (cc.part i').network.variableCount), cc.vN i v = cc.vN i' v' →
+          (i = i' ∧ v.val = v'.val) ∨
+            ((cc.part i).IsBoundary v ∧ (cc.part i').IsBoundary v')) ∧
+      (∀ j : Fin cc.composite.network.outputs.length,
+        (∃ k, cc.composite.network.input k = cc.composite.network.output j) ∨
+          ∃ i, ∃ v : Fin (cc.part i).network.variableCount,
+            (cc.part i).IsBoundary v ∧ cc.vN i v = (cc.composite.network.output j).val))
+    ⟨fun ⟨a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q⟩ =>
+        ⟨a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q⟩,
+      fun ⟨a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q⟩ =>
+        ⟨a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q⟩⟩
+```
+
+## Consistent boundary coordinates
+
+```lean
+/-- A choice of input and output coordinates for every part. -/
+abbrev Ports := ∀ i : cc.Part, (cc.part i).InCoord × (cc.part i).OutCoord
+
+/-- The rows of the colimit: the composite's input and output rows, then every part's. -/
+abbrev Row := (Fin cc.composite.network.inputs.length ⊕ Fin cc.composite.network.outputs.length) ⊕
+  Σ i : cc.Part, Fin (cc.part i).network.inputs.length ⊕ Fin (cc.part i).network.outputs.length
+
+/-- The composite variable of a row. -/
+def rowVar : cc.Row → ℕ
+  | .inl (.inl j) => (cc.composite.network.input j).val
+  | .inl (.inr j) => (cc.composite.network.output j).val
+  | .inr ⟨i, .inl k⟩ => cc.vN i ((cc.part i).network.input k)
+  | .inr ⟨i, .inr k⟩ => cc.vN i ((cc.part i).network.output k)
+
+/-- The 0-based state a row carries. -/
+def rowVal (x : cc.composite.InCoord) (y : cc.composite.OutCoord) (t : cc.Ports) : cc.Row → ℕ
+  | .inl (.inl j) => (x j).val
+  | .inl (.inr j) => (y j).val
+  | .inr ⟨i, .inl k⟩ => ((t i).1 k).val
+  | .inr ⟨i, .inr k⟩ => ((t i).2 k).val
+
+/-- The parts' boundary coordinates are consistent with the composite's: rows whose variables
+have one image carry one state. -/
+def Consistent (x : cc.composite.InCoord) (y : cc.composite.OutCoord) (t : cc.Ports) : Prop :=
+  ∀ r r', cc.rowVar r = cc.rowVar r' → cc.rowVal x y t r = cc.rowVal x y t r'
+
+instance (x : cc.composite.InCoord) (y : cc.composite.OutCoord) (t : cc.Ports) :
+    Decidable (cc.Consistent x y t) := by
+  unfold Consistent
+  infer_instance
+```
+
+## The checker
+
+```lean
+/-- **The colimit checker**: every part and the composite accepted, and the legs a colimit
+witness. -/
+def check (τ : ℚ) : Bool :=
+  cc.parts.all (fun c => c.check τ) && cc.composite.check τ && decide cc.Wired
+
+/-- The first failing stage, if any. -/
+def firstFailure (τ : ℚ) : Option String :=
+  match (List.finRange cc.parts.length).find? (fun i => !(cc.part i).check τ) with
+  | some i => some s!"part {i.val}: {((cc.part i).firstFailure τ).getD "unknown stage"}"
+  | none =>
+    if !cc.composite.check τ then
+      some s!"composite: {(cc.composite.firstFailure τ).getD "unknown stage"}"
+    else if !decide cc.Wired then
+      some "structure (the legs are not a colimit witness of the parts in the composite)"
+    else none
+
+theorem part_check {τ : ℚ} (h : cc.check τ = true) (i : cc.Part) : (cc.part i).check τ = true := by
+  unfold check at h
+  simp only [Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq] at h
+  exact h.1.1 _ (List.getElem_mem _)
+
+theorem composite_check {τ : ℚ} (h : cc.check τ = true) : cc.composite.check τ = true := by
+  unfold check at h
+  simp only [Bool.and_eq_true, decide_eq_true_eq] at h
+  exact h.1.2
+
+theorem wired_of_check {τ : ℚ} (h : cc.check τ = true) : cc.Wired := by
+  unfold check at h
+  simp only [Bool.and_eq_true, decide_eq_true_eq] at h
+  exact h.2
+```
+
+## The bijection of generator states
+
+```lean
+section Split
+
+variable {cc} (hw : cc.Wired)
+
+/-- The image of a part variable. -/
+def vm (i : cc.Part) (v : Fin (cc.part i).network.variableCount) :
+    Fin cc.composite.network.variableCount := ⟨cc.vN i v, hw.vars i v⟩
+
+/-- The image of a part generator. -/
+def gm (i : cc.Part) (g : (cc.part i).Gen) : cc.composite.Gen := ⟨cc.gN i g, hw.gens i g⟩
+
+/-- The image of a part utility. -/
+def um (i : cc.Part) (u : (cc.part i).UIdx) : cc.composite.UIdx := ⟨cc.uN i u, hw.utils i u⟩
+
+theorem gm_bijective : Function.Bijective (fun p : Σ i, (cc.part i).Gen => gm hw p.1 p.2) := by
+  constructor
+  · rintro ⟨i, g⟩ ⟨i', g'⟩ e
+    obtain ⟨rfl, hg⟩ := hw.genInj i g i' g' (congrArg Fin.val e)
+    rw [Fin.ext hg]
+  · intro c
+    obtain ⟨i, g, h⟩ := hw.genSurj c
+    exact ⟨⟨i, g⟩, Fin.ext h⟩
+
+theorem um_bijective : Function.Bijective (fun p : Σ i, (cc.part i).UIdx => um hw p.1 p.2) := by
+  constructor
+  · rintro ⟨i, u⟩ ⟨i', u'⟩ e
+    obtain ⟨rfl, hu⟩ := hw.utilInj i u i' u' (congrArg Fin.val e)
+    rw [Fin.ext hu]
+  · intro c
+    obtain ⟨i, u, h⟩ := hw.utilSurj c
+    exact ⟨⟨i, u⟩, Fin.ext h⟩
+
+/-- The generators of the composite are those of the parts. -/
+noncomputable def gEquiv : (Σ i, (cc.part i).Gen) ≃ cc.composite.Gen :=
+  Equiv.ofBijective _ (gm_bijective hw)
+
+/-- The utilities of the composite are those of the parts. -/
+noncomputable def uEquiv : (Σ i, (cc.part i).UIdx) ≃ cc.composite.UIdx :=
+  Equiv.ofBijective _ (um_bijective hw)
+
+theorem label_gm (i : cc.Part) (g : (cc.part i).Gen) :
+    cc.composite.network.label (gm hw i g) = (cc.part i).network.label g :=
+  hw.labels i g _
+
+theorem dim_gm (i : cc.Part) (g : (cc.part i).Gen) :
+    dimension (cc.composite.network.label (gm hw i g)).result =
+      dimension ((cc.part i).network.label g).result := by
+  rw [label_gm]
+
+/-- A composite generator state read as the parts' generator states. -/
+def split (z : cc.composite.GenCoord) : ∀ i, (cc.part i).GenCoord :=
+  fun i g => Fin.cast (dim_gm hw i g) (z (gm hw i g))
+
+theorem split_val (z : cc.composite.GenCoord) (i : cc.Part) (g : (cc.part i).Gen) :
+    (split hw z i g).val = (z (gm hw i g)).val := rfl
+
+theorem split_bijective : Function.Bijective (split hw) := by
+  constructor
+  · intro z z' e
+    funext c
+    obtain ⟨⟨i, g⟩, rfl⟩ := (gm_bijective hw).2 c
+    have := congrArg (fun w => (w i g).val) e
+    exact Fin.ext this
+  · intro w
+    let F : (Σ i, (cc.part i).Gen) → ℕ := fun p => (w p.1 p.2).val
+    have hF : ∀ c : cc.composite.Gen,
+        F ((gEquiv hw).symm c) < dimension (cc.composite.network.label c).result := by
+      intro c
+      have hc : gm hw ((gEquiv hw).symm c).1 ((gEquiv hw).symm c).2 = c :=
+        (gEquiv hw).apply_symm_apply c
+      exact lt_of_lt_of_eq (w ((gEquiv hw).symm c).1 ((gEquiv hw).symm c).2).isLt
+        ((dim_gm hw _ _).symm.trans
+          (congrArg (fun c' => dimension (cc.composite.network.label c').result) hc))
+    refine ⟨fun c => ⟨F ((gEquiv hw).symm c), hF c⟩, ?_⟩
+    funext i g
+    apply Fin.ext
+    rw [split_val]
+    change F ((gEquiv hw).symm (gEquiv hw ⟨i, g⟩)) = F ⟨i, g⟩
+    rw [Equiv.symm_apply_apply]
+
+end Split
+```
+
+## Values, weights and rewards factor over the parts
+
+```lean
+section Factor
+
+variable {cc} (hw : cc.Wired) (hC : cc.composite.network.Valid)
+  (hP : ∀ i, (cc.part i).network.Valid)
+
+theorem vm_target (i : cc.Part) (g : (cc.part i).Gen) :
+    vm hw i ((cc.part i).network.target g) = cc.composite.network.target (gm hw i g) :=
+  Fin.ext (hw.targets i g _).symm
+
+theorem attrs_vm (i : cc.Part) (v : Fin (cc.part i).network.variableCount) :
+    cc.composite.network.attrs (vm hw i v) = (cc.part i).network.attrs v :=
+  hw.attrs i v _
+
+/-- The input coordinates of part `i` that the composite's values give. -/
+def xin (x : cc.composite.InCoord) (z : cc.composite.GenCoord) (i : cc.Part) :
+    (cc.part i).InCoord := fun k =>
+  ⟨cc.composite.value x z (vm hw i ((cc.part i).network.input k)), by
+    have h := Certificate.value_lt hC x z (vm hw i ((cc.part i).network.input k))
+    rwa [attrs_vm, (hP i).2.2.2.2.2.2.1 k] at h⟩
+
+/-- The output coordinates of part `i` that the composite's values give. -/
+def yout (x : cc.composite.InCoord) (z : cc.composite.GenCoord) (i : cc.Part) :
+    (cc.part i).OutCoord := fun k =>
+  ⟨cc.composite.value x z (vm hw i ((cc.part i).network.output k)), by
+    have h := Certificate.value_lt hC x z (vm hw i ((cc.part i).network.output k))
+    rwa [attrs_vm, (hP i).2.2.2.2.2.2.2.1 k] at h⟩
+
+/-- **Every part variable takes the composite value of its image.** -/
+theorem valueP (x : cc.composite.InCoord) (z : cc.composite.GenCoord) (i : cc.Part)
+    (v : Fin (cc.part i).network.variableCount) :
+    (cc.part i).value (xin hw hC hP x z i) (split hw z i) v =
+      cc.composite.value x z (vm hw i v) := by
+  rcases (hP i).2.2.2.2.2.1 v with ⟨k, rfl⟩ | ⟨g, rfl⟩
+  · rw [Certificate.value_input (hP i)]
+    rfl
+  · rw [Certificate.value_target (hP i), split_val, vm_target, Certificate.value_target hC]
+
+theorem parents_gm (i : cc.Part) (g : (cc.part i).Gen) :
+    cc.composite.network.parents (gm hw i g) =
+      ((cc.part i).network.parents g).map (vm hw i) := by
+  apply List.map_injective_iff.2 Fin.val_injective
+  rw [List.map_map]
+  exact hw.parents i g (hw.gens i g)
+
+theorem weight_gm (x : cc.composite.InCoord) (z : cc.composite.GenCoord) (i : cc.Part)
+    (g : (cc.part i).Gen) :
+    cc.composite.genWeight x z (gm hw i g) =
+      (cc.part i).genWeight (xin hw hC hP x z i) (split hw z i) g := by
+  have hvals : (cc.composite.network.parents (gm hw i g)).map (cc.composite.value x z) =
+      ((cc.part i).network.parents g).map
+        ((cc.part i).value (xin hw hC hP x z i) (split hw z i)) := by
+    rw [parents_gm, List.map_map]
+    exact List.map_congr_left fun v _ => (valueP hw hC hP x z i v).symm
+  have hdec : cc.composite.isDecisionGen (gm hw i g) = (cc.part i).isDecisionGen g := by
+    rw [Certificate.isDecisionGen_eq, Certificate.isDecisionGen_eq, label_gm]
+  have hact : cc.composite.actionOf (cc.composite.network.label (gm hw i g))
+      ((cc.composite.network.parents (gm hw i g)).map (cc.composite.value x z)) =
+      (cc.part i).actionOf ((cc.part i).network.label g) (((cc.part i).network.parents g).map
+        ((cc.part i).value (xin hw hC hP x z i) (split hw z i))) := by
+    rw [label_gm, hvals]
+    exact Certificate.actionOf_congr (hw.policies i g) _
+  have hch : ∀ s, chanceAt (cc.composite.tableOf (gm hw i g))
+      (cc.composite.network.label (gm hw i g))
+      ((cc.composite.network.parents (gm hw i g)).map (cc.composite.value x z)) s =
+      chanceAt ((cc.part i).tableOf g) ((cc.part i).network.label g)
+        (((cc.part i).network.parents g).map
+          ((cc.part i).value (xin hw hC hP x z i) (split hw z i))) s := by
+    intro s
+    rw [label_gm, hvals]
+    unfold chanceAt
+    exact Certificate.cellQ_congr (hw.tables i g (hw.gens i g)) _
+  unfold Certificate.genWeight
+  rw [hdec, hact, hch, split_val]
+
+theorem joint_split (x : cc.composite.InCoord) (z : cc.composite.GenCoord) :
+    cc.composite.joint x z =
+      ∏ i, (cc.part i).joint (xin hw hC hP x z i) (split hw z i) := by
+  unfold Certificate.joint
+  rw [← Fintype.prod_equiv (gEquiv hw) (fun p => cc.composite.genWeight x z (gm hw p.1 p.2))
+    _ (fun _ => rfl), Fintype.prod_sigma]
+  exact Finset.prod_congr rfl fun i _ => Finset.prod_congr rfl fun g _ => weight_gm hw hC hP x z i g
+
+theorem scope_um (i : cc.Part) (u : (cc.part i).UIdx) :
+    cc.composite.scope (um hw i u) = ((cc.part i).scope u).map (vm hw i) := by
+  apply List.map_injective_iff.2 Fin.val_injective
+  rw [List.map_map]
+  exact hw.scopes i u (hw.utils i u)
+
+theorem reward_split (x : cc.composite.InCoord) (z : cc.composite.GenCoord) :
+    cc.composite.reward x z =
+      ∑ i, (cc.part i).reward (xin hw hC hP x z i) (split hw z i) := by
+  unfold Certificate.reward
+  rw [← Fintype.sum_equiv (uEquiv hw) (fun p => utilityAt cc.composite.utilities[um hw p.1 p.2].cells
+    (cc.composite.utilityLabel (um hw p.1 p.2))
+    ((cc.composite.scope (um hw p.1 p.2)).map (cc.composite.value x z))) _ (fun _ => rfl),
+    Fintype.sum_sigma]
+  refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun u _ => ?_
+  have hlab : (cc.composite.utilityLabel (um hw i u)).inputs =
+      ((cc.part i).utilityLabel u).inputs := by
+    change (cc.composite.scope (um hw i u)).map cc.composite.network.attrs =
+      ((cc.part i).scope u).map (cc.part i).network.attrs
+    rw [scope_um, List.map_map]
+    exact List.map_congr_left fun v _ => attrs_vm hw i v
+  have hvals : (cc.composite.scope (um hw i u)).map (cc.composite.value x z) =
+      ((cc.part i).scope u).map ((cc.part i).value (xin hw hC hP x z i) (split hw z i)) := by
+    rw [scope_um, List.map_map]
+    exact List.map_congr_left fun v _ => (valueP hw hC hP x z i v).symm
+  unfold utilityAt
+  rw [hlab, hvals]
+  exact Certificate.cellQ_congr (hw.ucells i u _) _
+
+/-- The parts' boundary coordinates that the composite's values give. -/
+def tz (x : cc.composite.InCoord) (z : cc.composite.GenCoord) : cc.Ports :=
+  fun i => (xin hw hC hP x z i, yout hw hC hP x z i)
+
+theorem reads_tz (x : cc.composite.InCoord) (z : cc.composite.GenCoord) (i : cc.Part) :
+    (cc.part i).Reads (xin hw hC hP x z i) (split hw z i) (yout hw hC hP x z i) := by
+  intro k
+  rw [valueP]
+  rfl
+
+/-- Every row of the choice `tz`, other than the composite's outputs, carries the composite
+value of its variable. -/
+theorem rowVal_tz (x : cc.composite.InCoord) (y : cc.composite.OutCoord)
+    (z : cc.composite.GenCoord) (r : cc.Row) (hr : ∀ j, r ≠ .inl (.inr j))
+    (hv : cc.rowVar r < cc.composite.network.variableCount) :
+    cc.rowVal x y (tz hw hC hP x z) r = cc.composite.value x z ⟨cc.rowVar r, hv⟩ := by
+  rcases r with (j | j) | ⟨i, k | k⟩
+  · change (x j).val = _
+    rw [← Certificate.value_input hC x z j]
+    rfl
+  · exact absurd rfl (hr j)
+  · rfl
+  · rfl
+
+/-- **The choice `tz` is consistent exactly when the composite reads `y`.** -/
+theorem consistent_tz_iff (x : cc.composite.InCoord) (y : cc.composite.OutCoord)
+    (z : cc.composite.GenCoord) :
+    cc.Consistent x y (tz hw hC hP x z) ↔ cc.composite.Reads x z y := by
+  have hlt : ∀ r : cc.Row, cc.rowVar r < cc.composite.network.variableCount := by
+    rintro ((j | j) | ⟨i, k | k⟩)
+    · exact (cc.composite.network.input j).isLt
+    · exact (cc.composite.network.output j).isLt
+    · exact hw.vars i _
+    · exact hw.vars i _
+  constructor
+  · intro hcons j
+    rcases hw.outputs j with ⟨k, hk⟩ | ⟨i, v, hb, hv⟩
+    · have := hcons (.inl (.inr j)) (.inl (.inl k)) (by simp [rowVar, hk])
+      change (y j).val = (x k).val at this
+      rw [this, ← hk, Certificate.value_input hC]
+    · rcases hb with ⟨k, rfl⟩ | ⟨k, rfl⟩
+      · have := hcons (.inl (.inr j)) (.inr ⟨i, .inl k⟩) (by simp only [rowVar]; exact hv.symm)
+        change (y j).val = cc.composite.value x z (vm hw i ((cc.part i).network.input k)) at this
+        rw [this]
+        exact congrArg _ (Fin.ext hv)
+      · have := hcons (.inl (.inr j)) (.inr ⟨i, .inr k⟩) (by simp only [rowVar]; exact hv.symm)
+        change (y j).val = cc.composite.value x z (vm hw i ((cc.part i).network.output k)) at this
+        rw [this]
+        exact congrArg _ (Fin.ext hv)
+  · intro hreads
+    have hall : ∀ r, cc.rowVal x y (tz hw hC hP x z) r =
+        cc.composite.value x z ⟨cc.rowVar r, hlt r⟩ := by
+      intro r
+      by_cases hr : ∃ j, r = .inl (.inr j)
+      · obtain ⟨j, rfl⟩ := hr
+        exact hreads j
+      · push Not at hr
+        exact rowVal_tz hw hC hP x y z r hr (hlt r)
+    intro r r' e
+    rw [hall r, hall r']
+    exact congrArg _ (Fin.ext e)
+
+/-- **The only consistent choice compatible with the parts' outputs is `tz`.** -/
+theorem ports_unique (x : cc.composite.InCoord) (y : cc.composite.OutCoord)
+    (z : cc.composite.GenCoord) (t : cc.Ports) (hcons : cc.Consistent x y t)
+    (hreads : ∀ i, (cc.part i).Reads (t i).1 (split hw z i) (t i).2) :
+    t = tz hw hC hP x z := by
+  have hin : ∀ i, (t i).1 = xin hw hC hP x z i := by
+    intro i
+    funext k
+    apply Fin.ext
+    change ((t i).1 k).val = cc.composite.value x z (vm hw i ((cc.part i).network.input k))
+    rcases hC.2.2.2.2.2.1 (vm hw i ((cc.part i).network.input k)) with ⟨j, hj⟩ | ⟨c, hc⟩
+    · have := hcons (.inr ⟨i, .inl k⟩) (.inl (.inl j))
+        (by simp only [rowVar]; exact (congrArg Fin.val hj).symm)
+      change ((t i).1 k).val = (x j).val at this
+      rw [this, ← hj, Certificate.value_input hC]
+    · obtain ⟨⟨i', g'⟩, rfl⟩ := (gm_bijective hw).2 c
+      have hvt : vm hw i ((cc.part i).network.input k) =
+          vm hw i' ((cc.part i').network.target g') := by
+        rw [vm_target]
+        exact hc.symm
+      rcases hw.joins i _ i' _ (congrArg Fin.val hvt) with ⟨rfl, he⟩ | ⟨-, hb⟩
+      · exact absurd (Fin.ext he : (cc.part i).network.input k = (cc.part i).network.target g')
+          ((hP i).2.2.2.2.1 k g')
+      · rcases hb with ⟨k', hk'⟩ | ⟨k', hk'⟩
+        · exact absurd hk' ((hP i').2.2.2.2.1 k' g')
+        · have := hcons (.inr ⟨i, .inl k⟩) (.inr ⟨i', .inr k'⟩)
+            (by simp only [rowVar]; rw [hk']; exact congrArg Fin.val hvt)
+          change ((t i).1 k).val = ((t i').2 k').val at this
+          rw [this, hreads i' k', hk', Certificate.value_target (hP i'), split_val, ← hc,
+            Certificate.value_target hC]
+  funext i
+  refine Prod.ext (hin i) ?_
+  funext k
+  apply Fin.ext
+  change ((t i).2 k).val = cc.composite.value x z (vm hw i ((cc.part i).network.output k))
+  rw [hreads i k, hin i, valueP]
+
+end Factor
+```
+
+## The exact semantics of the composite
+
+```lean
+theorem sum_mul_prod_erase {ι : Type} [Fintype ι] [DecidableEq ι] {κ : ι → Type}
+    [∀ i, Fintype (κ i)] (A R : ∀ i, κ i → ℚ) :
+    ∑ i, (∑ a, A i a * R i a) * ∏ j ∈ Finset.univ.erase i, ∑ a, A j a =
+      ∑ w : (∀ i, κ i), (∏ i, A i (w i)) * ∑ i, R i (w i) := by
+  simp only [Finset.mul_sum]
+  rw [Finset.sum_comm]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  have hB : ∀ w : (∀ i, κ i), (∏ j, A j (w j)) * R i (w i) =
+      ∏ j, (A j (w j) * if j = i then R j (w j) else 1) := by
+    intro w
+    rw [Finset.prod_mul_distrib, Finset.prod_ite_eq' Finset.univ i, if_pos (Finset.mem_univ _)]
+  simp only [hB]
+  rw [← Fintype.prod_sum (fun j a => A j a * if j = i then R j a else 1),
+    ← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ i)]
+  simp only [if_pos]
+  congr 1
+  refine Finset.prod_congr rfl fun j hj => ?_
+  simp only [if_neg (Finset.ne_of_mem_erase hj), mul_one]
+
+section Exact
+
+variable {cc} (hw : cc.Wired) (hC : cc.composite.network.Valid)
+  (hP : ∀ i, (cc.part i).network.Valid)
+
+include hw hC hP
+
+open Classical in
+/-- **The composite's probability is the junction sum of the parts'**: exactly, the
+composite's `exactK` at `(x, y)` is the sum, over the parts' boundary coordinates consistent
+with `x` and `y`, of the product of the parts' `exactK`. -/
+theorem colimit_exactK (x : cc.composite.InCoord) (y : cc.composite.OutCoord) :
+    cc.composite.exactK x y = ∑ t : cc.Ports,
+      if cc.Consistent x y t then ∏ i, (cc.part i).exactK (t i).1 (t i).2 else 0 := by
+  have hrhs : ∀ t : cc.Ports, (if cc.Consistent x y t then
+      ∏ i, (cc.part i).exactK (t i).1 (t i).2 else 0) =
+      ∑ w : (∀ i, (cc.part i).GenCoord), if cc.Consistent x y t ∧
+        (∀ i, (cc.part i).Reads (t i).1 (w i) (t i).2) then
+          ∏ i, (cc.part i).joint (t i).1 (w i) else 0 := by
+    intro t
+    unfold Certificate.exactK
+    rw [Fintype.prod_sum]
+    by_cases hc : cc.Consistent x y t
+    · rw [if_pos hc]
+      refine Finset.sum_congr rfl fun w _ => ?_
+      rw [Finset.prod_ite_zero]
+      simp only [Finset.mem_univ, true_implies, hc, true_and]
+    · rw [if_neg hc]
+      simp [hc]
+  simp only [hrhs]
+  rw [Finset.sum_comm]
+  unfold Certificate.exactK
+  refine Fintype.sum_bijective (split hw) (split_bijective hw) _ _ fun z => ?_
+  symm
+  rw [Finset.sum_eq_single (tz hw hC hP x z)]
+  · by_cases hr : cc.composite.Reads x z y
+    · rw [if_pos hr, if_pos ⟨(consistent_tz_iff hw hC hP x y z).2 hr,
+        reads_tz hw hC hP x z⟩, joint_split hw hC hP]
+      rfl
+    · rw [if_neg hr, if_neg fun h => hr ((consistent_tz_iff hw hC hP x y z).1 h.1)]
+  · intro t _ ht
+    rw [if_neg]
+    exact fun h => ht (ports_unique hw hC hP x y z t h.1 h.2)
+  · exact fun h => absurd (Finset.mem_univ _) h
+
+open Classical in
+/-- **The composite's reward is the junction sum of the parts'** in the expectation
+semiring: exactly, the composite's `exactW` at `(x, y)` is the sum, over the consistent
+boundary coordinates, of `Σ_i W_i Π_{j ≠ i} K_j`. -/
+theorem colimit_exactW (x : cc.composite.InCoord) (y : cc.composite.OutCoord) :
+    cc.composite.exactW x y = ∑ t : cc.Ports,
+      if cc.Consistent x y t then ∑ i, (cc.part i).exactW (t i).1 (t i).2 *
+        ∏ j ∈ Finset.univ.erase i, (cc.part j).exactK (t j).1 (t j).2 else 0 := by
+  have hrhs : ∀ t : cc.Ports, (if cc.Consistent x y t then ∑ i, (cc.part i).exactW (t i).1 (t i).2 *
+        ∏ j ∈ Finset.univ.erase i, (cc.part j).exactK (t j).1 (t j).2 else 0) =
+      ∑ w : (∀ i, (cc.part i).GenCoord), if cc.Consistent x y t ∧
+        (∀ i, (cc.part i).Reads (t i).1 (w i) (t i).2) then
+          (∏ i, (cc.part i).joint (t i).1 (w i)) *
+            ∑ i, (cc.part i).reward (t i).1 (w i) else 0 := by
+    intro t
+    by_cases hc : cc.Consistent x y t
+    · rw [if_pos hc]
+      have hW : ∀ i, (cc.part i).exactW (t i).1 (t i).2 = ∑ a, (if (cc.part i).Reads (t i).1 a
+          (t i).2 then (cc.part i).joint (t i).1 a else 0) * (cc.part i).reward (t i).1 a := by
+        intro i
+        unfold Certificate.exactW
+        refine Finset.sum_congr rfl fun a _ => ?_
+        split_ifs <;> simp
+      have hK : ∀ i, (cc.part i).exactK (t i).1 (t i).2 = ∑ a, (if (cc.part i).Reads (t i).1 a
+          (t i).2 then (cc.part i).joint (t i).1 a else 0) := fun i => rfl
+      simp only [hW, hK]
+      rw [sum_mul_prod_erase (fun i a => if (cc.part i).Reads (t i).1 a (t i).2 then
+        (cc.part i).joint (t i).1 a else 0) (fun i a => (cc.part i).reward (t i).1 a)]
+      refine Finset.sum_congr rfl fun w _ => ?_
+      rw [Finset.prod_ite_zero]
+      simp only [Finset.mem_univ, true_implies, hc, true_and]
+      split_ifs <;> simp
+    · rw [if_neg hc]
+      simp [hc]
+  simp only [hrhs]
+  rw [Finset.sum_comm]
+  unfold Certificate.exactW
+  refine Fintype.sum_bijective (split hw) (split_bijective hw) _ _ fun z => ?_
+  symm
+  rw [Finset.sum_eq_single (tz hw hC hP x z)]
+  · by_cases hr : cc.composite.Reads x z y
+    · rw [if_pos hr, if_pos ⟨(consistent_tz_iff hw hC hP x y z).2 hr,
+        reads_tz hw hC hP x z⟩, joint_split hw hC hP, reward_split hw hC hP]
+      rfl
+    · rw [if_neg hr, if_neg fun h => hr ((consistent_tz_iff hw hC hP x y z).1 h.1)]
+  · intro t _ ht
+    rw [if_neg]
+    exact fun h => ht (ports_unique hw hC hP x y z t h.1 h.2)
+  · exact fun h => absurd (Finset.mem_univ _) h
+
+end Exact
+```
+
+## Soundness on acceptance
+
+```lean
+section Sound
+
+variable {cc} {τ : ℚ}
+
+theorem valid_composite (h : cc.check τ = true) : cc.composite.network.Valid :=
+  (Network.check_iff _).1 (Certificate.network_check_of_check (cc.composite_check h))
+
+theorem valid_part (h : cc.check τ = true) (i : cc.Part) : (cc.part i).network.Valid :=
+  (Network.check_iff _).1 (Certificate.network_check_of_check (cc.part_check h i))
+
+open Classical in
+/-- **Exact semantics on acceptance**: if the colimit checker accepts, the composite's exact
+probability is the junction sum of the parts'. -/
+theorem colimit_sound_K (h : cc.check τ = true) (x : cc.composite.InCoord)
+    (y : cc.composite.OutCoord) :
+    cc.composite.exactK x y = ∑ t : cc.Ports,
+      if cc.Consistent x y t then ∏ i, (cc.part i).exactK (t i).1 (t i).2 else 0 :=
+  colimit_exactK (cc.wired_of_check h) (valid_composite h) (valid_part h) x y
+
+open Classical in
+/-- **Exact semantics on acceptance**, for the reward. -/
+theorem colimit_sound_W (h : cc.check τ = true) (x : cc.composite.InCoord)
+    (y : cc.composite.OutCoord) :
+    cc.composite.exactW x y = ∑ t : cc.Ports,
+      if cc.Consistent x y t then ∑ i, (cc.part i).exactW (t i).1 (t i).2 *
+        ∏ j ∈ Finset.univ.erase i, (cc.part j).exactK (t j).1 (t j).2 else 0 :=
+  colimit_exactW (cc.wired_of_check h) (valid_composite h) (valid_part h) x y
+
+end Sound
+
+end Colimit
+```
+
+## Decoding
+
+```lean
+namespace Json
+
+open Lean (Json)
+open BayesianNetworksProofs.Raw (object)
+open InfluenceDiagramsProofs.DVECertificate (get getArr natOf strOf)
+
+/-- Decode a leg: exactly the keys `variables`, `generators` and `utilities`, each an array
+of natural numbers. -/
+def decodeLeg (j : Json) : Except String Leg := do
+  let o ← object "leg" 3 j
+  let vs ← getArr o "variables" (fun _ => natOf)
+  let gs ← getArr o "generators" (fun _ => natOf)
+  let us ← getArr o "utilities" (fun _ => natOf)
+  pure ⟨vs, gs, us⟩
+
+/-- Decode a colimit certificate: exactly the keys `format`, `operation`, `parts`,
+`composite` and `legs`. -/
+def decodeColimit (j : Json) : Except String Colimit := do
+  let o ← object "colimit" 5 j
+  get o "format" (constant colimitFormatName)
+  let op ← get o "operation" strOf
+  let ps ← getArr o "parts" (fun _ => decodeCertificate)
+  let c ← get o "composite" decodeCertificate
+  let ls ← getArr o "legs" (fun _ => decodeLeg)
+  pure ⟨op, ps, c, ls⟩
+
+/-- Read a colimit certificate from its text. -/
+def readColimit (text : String) : Except String Colimit := do
+  let j ← OpenNet.CertificateSyntax.parse text
+  decodeColimit j
 
 end Json
 

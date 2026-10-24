@@ -262,7 +262,14 @@ influence-diagram schema); later loads are fast.
   stops at an equilibrium. A decision name in two components is an `ArgumentError`. With
   `evidence` (split by `_component_evidence`, checked on the composite) or a state or effect
   as the chain's context, the contexts are states and effects (`_chain_states_effects`) and
-  every value is a conditional value (`_conditional_mode`, `_context_value`). This
+  every value is a conditional value (`_conditional_mode`, `_context_value`). Shared policies
+  (ADR 0024): `policy_regrets`, `is_policy_equilibrium` and `shared_policy_search` take
+  `shared`, groups of decision names (in any components) tied to the first one's policy
+  (`_policy_groups`, `_group_spaces`, `_tied`: copies are `StochasticPolicy`s on the tied
+  decision's own spaces, position by position); a regret is the largest sum over a policy's
+  uses of the gain from changing that use alone, found row by row (`_row_point_mass`), the
+  first-order condition of `SharedPolicy.shared_optimum_first_order`; the search is a grid
+  over behavioural strategies (`_grid_columns`), valued on the composite. No evidence. This
   is not the forbidden "optimise each component in isolation and compose": every best
   response is taken in the context the rest of the chain induces, and the result is
   documented as an equilibrium, which can be worse than `optimize`'s optimum (the Lean
@@ -270,6 +277,18 @@ influence-diagram schema); later loads are fast.
 - `proofs/.../Certificate/Fast.lean`: the checker's result stages accumulate a row of `K`
   and `W` per input state in one pass (`accRow`), proved equal to the cell-by-cell errors
   (`kErrorFast_eq`); keep `check` on the fast errors and `Accepted` on the slow ones.
+- Colimit certificates (ADR 0025): `export_colimit_certificate(op, A, B, ...)` (`:compose`,
+  `:otimes`, `:glue` with `along`) and `export_colimit_certificate(uwd, diagrams, ...)` write
+  `OpenInfluence.ColimitCertificate/v1`: the parts' and composite's reward certificates and
+  Catlab's cocone maps as `legs` (`_colimit_leg`: 0-based variable, generator (mechanisms,
+  then `nparts(:Mechanism)` plus decisions) and utility indices). The operations expose their
+  cocones through internal forms, `_compose_cocone`, `_glue_cocone` (which also returns the
+  second part as glued, renamed), `_otimes_cocone` and `_oapply_cocone` (Catlab's `oapply`
+  with `return_colimit = true`, the first `nboxes` legs); the public operations call them
+  and drop the cocone (`_cocone_leg` reads the `Variable`, `Mechanism`, `Decision` and
+  `Utility` components). `proofs/.../Certificate/Colimit.lean` checks the witness (`Wired`)
+  and proves the exact junction-sum semantics (`colimit_exactK`/`_W`); `check_composition`
+  reads it first; fixtures `colimit-*.json`, written by `colimit_fixtures()`.
 - Composition and tensor certificates (ADR 0023; `export_tensor_certificate` for `otimes`,
   `checkTensor`/`tensor_sound_K`/`_W`, `joinCoord` for side-by-side rows, read by the same
   `check_composition` through `Json.readOperation`): `export_composition_certificate(A, B, kernels,
@@ -350,7 +369,12 @@ influence-diagram schema); later loads are fast.
   `test_behaviour.jl` (ADR 0022: behavioural strategies against the oracle, functorial on
   random three-piece chains, never better than the deterministic optimum with or without
   evidence, regrets and best-response dynamics from a behavioural start),
-  `test_certificates.jl` (reward certificates: the umbrella
+  `test_shared.jl` (ADR 0024: the absent-minded driver as a chain with `shared`, regrets
+  against the derivative of `4p - 3p²`, the grid search finding `2/3`, positive untied
+  regrets at the shared optimum; on random chains regrets against finite differences and,
+  untied, against exact unilateral gains; errors),
+  `test_certificates.jl` (reward certificates and, under "colimit certificates", the legs
+  read back by name and the export errors; the umbrella
   split's cells by hand; every cell re-derived from `cpt`, `utility_value`, the policies
   and `kernel_matrix`/`reward_matrix` on the fixtures, the oil wildcatter's strategies and
   seeded random pieces; the model form; rational companions and their rounding; every
@@ -380,14 +404,21 @@ serial composition, equilibria compositional, optima equilibria, the coordinatio
 never better than the best component with or without evidence, a stochastic kernel the
 mixture of its rules and one randomised decision never better than a rule, the
 absent-minded driver)
+`Kuhn` (ADR 0022: with distinct decision labels every behavioural strategy is matched by a
+deterministic one, in expected utility and in conditional value given evidence, one row at
+a time), `SharedPolicy` (ADR 0024: first-order terms of paths of reward kernels, the product
+rule, the first-order condition at a shared optimum, the driver's per-use gains),
+`SyntaxCategory` (ADR 0025: `IDNet.Iso`, invariance of `interpret`, the category `IDCat` of
+diagrams up to isomorphism and `interpretFunctor`), `Certificate/Colimit` (ADR 0025),
 and `Evidence` (ADR 0021: effects and states, their actions functorial without
 normalisation, the mass and value pairings invariant across a boundary, observation
 idempotent, the local-normalisation witness, the likelihood-weighted interpretation
 functorial under serial composition and tensor). The
 restrictions in `proofs/README.md` ("Scope and restrictions") are part of every claim:
-`IDNet` is not quotiented by isomorphism, so functoriality is equations on
-representatives; the semantics does not read observability flags; nothing about arbitrary
-gluing or the Julia-to-Lean refinement is proved. Every theorem sentence in
+`IDNet` is quotiented by isomorphism for serial composition only (`SyntaxCategory`), the
+tensor staying an equation on representatives; the semantics does not read observability
+flags; colimit certificates check a composite's structure on the decoded records, not as an
+`IDNet.Iso`. Every theorem sentence in
 `proofs/README.md` is an SA-Pass claim (`cid.*` in the workspace
 `conformance/sapass/claims.toml`, shadows in `CategoricalInfluenceDiagramsProofs/Shadows/`,
 a `lean_lib` outside `defaultTargets`); change a sentence and its claim together. `make audit` checks every

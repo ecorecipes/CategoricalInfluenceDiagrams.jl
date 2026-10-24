@@ -86,3 +86,37 @@ the threat witness: not acting against an untested refusal is an equilibrium wor
 the perfect equilibria act and cooperate, worth the optimum 4. Perfection is meaningful when
 a component's decisions observe its inputs.
 
+## Shared policies
+
+Several components may have to use one policy: a rule applied every year, or decisions that
+cannot be told apart, as in the absent-minded driver. `compose` refuses two decisions of one
+name, so sharing is declared: `shared = [[:D1, :D2]]` ties `D2` to the policy of `D1`, which
+the strategy gives (position by position; the information states and actions must agree in
+size). The three functions of ADR 0024 take it.
+
+The optimum of a shared policy can be randomised. In the absent-minded driver, continuing
+with probability `2/3` at both junctions is worth `4/3`, and each deterministic policy is
+worth at most `1`. At that optimum each junction on its own would still change: continuing
+for sure at the first junction alone gains `2/3`. So the equilibria above, where each
+component best responds on its own, are the wrong notion. What holds at an optimum is the
+first-order condition of Piccione and Rubinstein's multi-self consistency. Change the policy
+towards another one, value each use's change alone in its own context, and the gains sum to
+at most zero. The Lean module `SharedPolicy` proves it (`shared_optimum_first_order`), from a
+product rule for serial composites, and gives the driver's per-use gains `2/3` and `-2/3`.
+
+- [`policy_regrets`](@ref) returns, for every policy, shared or not, the largest sum of
+  per-use gains over deterministic replacements: the first-order gain. For a policy used
+  once it is exactly the gain of changing that decision alone.
+- [`is_policy_equilibrium`](@ref) tests that every such regret is at most `tol`.
+- [`shared_policy_search`](@ref) searches behavioural strategies whose probabilities are
+  multiples of `1 / grid`, valuing each on the composite; the grid contains the deterministic
+  strategies and, for a suitable `grid`, the randomised optimum.
+
+```julia
+s = shared_policy_search(chain, kernels, utilities; shared = [[:X1, :X2]], grid = 3)
+policy_regrets(chain, kernels, utilities, s.strategy; shared = [[:X1, :X2]])
+```
+
+The first-order condition is necessary at an optimum, not sufficient. When every decision has
+its own policy, deterministic strategies suffice (Kuhn's theorem, proved in the Lean module
+`Kuhn` for open influence diagrams), and `optimize` on the closed composite finds the optimum.
