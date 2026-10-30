@@ -2286,6 +2286,16 @@ vertical-align: -.125em;
 <span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>               inputs <span class="op">=</span> [<span class="op">:</span>Burn1, <span class="op">:</span>Fuel1])</span>
 <span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>chain <span class="op">=</span> [season1, season2]</span>
 <span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="cn">nothing</span> <span class="co"># hide</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-green-fg ansi-bold">Precompiling</span> packages...
+   5575.0 ms<span class="ansi-green-fg">  ✓ </span>InfluenceDiagrams
+   5506.6 ms<span class="ansi-green-fg">  ✓ </span>CategoricalInfluenceDiagrams
+  2 dependencies successfully precompiled in 18 seconds. 139 already precompiled.
+  <span class="ansi-yellow-fg">28</span> dependencies precompiled but <span class="ansi-yellow-fg">different versions are currently loaded</span> (ArgTools, Base64, Dates, Downloads, InteractiveUtils, JuliaSyntaxHighlighting, LibCURL, LibCURL_jll, LibGit2, LibGit2_jll, LibSSH2_jll, Logging, Markdown, MozillaCACerts_jll, NetworkOptions, OpenSSL_jll, Pkg, Pkg → REPLExt, Printf, REPL, StyledStrings, TOML, Tar, UUIDs, Unicode, Zlib_jll, nghttp2_jll and p7zip_jll). Restart julia to access the new versions. Otherwise, 69 dependents of these packages may trigger further precompilation to work with the unexpected versions.
+</pre>
+</div>
+</div>
 </div>
 <p>The tables. A kernel’s table lists its outputs first: column <code>j</code> is the distribution of the child given the <code>j</code>-th parent state.</p>
 <div id="4" class="cell" data-execution_count="1">
@@ -2333,11 +2343,22 @@ vertical-align: -.125em;
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>                                                   <span class="fu">FiniteKernel</span>(<span class="fu">FiniteSpace</span>(),</span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>                                                                <span class="fu">FiniteSpace</span>(<span class="fu">ax</span>(<span class="op">:</span>Burn1, YN)),</span>
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>                                                                [<span class="fl">1</span> <span class="op">-</span> p, p])))</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>fixed <span class="op">=</span> <span class="fu">shared_policy_search</span>(chain, kernels, utilities; shared <span class="op">=</span> tie, grid <span class="op">=</span> <span class="fl">1</span>,</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>                             no_forgetting <span class="op">=</span> <span class="cn">false</span>)</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>fixed.value</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="fu">both_burn_with</span>(p) <span class="op">=</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Strategy</span>(<span class="op">:</span>Burn1 <span class="op">=&gt;</span> <span class="fu">StochasticPolicy</span>(<span class="op">:</span>Burn1,</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>                                        <span class="fu">FiniteKernel</span>(<span class="fu">FiniteSpace</span>(),</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>                                                     <span class="fu">FiniteSpace</span>(<span class="fu">ax</span>(<span class="op">:</span>Burn1, YN)),</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>                                                     [<span class="fl">1</span> <span class="op">-</span> p, p])),</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>             <span class="op">:</span>Burn2 <span class="op">=&gt;</span> <span class="fu">StochasticPolicy</span>(<span class="op">:</span>Burn2,</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>                                        <span class="fu">FiniteKernel</span>(<span class="fu">FiniteSpace</span>(),</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>                                                     <span class="fu">FiniteSpace</span>(<span class="fu">ax</span>(<span class="op">:</span>Burn2, YN)),</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>                                                     [<span class="fl">1</span> <span class="op">-</span> p, p])))</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>fixed <span class="op">=</span> <span class="fu">shared_policy_search</span>(chain, kernels, utilities; shared <span class="op">=</span> tie, grid <span class="op">=</span> <span class="fl">1</span>,</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>                             no_forgetting <span class="op">=</span> <span class="cn">false</span>)</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>(best_fixed <span class="op">=</span> fixed.value,</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a> never_burn <span class="op">=</span> <span class="fu">contextual_value</span>(whole, kernels, utilities, <span class="fu">both_burn_with</span>(<span class="fl">0.0</span>)),</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a> always_burn <span class="op">=</span> <span class="fu">contextual_value</span>(whole, kernels, utilities, <span class="fu">both_burn_with</span>(<span class="fl">1.0</span>)))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
-<pre><code>-2.0</code></pre>
+<pre><code>(best_fixed = -2.0, never_burn = -3.75, always_burn = -2.0)</code></pre>
 </div>
 </div>
 <p>The better fixed rule, burning every year, is worth −2; never burning is worth −3.75. A randomised rule does much better. On a grid of sevenths the search finds it:</p>

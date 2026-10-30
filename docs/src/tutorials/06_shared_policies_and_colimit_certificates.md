@@ -131,12 +131,23 @@ burn_with(p) = Strategy(:Burn1 => StochasticPolicy(:Burn1,
                                                    FiniteKernel(FiniteSpace(),
                                                                 FiniteSpace(ax(:Burn1, YN)),
                                                                 [1 - p, p])))
+both_burn_with(p) =
+    Strategy(:Burn1 => StochasticPolicy(:Burn1,
+                                        FiniteKernel(FiniteSpace(),
+                                                     FiniteSpace(ax(:Burn1, YN)),
+                                                     [1 - p, p])),
+             :Burn2 => StochasticPolicy(:Burn2,
+                                        FiniteKernel(FiniteSpace(),
+                                                     FiniteSpace(ax(:Burn2, YN)),
+                                                     [1 - p, p])))
 fixed = shared_policy_search(chain, kernels, utilities; shared = tie, grid = 1,
                              no_forgetting = false)
-fixed.value
+(best_fixed = fixed.value,
+ never_burn = contextual_value(whole, kernels, utilities, both_burn_with(0.0)),
+ always_burn = contextual_value(whole, kernels, utilities, both_burn_with(1.0)))
 ```
 
-    -2.0
+    (best_fixed = -2.0, never_burn = -3.75, always_burn = -2.0)
 
 The better fixed rule, burning every year, is worth −2; never burning is
 worth −3.75. A randomised rule does much better. On a grid of sevenths
