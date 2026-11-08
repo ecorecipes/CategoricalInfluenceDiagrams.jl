@@ -63,8 +63,8 @@ rendering is slow and depends on a Quarto installation. The `vignette-sync` job 
 Significant design decisions are recorded in `docs/adr/NNNN-title.md` (context, decision, consequences).
 Add a new record rather than editing an old one when a decision changes. The records are shared by the
 whole ecosystem: the canonical copies live in `docs/adr/` of the `bbn` development workspace and are
-copied here by `julia scripts/sync_adrs.jl` (`--check` fails when a copy is stale). Edit the workspace
-copy, never the copy in this repository.
+copied here by `julia scripts/sync_adrs.jl` run from that workspace root (`--check` fails when a
+copy is stale). Edit the workspace copy, never the copy in this repository.
 
 ## Pull requests
 
