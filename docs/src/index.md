@@ -29,9 +29,10 @@ Catlab out of the model layer (ADR 0009).
   3. a decision reads only internal variables and *observed* input-foot variables;
   4. a utility scope may read any apex variable, inputs included;
   5. the causal-plus-information graph is acyclic;
-  6. composition preserves no-forgetting when the components have it: checked on every
-     composite, reported as a [`NoForgettingError`](@ref) naming the decision and the
-     missing information arc.
+  6. composition introduces no forgetting: checked on every composite, reported as a
+     [`NoForgettingError`](@ref) naming the decision and the missing information arc. A
+     component that forgets within itself is a limited-memory component and is left alone;
+     only forgetting the composite adds is reported.
 - **Composition.** [`compose`](@ref compose(::OpenInfluenceDiagram, ::OpenInfluenceDiagram)),
   [`glue`](@ref glue(::OpenInfluenceDiagram, ::OpenInfluenceDiagram)),
   [`otimes`](@ref otimes(::OpenInfluenceDiagram, ::OpenInfluenceDiagram)) and

@@ -97,12 +97,16 @@ end
 """
     NoForgettingError(decision, variable, earlier)
 
-Rule 6 of the typed-interface rule (ADR 0018, decision 2): the components of a composite
-had no-forgetting, but the composite does not. Decision `earlier` precedes `decision` in
+Rule 6 of the typed-interface rule (ADR 0018, decision 2): composition introduced
+forgetting. Decision `earlier` precedes `decision` in
 the composite, and `variable` (in the information set of `earlier`, or its action) is not
 in the information set of `decision`: the arc `variable -> decision` is missing. Across a
 boundary this means that `variable` was not passed on as an `:observed` interface variable,
 or that the later component's decision does not read it.
+
+A component that forgets *within itself* is not reported here: that is a limited-memory
+component, which is the modeller's choice and is left alone. What is reported is forgetting
+the composite has and no component had, which is the part rule 6 is answerable for.
 """
 struct NoForgettingError <: OpenInfluenceDiagramError
     decision::Symbol
@@ -111,8 +115,8 @@ struct NoForgettingError <: OpenInfluenceDiagramError
 end
 
 function Base.showerror(io::IO, e::NoForgettingError)
-    return print(io, "NoForgettingError: the components have no-forgetting but the ",
-                 "composite does not: decision :", e.decision, " comes after decision :",
+    return print(io, "NoForgettingError: composition introduced forgetting that no ",
+                 "component had: decision :", e.decision, " comes after decision :",
                  e.earlier, " but does not know :", e.variable,
                  " (the information arc :", e.variable, " -> :", e.decision,
                  " is missing); pass :", e.variable,

@@ -91,6 +91,20 @@ function two_stage_drill(; information=(:Test, :Result), observed=[:Test, :Resul
     return Open(id; inputs=[:Oil, :Test, :Result], observed=observed)
 end
 
+# A component that forgets inside itself: `Review` reads the result, so a path runs from the
+# test decision's action to it and the test precedes it, yet it never learns what the test
+# decision did. Used to check that rule 6 excuses a component's own forgetting and still
+# reports forgetting that composition introduces.
+function two_stage_limited(; observed=[:Test, :Result])
+    id = influence_diagram(:Oil => [:dry, :wet], :Test => [:test, :skip],
+                           :Result => [:pos, :neg, :none], :Review => [:yes, :no];
+                           mechanisms=[:Oil => (), :Result => (:Oil, :Test)],
+                           decisions=[:Test => Symbol[], :Review => (:Result,)],
+                           utilities=[:TestCost => :Test, :ReviewCost => :Review],
+                           closed=false)
+    return Open(id; outputs=[:Oil, :Test, :Result], observed=observed)
+end
+
 @testset "Composition" begin
     A = umbrella_chance()
     B = umbrella_decision()
@@ -240,7 +254,7 @@ end
         @test_throws CyclicBayesNetError oapply(cyc, [f, g])
     end
 
-    @testset "rule 6: composition preserves no-forgetting" begin
+    @testset "rule 6: composition introduces no forgetting" begin
         P, Q = two_stage_test(), two_stage_drill()
         C = compose(P, Q)
         @test isvalid(C) && is_isomorphic(apex(C), two_stage_diagram())
@@ -264,6 +278,25 @@ end
             drill(oil, t, result)
         end
         @test_throws NoForgettingError oapply(wire, [P, forgetful])
+
+        # A component may be a limited-memory diagram in its own right. `two_stage_limited`
+        # forgets inside itself: `Review` comes after `Test` and does not know it. That is
+        # the modeller's choice, so rule 6 excuses it and the composite is accepted even
+        # though `_forgetting` of the composite is not empty.
+        L = two_stage_limited()
+        @test !is_no_forgetting(apex(L))
+        @test isvalid(compose(L, two_stage_drill()))
+        # But composition is still answerable for what it introduces. Before this check
+        # looked at the excused violations rather than returning early, a forgetting
+        # component switched rule 6 off for the whole composite, and this compose silently
+        # produced a diagram whose drilling decision ignores the test.
+        e = try
+            compose(L, forgetful)
+        catch err
+            err
+        end
+        @test e == NoForgettingError(:Drill, :Test, :Test)
+        @test isvalid(compose(L, forgetful; no_forgetting=false))
         # Opting out gives the limited-memory composite, which InfluenceDiagrams reports.
         L = compose(P, forgetful; no_forgetting=false)
         @test isvalid(L) && no_forgetting_arcs(apex(L)) == [:Drill => :Test]

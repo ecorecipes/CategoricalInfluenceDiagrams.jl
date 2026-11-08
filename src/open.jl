@@ -547,7 +547,7 @@ open Bayesian network. Then
 3. a decision's information inputs are internal variables or *observed* input-foot
    variables ([`DiagramInterfaceError`](@ref) with rule 3).
 
-Rule 6, that composition preserves no-forgetting, concerns a composite and its components,
+Rule 6, that composition introduces no forgetting, concerns a composite and its components,
 not one diagram, and is checked by the operations that build composites (see
 [`compose`](@ref compose(::OpenInfluenceDiagram, ::OpenInfluenceDiagram))). An output
 variable may be declared observed or hidden freely: whether a later decision may read it is

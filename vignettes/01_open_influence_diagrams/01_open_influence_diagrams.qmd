@@ -114,7 +114,7 @@ The typed-interface rule of open Bayesian networks extends to decisions and util
 Every variable has at most one generator, a chance mechanism or a decision; an input has
 no generator in the apex; a decision reads only internal variables or *observed* inputs;
 a utility may read any variable of the apex; the causal-plus-information graph is
-acyclic; and composition preserves no-forgetting. `Open` checks the rule and throws the
+acyclic; and composition introduces no forgetting. `Open` checks the rule and throws the
 first violation as a typed error.
 
 A decision that reads a hidden input violates rule 3. Declaring the forecast hidden

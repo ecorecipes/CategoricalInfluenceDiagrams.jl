@@ -118,9 +118,14 @@ export `is_isomorphic`, `validate` and `to_graphviz`, and the parents' bindings 
   5. the causal-plus-information graph is acyclic: InfluenceDiagrams' validation
      (`CyclicBayesNetError`, `InvalidInformationSetError(:downstream)`,
      `DecisionPrecedenceCycleError`);
-  6. composition preserves no-forgetting when the components have it: checked by every
-     operation that builds a composite (`NoForgettingError(decision, variable, earlier)`),
-     not by `validation_errors` of one diagram, since it concerns the components.
+  6. composition introduces no forgetting: checked by every operation that builds a
+     composite (`NoForgettingError(decision, variable, earlier)`), not by
+     `validation_errors` of one diagram, since it concerns the components. A component that
+     forgets within itself is a limited-memory component: its own violations are excused and
+     only forgetting the composite adds is reported, so when no component forgets this is
+     the plain statement that the composite must have no-forgetting (ADR 0018, amended
+     2026-11-08; it used to return early and check nothing at all when a component forgot,
+     which made `no_forgetting = true` read as a guarantee while giving none).
      `no_forgetting = false` opts out and yields a limited-memory composite.
 
   The open-network conditions that do not change keep CategoricalBayesianNetworks' errors:

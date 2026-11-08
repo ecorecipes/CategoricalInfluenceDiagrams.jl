@@ -5,7 +5,7 @@ mirroring `CategoricalBayesianNetworks.jl`. Every operation is a pushout or copr
 `InfluenceDiagram` ACSets computed by Catlab. The interfaces are compared first, names,
 states, references and observability, and the composite is re-wrapped and validated:
 rules 1 to 5 of the typed-interface rule on the composite, then rule 6, that composition
-preserves no-forgetting.
+introduces no forgetting.
 """
 
 # Unset references in colimits
@@ -155,9 +155,26 @@ function _validate_composite(o::OpenInfluenceDiagram, pieces; unique::Bool=true,
                              no_forgetting::Bool=true)
     validate(o; unique_names=unique && all(p -> _unique_named(apex(p)), pieces))
     no_forgetting || return nothing
-    all(p -> _has_no_forgetting(apex(p)), pieces) || return nothing
-    errs = _forgetting(apex(o))
-    isempty(errs) || throw(first(errs))
+    # Rule 6 asks that *composition* introduce no forgetting. A component may be a
+    # limited-memory diagram in its own right: that is a choice the modeller made inside the
+    # component, and it is not this check's business, so the component's own violations are
+    # excused before the composite's are reported. When every component has no-forgetting
+    # nothing is excused and this is exactly "the composite has no-forgetting", which is what
+    # ADR 0018 rule 6 originally claimed. When one component forgets, the earlier code
+    # returned here and checked nothing at all, so a decision could come to ignore a variable
+    # belonging to another component with nothing raised to say so -- and because the
+    # precondition failed silently, `no_forgetting = true` read as a guarantee while giving
+    # none. Excusing the inherited violations and reporting the rest keeps the part of rule 6
+    # that composition is still answerable for.
+    inherited = Set{Tuple{Symbol,Symbol,Symbol}}()
+    for p in pieces
+        for e in _forgetting(apex(p))
+            push!(inherited, (e.decision, e.variable, e.earlier))
+        end
+    end
+    for e in _forgetting(apex(o))
+        (e.decision, e.variable, e.earlier) in inherited || throw(e)
+    end
     return nothing
 end
 
@@ -177,9 +194,13 @@ outputs of `B` and their flags.
 
 The composite is validated (see
 [`validation_errors`](@ref validation_errors(::OpenInfluenceDiagram)); with unique names
-when both pieces had them), then **rule 6**: when both components have no-forgetting, so
-must the composite, or a [`NoForgettingError`](@ref) names the first decision that forgets
-and the missing information arc. A decision of `B` that comes after a decision of `A` has to
+when both pieces had them), then **rule 6**: composition must introduce no
+forgetting, or a [`NoForgettingError`](@ref) names the first decision that forgets and the
+missing information arc. A component that forgets within itself is a limited-memory
+component and is left alone; its own violations are excused and only forgetting that the
+composite has and no component had is reported. When both components have no-forgetting
+nothing is excused, so this is the familiar statement that the composite must have
+no-forgetting too. A decision of `B` that comes after a decision of `A` has to
 know what that decision knew and did, and it can only learn it through observed interface
 variables. Here, decision `D_k` precedes `D_l` when a directed path of causal, information or
 precedence arcs runs from the action of `D_k` to the action of `D_l`, and no-forgetting asks
